@@ -43,6 +43,14 @@ let appState = JSON.parse(JSON.stringify(defaultState));
 let calcInsights = {};
 let currentCalculatorId = new URLSearchParams(window.location.search).get('id');
 
+function resetToBlank() {
+    window.history.replaceState(null, null, window.location.pathname);
+    currentCalculatorId = null;
+    appState = JSON.parse(JSON.stringify(defaultState));
+    originalTemplateState = null;
+    switchView('calc');
+    render();
+}
 
 let originalTemplateState = null;
 function getCleanTemplateState(state) {
@@ -200,7 +208,7 @@ function calculateGrades() {
     document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(2);
     document.getElementById('final-heart-score').innerText = finalE_Weighted > 0 ? `+${finalE_Weighted.toFixed(2)}% Heart Bonus ❤️` : '';
 
-    let finalGrade = 5.00;
+let finalGrade = 5.00;
     if (finalE_Weighted > 0) {
         if (appState.enableHeartPoints && appState.heartScale && appState.heartScale.length > 0) {
             const grades = appState.heartScale.map(rule => {
@@ -209,6 +217,7 @@ function calculateGrades() {
             });
             finalGrade = Math.min(...grades); 
         } else {
+            // If toggle is OFF, treat heart points as standard points
             finalGrade = scoreToGrade(finalR_Weighted + finalE_Weighted);
         }
     } else {
@@ -315,7 +324,7 @@ function render() {
                         <th class="col-item">Item Name</th>
                         <th class="col-num">Score</th>
                         <th class="col-num">Max</th>
-                        <th class="col-num"><span class="heart-text">Extra</span></th>
+                        ${appState.enableHeartPoints ? `<th class="col-num"><span class="heart-text">Extra</span></th>` : ''}
                         ${cat.calcMode === 'weighted' ? `<th class="col-num">Weight</th>` : ''}
                         ${showBreakdown ? `<th class="col-num">Eff. %</th><th class="col-num">Score %</th><th class="col-num">Contrib.</th>` : ''}
                         <th class="edit-only ${isEdit ? '' : 'hidden'}" style="width: 30px;"></th>
@@ -342,8 +351,13 @@ function render() {
                         ` : comp.max}
                     </td>
                     
-                    <td class="col-num"><input type="number" value="${comp.extraPoints || 0}" onchange="updateComp(${cIndex}, ${compIndex}, 'extraPoints', Number(this.value))" class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;"></td>
-                    
+                    ${appState.enableHeartPoints ? `
+                        <td class="col-num">
+                            <input type="number" value="${comp.extraPoints || 0}" 
+                                onchange="updateComp(${cIndex}, ${compIndex}, 'extraPoints', Number(this.value))" 
+                                class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;">
+                        </td>` : ''}
+                        
                     ${cat.calcMode === 'weighted' ? `<td class="col-num">${isEdit ? `<input type="text" value="${comp.weight}" onchange="updateComp(${cIndex}, ${compIndex}, 'weight', this.value)">` : comp.weight}</td>` : ''}
                     
                     ${showBreakdown ? `
@@ -459,7 +473,7 @@ async function fetchAndRenderCalculators(searchQuery = '') {
 
     // create card blank
     let html = `
-        <div class="calc-card blank-card" onclick="window.location.href=window.location.pathname">
+        <div class="calc-card blank-card" onclick="resetToBlank()">
             <span style="font-size: 2rem; margin-bottom: 0.5rem;">+</span>
             <h3>Create Blank Calculator</h3>
         </div>
@@ -613,8 +627,7 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
     const content = document.getElementById('stats-content');
     const warning = document.getElementById('stats-minimum-warning');
     if (!lockedView || !content || !warning) return; 
-    // -----------------------------------------------------------------------------------
-
+    
     const isSubmitted = hasUserSubmitted(calculatorId);
     
     const { data, error } = await supabaseClient

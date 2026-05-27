@@ -202,6 +202,27 @@ th, td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
     margin-left: -5px; border-width: 5px; border-style: solid;
     border-color: var(--text-main) transparent transparent transparent;
 }
+
+.active-grade-row {
+    background-color: var(--up-maroon);
+    color: white;
+}
+
+.active-grade-row input {
+    color: white;
+    background-color: transparent;
+    border-color: white;
+}
+
+.heart-highlight {
+    color: white;
+    background-color: var(--up-maroon);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+
 .info-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 .footer-content { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
 .footer-links { font-size: 0.85rem; color: var(--text-muted); }
