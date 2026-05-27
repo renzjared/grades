@@ -6,6 +6,46 @@ let chartInstance = null;
 
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
+const scalePresets = {
+    '1.0-5.0': {
+        gradeScale: [
+            { min: 92, grade: "1.00" }, { min: 88, grade: "1.25" },
+            { min: 84, grade: "1.50" }, { min: 80, grade: "1.75" },
+            { min: 76, grade: "2.00" }, { min: 72, grade: "2.25" },
+            { min: 68, grade: "2.50" }, { min: 64, grade: "2.75" },
+            { min: 60, grade: "3.00" }, { min: 0,  grade: "5.00" }
+        ],
+        heartScale: [
+            { limit: "2.00", mult: 1.00 }, { limit: "1.75", mult: 0.40 },
+            { limit: "1.50", mult: 0.16 }, { limit: "1.25", mult: 0.06 },
+            { limit: "1.00", mult: 0.02 }
+        ]
+    },
+    '4.0-0.0': {
+        gradeScale: [
+            { min: 93, grade: "4.0" }, { min: 90, grade: "3.7" },
+            { min: 87, grade: "3.3" }, { min: 83, grade: "3.0" },
+            { min: 80, grade: "2.7" }, { min: 77, grade: "2.3" },
+            { min: 73, grade: "2.0" }, { min: 70, grade: "1.7" },
+            { min: 67, grade: "1.3" }, { min: 65, grade: "1.0" },
+            { min: 0, grade: "0.0" }
+        ],
+        heartScale: []
+    },
+    'letter': {
+        gradeScale: [
+            { min: 90, grade: "A" }, { min: 80, grade: "B" },
+            { min: 70, grade: "C" }, { min: 60, grade: "D" },
+            { min: 0, grade: "F" }
+        ],
+        heartScale: []
+    },
+    'percentage': {
+        gradeScale: [],
+        heartScale: []
+    }
+};
+
 const defaultState = {
     subject: "New Subject",
     isEditMode: true,
@@ -13,13 +53,8 @@ const defaultState = {
     showBreakdown: false,
     globalPassingScore: 60,
     enableHeartPoints: true,
-    heartScale: [
-        { limit: 2.00, mult: 1.00 },
-        { limit: 1.75, mult: 0.40 },
-        { limit: 1.50, mult: 0.16 },
-        { limit: 1.25, mult: 0.06 },
-        { limit: 1.00, mult: 0.02 }
-    ],
+    gradingSystemType: "1.0-5.0",
+    heartScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].heartScale)),
     categories: [
         {
             id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true,
@@ -29,13 +64,7 @@ const defaultState = {
             ]
         }
     ],
-    gradeScale: [
-        { min: 92, grade: 1.00 }, { min: 88, grade: 1.25 },
-        { min: 84, grade: 1.50 }, { min: 80, grade: 1.75 },
-        { min: 76, grade: 2.00 }, { min: 72, grade: 2.25 },
-        { min: 68, grade: 2.50 }, { min: 64, grade: 2.75 },
-        { min: 60, grade: 3.00 }, { min: 0,  grade: 5.00 }
-    ]
+    gradeScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].gradeScale))
 };
 
 let appState = JSON.parse(JSON.stringify(defaultState));
@@ -46,7 +75,6 @@ function resetToBlank() {
     window.history.replaceState(null, null, window.location.pathname);
     currentCalculatorId = null;
     
-    // check if the user has a saved workspace for their blank calculator
     const savedBlank = localStorage.getItem('calc_state_blank');
     if (savedBlank) {
         try { appState = JSON.parse(savedBlank); } 
@@ -108,15 +136,16 @@ function setSubmissionStatus(calculatorId) {
 }
 
 function scoreToGrade(percentage) {
+    if (!appState.gradeScale || appState.gradeScale.length === 0) return `${percentage.toFixed(2)}%`;
     const scale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
     for (let item of scale) {
-        if (percentage >= item.min) return item.grade;
+        if (percentage >= item.min) return String(item.grade);
     }
-    return 5.00;
+    return String(scale[scale.length - 1].grade);
 }
 
 function calculateGrades() {
-    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1 };
+    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1, finalPercentage: 0 };
     
     let totalCatWeightValue = 0;
     appState.categories.forEach(cat => totalCatWeightValue += parseWeight(cat.weight));
@@ -217,30 +246,50 @@ function calculateGrades() {
 
     document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(2);
 
-    let finalGrade = 5.00;
+    let finalPercentage = finalR_Weighted;
+    let finalGradeString = "";
     
     if (finalE_Weighted > 0 && appState.enableHeartPoints) {
-        if (appState.heartScale && appState.heartScale.length > 0) {
-            let minGrade = 5.00;
-            let bestHeartIdx = -1;
+        if (appState.heartScale && appState.heartScale.length > 0 && appState.gradeScale && appState.gradeScale.length > 0) {
+            const sortedScale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
+            let bestGradeIndex = sortedScale.length; 
+            
             appState.heartScale.forEach((rule, idx) => {
-                let computed = scoreToGrade(finalR_Weighted + (finalE_Weighted * rule.mult));
-                let clamped = Math.max(rule.limit, computed);
-                if (bestHeartIdx === -1 || clamped < minGrade) {
-                    minGrade = clamped;
-                    bestHeartIdx = idx;
+                let computedPercent = finalR_Weighted + (finalE_Weighted * rule.mult);
+                let computedGradeStr = scoreToGrade(computedPercent);
+                let computedIndex = sortedScale.findIndex(g => String(g.grade) === String(computedGradeStr));
+                
+                let limitIndex = sortedScale.findIndex(g => String(g.grade) === String(rule.limit));
+                if (limitIndex === -1) limitIndex = 0; 
+                
+                let finalIndexForRule = Math.max(computedIndex, limitIndex);
+                
+                if (finalIndexForRule < bestGradeIndex) {
+                    bestGradeIndex = finalIndexForRule;
+                    calcInsights.activeHeartIndex = idx;
+                    finalPercentage = Math.max(finalPercentage, computedPercent);
                 }
             });
-            finalGrade = minGrade;
-            calcInsights.activeHeartIndex = bestHeartIdx;
+            
+            if (bestGradeIndex < sortedScale.length) {
+                finalGradeString = sortedScale[bestGradeIndex].grade;
+                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+            }
         } else {
-            finalGrade = scoreToGrade(finalR_Weighted + finalE_Weighted);
+            finalPercentage = finalR_Weighted + finalE_Weighted;
+            finalGradeString = scoreToGrade(finalPercentage);
+            if (appState.gradeScale && appState.gradeScale.length > 0) {
+                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+            }
         }
     } else {
-        finalGrade = scoreToGrade(finalR_Weighted);
+        finalGradeString = scoreToGrade(finalPercentage);
+        if (appState.gradeScale && appState.gradeScale.length > 0) {
+            calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+        }
     }
     
-    calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => g.grade === finalGrade);
+    calcInsights.finalPercentage = finalPercentage;
 
     if (finalE_Weighted > 0 && appState.enableHeartPoints) {
         let multText = "";
@@ -254,8 +303,9 @@ function calculateGrades() {
     }
 
     const gradeDisplay = document.getElementById('final-grade');
-    gradeDisplay.innerText = finalGrade.toFixed(2);
-    gradeDisplay.style.color = finalGrade <= 3.00 ? "var(--up-green)" : "var(--up-maroon)";
+    gradeDisplay.innerText = finalGradeString;
+    gradeDisplay.style.color = finalPercentage >= appState.globalPassingScore ? "var(--up-green)" : "var(--up-maroon)";
+    
     document.getElementById('passing-warnings').innerHTML = calcInsights.warnings.map(w => `<div>⚠️ ${w}</div>`).join('');
 }
 
@@ -263,7 +313,6 @@ function calculateGrades() {
 function render() {
     calculateGrades(); 
 
-    // save state for persistence
     const idToSave = currentCalculatorId || 'blank';
     localStorage.setItem(`calc_state_${idToSave}`, JSON.stringify(appState));
 
@@ -281,6 +330,9 @@ function render() {
     document.body.setAttribute('data-theme', appState.darkMode ? 'dark' : 'light');
     document.getElementById('theme-btn').innerHTML = appState.darkMode ? 'Light Mode' : 'Dark Mode';
     
+    const presetSelector = document.getElementById('preset-selector');
+    if (presetSelector) presetSelector.value = appState.gradingSystemType || "1.0-5.0";
+
     const isEdit = appState.isEditMode;
     const showBreakdown = appState.showBreakdown;
     document.getElementById('mode-btn').innerHTML = isEdit ? 'View Mode' : 'Edit Mode';
@@ -293,18 +345,23 @@ function render() {
     document.getElementById('global-passing').disabled = !isEdit;
 
     const scaleBody = document.getElementById('grade-scale-body');
-    scaleBody.innerHTML = appState.gradeScale.map((item, idx) => `
-        <tr class="${idx === calcInsights.activeGradeIndex ? 'active-grade-row' : ''}">
-            <td>${isEdit ? `<input type="number" value="${item.min}" onchange="updateScale(${idx}, 'min', Number(this.value))" class="input-minimal" style="width:85px;">%` : `≥ ${item.min}%`}</td>
-            <td style="font-weight: 500;">${isEdit ? `<input type="number" value="${item.grade}" step="0.25" onchange="updateScale(${idx}, 'grade', Number(this.value))" class="input-minimal" style="width:85px;">` : item.grade.toFixed(2)}</td>
-            <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeScale(${idx})">×</button></td>
-        </tr>
-    `).join('');
+    if (appState.gradeScale && appState.gradeScale.length > 0) {
+        document.querySelector('.grade-scale-card').classList.remove('hidden');
+        scaleBody.innerHTML = appState.gradeScale.map((item, idx) => `
+            <tr class="${idx === calcInsights.activeGradeIndex ? 'active-grade-row' : ''}">
+                <td>${isEdit ? `<input type="number" value="${item.min}" onchange="updateScale(${idx}, 'min', Number(this.value))" class="input-minimal" style="width:85px;">%` : `≥ ${item.min}%`}</td>
+                <td style="font-weight: 500;">${isEdit ? `<input type="text" value="${item.grade}" onchange="updateScale(${idx}, 'grade', this.value)" class="input-minimal" style="width:85px;">` : item.grade}</td>
+                <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeScale(${idx})">×</button></td>
+            </tr>
+        `).join('');
+    } else {
+        document.querySelector('.grade-scale-card').classList.add('hidden');
+    }
 
     document.getElementById('enable-heart-points').checked = appState.enableHeartPoints;
     
     const heartCard = document.querySelector('.heart-scale-card');
-    if (!appState.enableHeartPoints) {
+    if (!appState.enableHeartPoints || !appState.heartScale || appState.heartScale.length === 0) {
         heartCard.classList.add('hidden');
     } else {
         heartCard.classList.remove('hidden');
@@ -312,7 +369,7 @@ function render() {
         if (appState.heartScale) {
             heartBody.innerHTML = appState.heartScale.map((item, idx) => `
                 <tr class="${idx === calcInsights.activeHeartIndex ? 'active-grade-row' : ''}">
-                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Max Grade:</span> ${isEdit ? `<input type="number" value="${item.limit}" step="0.25" onchange="updateHeartScale(${idx}, 'limit', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.limit.toFixed(2)}</span>`}</td>
+                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Max Grade:</span> ${isEdit ? `<input type="text" value="${item.limit}" onchange="updateHeartScale(${idx}, 'limit', this.value)" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.limit}</span>`}</td>
                     <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Mult:</span> ${isEdit ? `<input type="number" value="${item.mult}" step="0.01" onchange="updateHeartScale(${idx}, 'mult', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.mult.toFixed(2)}x</span>`}</td>
                     <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeHeartScale(${idx})">×</button></td>
                 </tr>
@@ -441,16 +498,39 @@ document.getElementById('subject-name').addEventListener('change', (e) => { appS
 document.getElementById('global-passing').addEventListener('change', (e) => { appState.globalPassingScore = Number(e.target.value); render(); });
 document.getElementById('enable-heart-points').addEventListener('change', (e) => { appState.enableHeartPoints = e.target.checked; render(); });
 
+document.getElementById('preset-selector').addEventListener('change', (e) => {
+    const selected = e.target.value;
+    appState.gradingSystemType = selected;
+    if (scalePresets[selected]) {
+        appState.gradeScale = JSON.parse(JSON.stringify(scalePresets[selected].gradeScale));
+        appState.heartScale = JSON.parse(JSON.stringify(scalePresets[selected].heartScale));
+    }
+    render();
+});
+
 document.getElementById('add-category-btn').addEventListener('click', () => {
     appState.categories.push({ id: generateId(), name: "New Category", weight: "1", calcMode: 'weighted', passingScore: "", capAtMax: true, components: [] });
     render();
 });
-document.getElementById('add-scale-btn').addEventListener('click', () => { appState.gradeScale.push({ min: 50, grade: 4.00 }); render(); });
-document.getElementById('add-heart-scale-btn').addEventListener('click', () => { appState.heartScale.push({ limit: 1.00, mult: 1.00 }); render(); });
+document.getElementById('add-scale-btn').addEventListener('click', () => { appState.gradeScale.push({ min: 50, grade: "4.00" }); render(); });
+document.getElementById('add-heart-scale-btn').addEventListener('click', () => { appState.heartScale.push({ limit: "1.00", mult: 1.00 }); render(); });
 
 document.getElementById('mode-btn').addEventListener('click', () => { appState.isEditMode = !appState.isEditMode; render(); });
 document.getElementById('theme-btn').addEventListener('click', () => { appState.darkMode = !appState.darkMode; render(); });
 document.getElementById('breakdown-btn').addEventListener('click', () => { appState.showBreakdown = !appState.showBreakdown; render(); });
+document.getElementById('reset-scores-btn').addEventListener('click', (e) => {
+    appState.categories.forEach(cat => {
+        cat.components.forEach(comp => {
+            comp.score = 0;
+            comp.extraPoints = 0;
+        });
+    });
+    render();
+    
+    const btn = e.target;
+    btn.innerText = "✓ Scores Reset!";
+    setTimeout(() => btn.innerText = "↺ Reset Scores", 2000);
+});
 
 function switchView(viewName) {
     if (viewName === 'calc') {
@@ -616,7 +696,7 @@ async function loadCalculatorFromSupabase() {
         .single();
 
     if (data) {
-        originalTemplateState = JSON.parse(JSON.stringify(data.config));
+        originalTemplateState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
         
         // check if the user has visited this specific calculator before and saved personal scores
         const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);
@@ -627,7 +707,7 @@ async function loadCalculatorFromSupabase() {
                 if (parsedState.subject === "New Subject" && data.config.subject !== "New Subject") {
                     appState = { ...defaultState, ...data.config };
                 } else {
-                    appState = parsedState; 
+                    appState = { ...defaultState, ...data.config, ...parsedState }; 
                 }
             } catch(e) { 
                 appState = { ...defaultState, ...data.config }; 
@@ -657,8 +737,8 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
     btn.innerText = "Submitting...";
     btn.disabled = true;
 
-    const rawScore = calcInsights.totalRaw; 
-    const finalGrade = parseFloat(document.getElementById('final-grade').innerText);
+    const rawScore = calcInsights.finalPercentage; 
+    const finalGrade = document.getElementById('final-grade').innerText;
 
     const { error } = await supabaseClient
         .from('submissions')
@@ -668,7 +748,7 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
         btn.innerText = "Submitted!";
         btn.disabled = true;
         setSubmissionStatus(currentCalculatorId); 
-        fetchAndRenderStats(currentCalculatorId, finalGrade); 
+        fetchAndRenderStats(currentCalculatorId, rawScore); 
     } else {
         console.error(error);
         btn.innerText = "Error Submitting";
@@ -676,7 +756,7 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
     }
 });
 
-async function fetchAndRenderStats(calculatorId, userGrade = null) {
+async function fetchAndRenderStats(calculatorId, userRawScore = null) {
     const lockedView = document.getElementById('stats-locked-view');
     const content = document.getElementById('stats-content');
     const warning = document.getElementById('stats-minimum-warning');
@@ -686,62 +766,86 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
     
     const { data, error } = await supabaseClient
         .from('submissions')
-        .select('final_grade')
+        .select('final_grade, raw_score')
         .eq('calculator_id', calculatorId);
 
     if (error || !data) return;
 
-    const grades = data.map(d => d.final_grade);
-    const N = grades.length;
+    const N = data.length;
 
     if (!isSubmitted) {
-        document.getElementById('stats-locked-view').classList.remove('hidden');
-        document.getElementById('stats-content').classList.add('hidden');
-        document.getElementById('stats-minimum-warning').classList.add('hidden');
+        lockedView.classList.remove('hidden');
+        content.classList.add('hidden');
+        warning.classList.add('hidden');
         return;
     }
-    document.getElementById('stats-locked-view').classList.add('hidden');
+    lockedView.classList.add('hidden');
     
     if (N < 3) { 
-        document.getElementById('stats-minimum-warning').classList.remove('hidden');
+        warning.classList.remove('hidden');
         document.getElementById('stats-needed').innerText = 3 - N;
-        document.getElementById('stats-content').classList.add('hidden');
+        content.classList.add('hidden');
         return;
     }
-    document.getElementById('stats-minimum-warning').classList.add('hidden');
-    document.getElementById('stats-content').classList.remove('hidden');
+    warning.classList.add('hidden');
+    content.classList.remove('hidden');
 
-    // if (userGrade !== null) {
-    //     const betterScoresCount = grades.filter(g => g < userGrade).length;
-    //     const equalScoresCount = grades.filter(g => g === userGrade).length;
-    //     const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
-    //     document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
-    // }
-    let targetGrade = userGrade !== null ? userGrade : parseFloat(document.getElementById('final-grade').innerText);
-    if (!isNaN(targetGrade)) {
-        const betterScoresCount = grades.filter(g => g < targetGrade).length;
-        const equalScoresCount = grades.filter(g => g === targetGrade).length;
+    const rawScores = data.map(d => d.raw_score);
+    let targetRaw = userRawScore !== null ? userRawScore : calcInsights.finalPercentage;
+    
+    if (targetRaw !== undefined && !isNaN(targetRaw)) {
+        const betterScoresCount = rawScores.filter(s => s > targetRaw).length;
+        const equalScoresCount = rawScores.filter(s => s === targetRaw).length;
         const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
         document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
     }
 
+    const grades = data.map(d => d.final_grade);
     const gradeCounts = {};
-    appState.gradeScale.forEach(scale => gradeCounts[scale.grade.toFixed(2)] = 0);
-    grades.forEach(g => {
-        const key = g.toFixed(2);
-        if(gradeCounts[key] !== undefined) gradeCounts[key]++;
-    });
+    
+    if (appState.gradeScale && appState.gradeScale.length > 0) {
+        appState.gradeScale.forEach(scale => gradeCounts[String(scale.grade)] = 0);
+        grades.forEach(g => {
+            const key = String(g);
+            if(gradeCounts[key] !== undefined) gradeCounts[key]++;
+        });
+    } else {
+        grades.forEach(g => {
+            const key = String(g);
+            if(gradeCounts[key] === undefined) gradeCounts[key] = 0;
+            gradeCounts[key]++;
+        });
+    }
 
     const ctx = document.getElementById('gradeChart').getContext('2d');
     if (chartInstance) chartInstance.destroy();
 
+    let labels = [];
+    let values = [];
+
+    if (appState.gradeScale && appState.gradeScale.length > 0) {
+        const scale = [...appState.gradeScale];
+
+        const isNumeric = !isNaN(scale[0].grade);
+        if (isNumeric) {
+            scale.sort((a, b) => Number(a.grade) - Number(b.grade));
+        }
+        labels = scale.map(s => String(s.grade));
+        values = labels.map(l => gradeCounts[l] || 0);
+
+    } else {
+        // fallback (percent mode)
+        labels = Object.keys(gradeCounts).sort((a, b) => Number(a) - Number(b));
+        values = labels.map(l => gradeCounts[l]);
+    }
+
     chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: Object.keys(gradeCounts),
+            labels: labels,
             datasets: [{
                 label: 'Students',
-                data: Object.values(gradeCounts),
+                data: values,
                 backgroundColor: 'rgba(123, 17, 19, 0.7)',
                 borderColor: '#7b1113',
                 borderWidth: 1
