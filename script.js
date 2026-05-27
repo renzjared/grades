@@ -82,6 +82,15 @@ function parseWeight(val) {
     return isNaN(res) ? 0 : res;
 }
 
+// Check if user already submitted for this specific calculator
+function hasUserSubmitted(calculatorId) {
+    return localStorage.getItem(`submitted_${calculatorId}`) === 'true';
+}
+
+function setSubmissionStatus(calculatorId) {
+    localStorage.setItem(`submitted_${calculatorId}`, 'true');
+}
+
 function scoreToGrade(percentage) {
     const scale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
     for (let item of scale) {
@@ -580,7 +589,9 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
 
     if (!error) {
         btn.innerText = "Submitted!";
-        fetchAndRenderStats(currentCalculatorId, finalGrade);
+        btn.disabled = true;
+        setSubmissionStatus(currentCalculatorId); // Mark as submitted locally
+        fetchAndRenderStats(currentCalculatorId, finalGrade); // Unlock the chart!
     } else {
         console.error(error);
         btn.innerText = "Error Submitting";
@@ -589,6 +600,7 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
 });
 
 async function fetchAndRenderStats(calculatorId, userGrade = null) {
+    const isSubmitted = hasUserSubmitted(calculatorId);
     const { data, error } = await supabaseClient
         .from('submissions')
         .select('final_grade')
@@ -596,16 +608,21 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
 
     if (error || !data) return;
 
-    const grades = data.map(d => d.final_grade);
-    const N = grades.length;
-
+    const N = data.length;
+    if (!isSubmitted) {
+        document.getElementById('stats-locked-view').classList.remove('hidden');
+        document.getElementById('stats-content').classList.add('hidden');
+        document.getElementById('stats-minimum-warning').classList.add('hidden');
+        return;
+    }
+    document.getElementById('stats-locked-view').classList.add('hidden');
+    
     if (N < 3) { 
         document.getElementById('stats-minimum-warning').classList.remove('hidden');
         document.getElementById('stats-needed').innerText = 3 - N;
         document.getElementById('stats-content').classList.add('hidden');
         return;
     }
-
     document.getElementById('stats-minimum-warning').classList.add('hidden');
     document.getElementById('stats-content').classList.remove('hidden');
 
@@ -644,6 +661,7 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
         }
     });
 }
+
 
 render();
 loadCalculatorFromSupabase();
