@@ -1,7 +1,6 @@
 const SUPABASE_URL = 'https://hjpihzsdebckouckxewi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqcGloenNkZWJja291Y2t4ZXdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4ODY2NjYsImV4cCI6MjA5NTQ2MjY2Nn0.XyXSuxb51G_08PLgrKwt1RvYmVwgIajqCnMWuS_V82c';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-// dont worry guys this is safe
 
 let chartInstance = null;
 
@@ -55,9 +54,10 @@ function resetToBlank() {
 let originalTemplateState = null;
 function getCleanTemplateState(state) {
     if (!state) return null;
-    const clean = JSON.parse(JSON.stringify(state)); // Deep copy
+    const clean = JSON.parse(JSON.stringify(state)); 
     delete clean.isEditMode;
     delete clean.showBreakdown;
+    delete clean.darkMode; 
     
     clean.categories.forEach(cat => {
         cat.components.forEach(comp => {
@@ -69,7 +69,7 @@ function getCleanTemplateState(state) {
 }
 
 function hasTemplateChanged() {
-    if (!originalTemplateState) return true; // if no original state, it's a brand new calculator
+    if (!originalTemplateState) return true; 
     const cleanCurrent = getCleanTemplateState(appState);
     const cleanOriginal = getCleanTemplateState(originalTemplateState);
     return JSON.stringify(cleanCurrent) !== JSON.stringify(cleanOriginal);
@@ -90,7 +90,6 @@ function parseWeight(val) {
     return isNaN(res) ? 0 : res;
 }
 
-// Check if user already submitted for this specific calculator
 function hasUserSubmitted(calculatorId) {
     return localStorage.getItem(`submitted_${calculatorId}`) === 'true';
 }
@@ -108,7 +107,7 @@ function scoreToGrade(percentage) {
 }
 
 function calculateGrades() {
-    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [] };
+    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1 };
     
     let totalCatWeightValue = 0;
     appState.categories.forEach(cat => totalCatWeightValue += parseWeight(cat.weight));
@@ -130,7 +129,8 @@ function calculateGrades() {
             let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0 };
             
             let actualScore = comp.score;
-            let actualExtra = comp.extraPoints || 0;
+            let actualExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
+            
             if (comp.capAtMax) {
                 if (actualScore > comp.max) actualScore = comp.max;
                 if (actualScore + actualExtra > comp.max) {
@@ -169,7 +169,8 @@ function calculateGrades() {
             catInsight.components.forEach((cInsight, i) => {
                 let c = cat.components[i];
                 let actualScore = c.score;
-                let actualExtra = c.extraPoints || 0;
+                let actualExtra = appState.enableHeartPoints ? (c.extraPoints || 0) : 0;
+                
                 if (c.capAtMax) {
                     if (actualScore > c.max) actualScore = c.max;
                     if (actualScore + actualExtra > c.max) actualExtra = Math.max(0, c.max - actualScore);
@@ -206,22 +207,41 @@ function calculateGrades() {
     calcInsights.totalExtra = finalE_Weighted;
 
     document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(2);
-    document.getElementById('final-heart-score').innerText = finalE_Weighted > 0 ? `+${finalE_Weighted.toFixed(2)}% Heart Bonus ❤️` : '';
 
-let finalGrade = 5.00;
-    if (finalE_Weighted > 0) {
-        if (appState.enableHeartPoints && appState.heartScale && appState.heartScale.length > 0) {
-            const grades = appState.heartScale.map(rule => {
+    let finalGrade = 5.00;
+    
+    if (finalE_Weighted > 0 && appState.enableHeartPoints) {
+        if (appState.heartScale && appState.heartScale.length > 0) {
+            let minGrade = 5.00;
+            let bestHeartIdx = -1;
+            appState.heartScale.forEach((rule, idx) => {
                 let computed = scoreToGrade(finalR_Weighted + (finalE_Weighted * rule.mult));
-                return Math.max(rule.limit, computed);
+                let clamped = Math.max(rule.limit, computed);
+                if (bestHeartIdx === -1 || clamped < minGrade) {
+                    minGrade = clamped;
+                    bestHeartIdx = idx;
+                }
             });
-            finalGrade = Math.min(...grades); 
+            finalGrade = minGrade;
+            calcInsights.activeHeartIndex = bestHeartIdx;
         } else {
-            // If toggle is OFF, treat heart points as standard points
             finalGrade = scoreToGrade(finalR_Weighted + finalE_Weighted);
         }
     } else {
         finalGrade = scoreToGrade(finalR_Weighted);
+    }
+    
+    calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => g.grade === finalGrade);
+
+    if (finalE_Weighted > 0 && appState.enableHeartPoints) {
+        let multText = "";
+        if (calcInsights.activeHeartIndex !== -1 && appState.heartScale && appState.heartScale.length > 0) {
+            let mult = appState.heartScale[calcInsights.activeHeartIndex].mult;
+            multText = ` (${(mult * 100).toFixed(0)}%)`;
+        }
+        document.getElementById('final-heart-score').innerText = `+${finalE_Weighted.toFixed(2)}% Extra Points ❤️${multText}`;
+    } else {
+        document.getElementById('final-heart-score').innerText = '';
     }
 
     const gradeDisplay = document.getElementById('final-grade');
@@ -261,7 +281,7 @@ function render() {
 
     const scaleBody = document.getElementById('grade-scale-body');
     scaleBody.innerHTML = appState.gradeScale.map((item, idx) => `
-        <tr>
+        <tr class="${idx === calcInsights.activeGradeIndex ? 'active-grade-row' : ''}">
             <td>${isEdit ? `<input type="number" value="${item.min}" onchange="updateScale(${idx}, 'min', Number(this.value))" class="input-minimal" style="width:85px;">%` : `≥ ${item.min}%`}</td>
             <td style="font-weight: 500;">${isEdit ? `<input type="number" value="${item.grade}" step="0.25" onchange="updateScale(${idx}, 'grade', Number(this.value))" class="input-minimal" style="width:85px;">` : item.grade.toFixed(2)}</td>
             <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeScale(${idx})">×</button></td>
@@ -269,15 +289,22 @@ function render() {
     `).join('');
 
     document.getElementById('enable-heart-points').checked = appState.enableHeartPoints;
-    const heartBody = document.getElementById('heart-scale-body');
-    if (appState.heartScale) {
-        heartBody.innerHTML = appState.heartScale.map((item, idx) => `
-            <tr>
-                <td><span style="font-size: 0.8rem; color: var(--text-muted);">Max Grade:</span> ${isEdit ? `<input type="number" value="${item.limit}" step="0.25" onchange="updateHeartScale(${idx}, 'limit', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.limit.toFixed(2)}</span>`}</td>
-                <td><span style="font-size: 0.8rem; color: var(--text-muted);">Mult:</span> ${isEdit ? `<input type="number" value="${item.mult}" step="0.01" onchange="updateHeartScale(${idx}, 'mult', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.mult.toFixed(2)}x</span>`}</td>
-                <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeHeartScale(${idx})">×</button></td>
-            </tr>
-        `).join('');
+    
+    const heartCard = document.querySelector('.heart-scale-card');
+    if (!appState.enableHeartPoints) {
+        heartCard.classList.add('hidden');
+    } else {
+        heartCard.classList.remove('hidden');
+        const heartBody = document.getElementById('heart-scale-body');
+        if (appState.heartScale) {
+            heartBody.innerHTML = appState.heartScale.map((item, idx) => `
+                <tr class="${idx === calcInsights.activeHeartIndex ? 'active-grade-row' : ''}">
+                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Max Grade:</span> ${isEdit ? `<input type="number" value="${item.limit}" step="0.25" onchange="updateHeartScale(${idx}, 'limit', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.limit.toFixed(2)}</span>`}</td>
+                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Mult:</span> ${isEdit ? `<input type="number" value="${item.mult}" step="0.01" onchange="updateHeartScale(${idx}, 'mult', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.mult.toFixed(2)}x</span>`}</td>
+                    <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeHeartScale(${idx})">×</button></td>
+                </tr>
+            `).join('');
+        }
     }
 
     const container = document.getElementById('categories-container');
@@ -384,7 +411,6 @@ function render() {
     });
 }
 
-// EVENT LISTENERS / MODIFIERS
 window.updateCat = (cIdx, field, val) => { appState.categories[cIdx][field] = val; render(); };
 window.removeCat = (cIdx) => { appState.categories.splice(cIdx, 1); render(); };
 window.updateComp = (cIdx, compIdx, field, val) => { appState.categories[cIdx].components[compIdx][field] = val; render(); };
@@ -413,8 +439,6 @@ document.getElementById('mode-btn').addEventListener('click', () => { appState.i
 document.getElementById('theme-btn').addEventListener('click', () => { appState.darkMode = !appState.darkMode; render(); });
 document.getElementById('breakdown-btn').addEventListener('click', () => { appState.showBreakdown = !appState.showBreakdown; render(); });
 
-
-// navigation/explore
 function switchView(viewName) {
     if (viewName === 'calc') {
         document.getElementById('calculator-view').classList.remove('hidden');
@@ -422,7 +446,6 @@ function switchView(viewName) {
         document.getElementById('nav-calc-btn').classList.add('active-nav');
         document.getElementById('nav-explore-btn').classList.remove('active-nav');
         
-        // Hide specific header controls on explore page
         document.getElementById('mode-btn').classList.remove('hidden');
         document.getElementById('share-btn').classList.remove('hidden');
     } else if (viewName === 'explore') {
@@ -443,7 +466,6 @@ document.getElementById('nav-explore-btn').addEventListener('click', () => {
 });
 
 document.getElementById('search-input').addEventListener('input', (e) => {
-    // Basic debounce to avoid spamming the DB
     clearTimeout(window.searchTimeout);
     window.searchTimeout = setTimeout(() => {
         fetchAndRenderCalculators(e.target.value);
@@ -471,7 +493,6 @@ async function fetchAndRenderCalculators(searchQuery = '') {
         return;
     }
 
-    // create card blank
     let html = `
         <div class="calc-card blank-card" onclick="resetToBlank()">
             <span style="font-size: 2rem; margin-bottom: 0.5rem;">+</span>
@@ -494,11 +515,9 @@ async function fetchAndRenderCalculators(searchQuery = '') {
     grid.innerHTML = html;
 }
 
-// SUPABASE: Share Template (Wipes scores, pushes to DB, updates URL)
 document.getElementById('share-btn').addEventListener('click', async () => {
     const btn = document.getElementById('share-btn');
     
-    // template hasnt changed; copy same link
     if (currentCalculatorId && !hasTemplateChanged()) {
         const shareUrl = window.location.origin + window.location.pathname + '?id=' + currentCalculatorId;
         navigator.clipboard.writeText(shareUrl);
@@ -507,14 +526,12 @@ document.getElementById('share-btn').addEventListener('click', async () => {
         return;
     }
 
-    // configuration was changed // brand new so we save to database
     btn.innerText = "Saving...";
     
     const shareState = JSON.parse(JSON.stringify(appState));
     shareState.isEditMode = false;
     shareState.showBreakdown = false;
     
-    // Wipe personal scores for the public template
     shareState.categories.forEach(cat => {
         cat.components.forEach(comp => {
             comp.score = 0; comp.extraPoints = 0;
@@ -533,7 +550,6 @@ document.getElementById('share-btn').addEventListener('click', async () => {
         return;
     }
     
-    // Update local context
     currentCalculatorId = data[0].id;
     originalTemplateState = JSON.parse(JSON.stringify(shareState)); 
     const shareUrl = window.location.origin + window.location.pathname + '?id=' + currentCalculatorId;
@@ -546,9 +562,8 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     
     navigator.clipboard.writeText(shareUrl);
     btn.innerText = "Template Saved & Copied!";
-    setTimeout(() => render(), 2000); // Reset button text via render
+    setTimeout(() => render(), 2000); 
 });
-
 
 document.getElementById('sidebar-copy-btn').addEventListener('click', () => {
     const urlInput = document.getElementById('sidebar-share-url');
@@ -559,7 +574,6 @@ document.getElementById('sidebar-copy-btn').addEventListener('click', () => {
     setTimeout(() => btn.innerText = "Copy", 2000);
 });
 
-// Load Template on Init
 async function loadCalculatorFromSupabase() {
     if (!currentCalculatorId) {
         switchView('explore');
@@ -595,7 +609,6 @@ async function loadCalculatorFromSupabase() {
     }
 }
 
-// Submit Grade Anonymously
 document.getElementById('submit-grade-btn').addEventListener('click', async () => {
     if (!currentCalculatorId) return alert("You must be using a saved template to submit grades.");
 
@@ -613,8 +626,8 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
     if (!error) {
         btn.innerText = "Submitted!";
         btn.disabled = true;
-        setSubmissionStatus(currentCalculatorId); // Mark as submitted locally
-        fetchAndRenderStats(currentCalculatorId, finalGrade); // Unlock the chart!
+        setSubmissionStatus(currentCalculatorId); 
+        fetchAndRenderStats(currentCalculatorId, finalGrade); 
     } else {
         console.error(error);
         btn.innerText = "Error Submitting";
@@ -692,7 +705,6 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
         }
     });
 }
-
 
 render();
 loadCalculatorFromSupabase();
