@@ -43,6 +43,30 @@ let appState = JSON.parse(JSON.stringify(defaultState));
 let calcInsights = {};
 let currentCalculatorId = new URLSearchParams(window.location.search).get('id');
 
+
+let originalTemplateState = null;
+function getCleanTemplateState(state) {
+    if (!state) return null;
+    const clean = JSON.parse(JSON.stringify(state)); // Deep copy
+    delete clean.isEditMode;
+    delete clean.showBreakdown;
+    
+    clean.categories.forEach(cat => {
+        cat.components.forEach(comp => {
+            delete comp.score;
+            delete comp.extraPoints;
+        });
+    });
+    return clean;
+}
+
+function hasTemplateChanged() {
+    if (!originalTemplateState) return true; // if no original state, it's a brand new calculator
+    const cleanCurrent = getCleanTemplateState(appState);
+    const cleanOriginal = getCleanTemplateState(originalTemplateState);
+    return JSON.stringify(cleanCurrent) !== JSON.stringify(cleanOriginal);
+}
+
 function parseWeight(val) {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -191,6 +215,17 @@ function calculateGrades() {
 
 function render() {
     calculateGrades(); 
+
+    const shareBtn = document.getElementById('share-btn');
+    if (currentCalculatorId && !hasTemplateChanged()) {
+        shareBtn.innerText = "Copy Template Link";
+        shareBtn.classList.remove('primary');
+        shareBtn.classList.add('secondary');
+    } else {
+        shareBtn.innerText = "Save & Share Template";
+        shareBtn.classList.remove('secondary');
+        shareBtn.classList.add('primary');
+    }
 
     document.body.setAttribute('data-theme', appState.darkMode ? 'dark' : 'light');
     document.getElementById('theme-btn').innerHTML = appState.darkMode ? 'Light Mode' : 'Dark Mode';
@@ -439,12 +474,24 @@ async function fetchAndRenderCalculators(searchQuery = '') {
 // SUPABASE: Share Template (Wipes scores, pushes to DB, updates URL)
 document.getElementById('share-btn').addEventListener('click', async () => {
     const btn = document.getElementById('share-btn');
+    
+    // template hasnt changed; copy same link
+    if (currentCalculatorId && !hasTemplateChanged()) {
+        const shareUrl = window.location.origin + window.location.pathname + '?id=' + currentCalculatorId;
+        navigator.clipboard.writeText(shareUrl);
+        btn.innerText = "Link Copied!";
+        setTimeout(() => render(), 2000);
+        return;
+    }
+
+    // configuration was changed // brand new so we save to database
     btn.innerText = "Saving...";
     
     const shareState = JSON.parse(JSON.stringify(appState));
     shareState.isEditMode = false;
     shareState.showBreakdown = false;
     
+    // Wipe personal scores for the public template
     shareState.categories.forEach(cat => {
         cat.components.forEach(comp => {
             comp.score = 0; comp.extraPoints = 0;
@@ -459,13 +506,14 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     if (error) {
         console.error("Error saving template", error);
         btn.innerText = "Error Saving";
-        setTimeout(() => btn.innerText = "Share as Template", 2000);
+        setTimeout(() => render(), 2000);
         return;
     }
     
+    // Update local context
     currentCalculatorId = data[0].id;
+    originalTemplateState = JSON.parse(JSON.stringify(shareState)); 
     const shareUrl = window.location.origin + window.location.pathname + '?id=' + currentCalculatorId;
-    
     window.history.replaceState(null, null, '?id=' + currentCalculatorId);
     
     document.getElementById('share-link-card').classList.remove('hidden');
@@ -474,9 +522,10 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     fetchAndRenderStats(currentCalculatorId);
     
     navigator.clipboard.writeText(shareUrl);
-    btn.innerText = "Template Copied!";
-    setTimeout(() => btn.innerText = "Share as Template", 2000);
+    btn.innerText = "Template Saved & Copied!";
+    setTimeout(() => render(), 2000); // Reset button text via render
 });
+
 
 document.getElementById('sidebar-copy-btn').addEventListener('click', () => {
     const urlInput = document.getElementById('sidebar-share-url');
@@ -487,15 +536,14 @@ document.getElementById('sidebar-copy-btn').addEventListener('click', () => {
     setTimeout(() => btn.innerText = "Copy", 2000);
 });
 
+// Load Template on Init
 async function loadCalculatorFromSupabase() {
     if (!currentCalculatorId) {
-        // If no ID is present, boot into the explore page
         switchView('explore');
         fetchAndRenderCalculators();
         return; 
     }
 
-    // If ID is present, show calculator and sidebar tools
     switchView('calc');
     document.getElementById('class-stats-card').classList.remove('hidden');
     document.getElementById('share-link-card').classList.remove('hidden');
@@ -509,6 +557,7 @@ async function loadCalculatorFromSupabase() {
 
     if (data) {
         appState = { ...defaultState, ...data.config };
+        originalTemplateState = JSON.parse(JSON.stringify(appState));
         render();
         fetchAndRenderStats(currentCalculatorId);
     }
