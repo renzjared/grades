@@ -222,6 +222,16 @@ th, td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
     font-weight: 500;
 }
 
+/* Remove up/down arrows from number inputs */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}
+
 
 .info-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 .footer-content { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }

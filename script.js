@@ -45,7 +45,16 @@ let currentCalculatorId = new URLSearchParams(window.location.search).get('id');
 function resetToBlank() {
     window.history.replaceState(null, null, window.location.pathname);
     currentCalculatorId = null;
-    appState = JSON.parse(JSON.stringify(defaultState));
+    
+    // check if the user has a saved workspace for their blank calculator
+    const savedBlank = localStorage.getItem('calc_state_blank');
+    if (savedBlank) {
+        try { appState = JSON.parse(savedBlank); } 
+        catch(e) { appState = JSON.parse(JSON.stringify(defaultState)); }
+    } else {
+        appState = JSON.parse(JSON.stringify(defaultState));
+    }
+    
     originalTemplateState = null;
     switchView('calc');
     render();
@@ -253,6 +262,10 @@ function calculateGrades() {
 
 function render() {
     calculateGrades(); 
+
+    // save state for persistence
+    const idToSave = currentCalculatorId || 'blank';
+    localStorage.setItem(`calc_state_${idToSave}`, JSON.stringify(appState));
 
     const shareBtn = document.getElementById('share-btn');
     if (currentCalculatorId && !hasTemplateChanged()) {
@@ -465,6 +478,12 @@ document.getElementById('nav-explore-btn').addEventListener('click', () => {
     fetchAndRenderCalculators();
 });
 
+// make header title act like explore button
+document.getElementById('home-link').addEventListener('click', () => {
+    switchView('explore');
+    fetchAndRenderCalculators();
+});
+
 document.getElementById('search-input').addEventListener('input', (e) => {
     clearTimeout(window.searchTimeout);
     window.searchTimeout = setTimeout(() => {
@@ -576,6 +595,10 @@ document.getElementById('sidebar-copy-btn').addEventListener('click', () => {
 
 async function loadCalculatorFromSupabase() {
     if (!currentCalculatorId) {
+        const savedBlank = localStorage.getItem('calc_state_blank');
+        if (savedBlank) {
+            try { appState = JSON.parse(savedBlank); } catch(e) {}
+        }
         switchView('explore');
         fetchAndRenderCalculators();
         return; 
@@ -593,8 +616,26 @@ async function loadCalculatorFromSupabase() {
         .single();
 
     if (data) {
-        appState = { ...defaultState, ...data.config };
-        originalTemplateState = JSON.parse(JSON.stringify(appState));
+        originalTemplateState = JSON.parse(JSON.stringify(data.config));
+        
+        // check if the user has visited this specific calculator before and saved personal scores
+        const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);
+        if (savedState) {
+            try { 
+                let parsedState = JSON.parse(savedState); 
+                // repair: if local save is a blank default, but the DB template isn't, overwrite
+                if (parsedState.subject === "New Subject" && data.config.subject !== "New Subject") {
+                    appState = { ...defaultState, ...data.config };
+                } else {
+                    appState = parsedState; 
+                }
+            } catch(e) { 
+                appState = { ...defaultState, ...data.config }; 
+            }
+        } else {
+            appState = { ...defaultState, ...data.config };
+        }
+
         render();
         fetchAndRenderStats(currentCalculatorId);
     }
@@ -670,9 +711,16 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
     document.getElementById('stats-minimum-warning').classList.add('hidden');
     document.getElementById('stats-content').classList.remove('hidden');
 
-    if (userGrade !== null) {
-        const betterScoresCount = grades.filter(g => g < userGrade).length;
-        const equalScoresCount = grades.filter(g => g === userGrade).length;
+    // if (userGrade !== null) {
+    //     const betterScoresCount = grades.filter(g => g < userGrade).length;
+    //     const equalScoresCount = grades.filter(g => g === userGrade).length;
+    //     const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
+    //     document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
+    // }
+    let targetGrade = userGrade !== null ? userGrade : parseFloat(document.getElementById('final-grade').innerText);
+    if (!isNaN(targetGrade)) {
+        const betterScoresCount = grades.filter(g => g < targetGrade).length;
+        const equalScoresCount = grades.filter(g => g === targetGrade).length;
         const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
         document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
     }
@@ -706,5 +754,4 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
     });
 }
 
-render();
 loadCalculatorFromSupabase();
