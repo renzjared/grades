@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UP Grade Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="topbar">
+        <div class="topbar-left">
+            <div class="maroon-block"></div>
+            <h1 class="app-title">Grade Calculator</h1>
+            
+            <div class="nav-links">
+                <button id="nav-explore-btn" class="btn text-btn">Explore</button>
+                <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
+            </div>
+        </div>
+        <div class="header-controls">
+            <button id="theme-btn" class="btn text-btn">Dark Mode</button>
+            <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
+            <button id="share-btn" class="btn primary">Share as Template</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <div id="explore-view" class="hidden">
+            <div class="explore-header">
+                <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Shared Templates</h2>
+                <input type="text" id="search-input" placeholder="Search (e.g., Math 21, CS 11)..." class="search-bar">
+            </div>
+            <div id="calculators-grid" class="calculators-grid">
+                </div>
+        </div>
+
+        <div id="calculator-view" class="layout">
+            <div class="main-content">
+                <input type="text" id="subject-name" class="subject-title large-green" value="New UP Subject" placeholder="Subject Name">
+                
+                <div class="section-header">
+                    <h2>Grade Breakdown</h2>
+                    <div class="header-actions">
+                        <button id="breakdown-btn" class="btn text-btn">📊 Show Details</button>
+                        <button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button>
+                    </div>
+                </div>
+                <div id="categories-container">
+                    </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card result-card">
+                    <h2 class="result-title">Final Grade</h2>
+                    <div class="grade-display" id="final-grade">--</div>
+                    <div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div>
+                    <div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div>
+                    <div id="passing-warnings" class="warnings"></div>
+                </div>
+
+                <div class="card hidden" id="share-link-card">
+                    <div class="card-header">
+                        <h3>Template Link</h3>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Share this link with classmates. They will get a blank copy of this calculator.</p>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="sidebar-share-url" readonly class="input-minimal" style="background: var(--bg-color); cursor: text;">
+                        <button id="sidebar-copy-btn" class="btn secondary">Copy</button>
+                    </div>
+                </div>
+
+                <div class="card chart-card hidden" id="class-stats-card">
+                    <div class="card-header">
+                        <h3>Class Distribution</h3>
+                    </div>
+                    <div id="stats-minimum-warning" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 1rem;">
+                        Need <strong id="stats-needed"></strong> more submissions to unlock class stats.
+                    </div>
+                    <div id="stats-content" class="hidden">
+                        <p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p>
+                        <canvas id="gradeChart" width="100" height="70"></canvas>
+                    </div>
+                    
+                    <div class="submit-wrapper" style="margin-top: 1rem;">
+                        <button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button>
+                        <div class="info-tooltip">
+                            <span class="info-icon">ℹ️</span>
+                            <div class="tooltip-text">
+                                <strong>100% Anonymous.</strong> Only your final calculated grade is sent to the database to help build the class curve. No specific component scores are saved.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Global Settings</h3>
+                    </div>
+                    <div class="setting-row">
+                        <label>Passing Score (%)</label>
+                        <input type="number" id="global-passing" value="60" class="input-minimal" style="width: 85px; text-align: right;">
+                    </div>
+                </div>
+
+                <div class="card grade-scale-card">
+                    <div class="card-header">
+                        <h3>Grade Scale</h3>
+                        <button id="add-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button>
+                    </div>
+                    <table id="grade-scale-table">
+                        <thead>
+                            <tr>
+                                <th>Min %</th>
+                                <th>Grade</th>
+                                <th class="edit-only hidden" style="width: 30px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="grade-scale-body">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card heart-scale-card">
+                    <div class="card-header">
+                        <h3>Extra Points ❤️</h3>
+                        <button id="add-heart-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button>
+                    </div>
+                    <div class="setting-row edit-only hidden" style="margin-bottom: 1rem;">
+                        <label>Enable Custom Scaling</label>
+                        <input type="checkbox" id="enable-heart-points" style="width: auto;">
+                    </div>
+                    <p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p>
+                    <table id="heart-scale-table">
+                        <tbody id="heart-scale-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <div class="footer-content">
+                <p style="margin-bottom: 0.5rem;">Made with ❤️ by Renz Jared Rolle</p>
+                <div class="footer-links">
+                    <span>Play Games: <a href="https://renzjared.github.io/chainlink/" target="_blank">Chainlink</a> | <a href="https://renzjared.github.io/morph" target="_blank">Morph</a></span>
+                    <span class="footer-divider">•</span>
+                    <span><a href="https://bit.ly/renz-bot" target="_blank">Invite Discord Bot</a></span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    <script src="script.js" defer></script>
+</body>
+</html>
