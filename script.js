@@ -570,6 +570,15 @@ async function loadCalculatorFromSupabase() {
         render();
         fetchAndRenderStats(currentCalculatorId);
     }
+
+    const btn = document.getElementById('submit-grade-btn');
+    if (hasUserSubmitted(currentCalculatorId)) {
+        btn.innerText = "Submitted!";
+        btn.disabled = true;
+    } else {
+        btn.innerText = "Submit My Grade";
+        btn.disabled = false;
+    }
 }
 
 // Submit Grade Anonymously
@@ -600,7 +609,14 @@ document.getElementById('submit-grade-btn').addEventListener('click', async () =
 });
 
 async function fetchAndRenderStats(calculatorId, userGrade = null) {
+    const lockedView = document.getElementById('stats-locked-view');
+    const content = document.getElementById('stats-content');
+    const warning = document.getElementById('stats-minimum-warning');
+    if (!lockedView || !content || !warning) return; 
+    // -----------------------------------------------------------------------------------
+
     const isSubmitted = hasUserSubmitted(calculatorId);
+    
     const { data, error } = await supabaseClient
         .from('submissions')
         .select('final_grade')
@@ -608,7 +624,9 @@ async function fetchAndRenderStats(calculatorId, userGrade = null) {
 
     if (error || !data) return;
 
-    const N = data.length;
+    const grades = data.map(d => d.final_grade);
+    const N = grades.length;
+
     if (!isSubmitted) {
         document.getElementById('stats-locked-view').classList.remove('hidden');
         document.getElementById('stats-content').classList.add('hidden');
