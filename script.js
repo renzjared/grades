@@ -14,15 +14,18 @@ function applyGlobalTheme() {
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
 function formatGradeVal(val) {
-    if (appState.gradingSystemType === '1.0-5.0') {
+    // Check global state OR fallback to 1.0-5.0 if the legacy template is missing the property
+    const system = appState.gradingSystemType || '1.0-5.0'; 
+    
+    if (system === '1.0-5.0') {
         let num = Number(val);
         return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(2);
     }
-    if (appState.gradingSystemType === '4.0-0.0') {
+    if (system === '4.0-0.0') {
         let num = Number(val);
         return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(1);
     }
-    return val;
+    return String(val); // Ensure string output for letters
 }
 
 const scalePresets = {
@@ -113,7 +116,7 @@ function resetToBlank() {
 let originalTemplateState = null;
 function getCleanTemplateState(state) {
     if (!state) return null;
-
+    
     const clean = {
         subject: state.subject,
         globalPassingScore: state.globalPassingScore,
