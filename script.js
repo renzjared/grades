@@ -113,12 +113,16 @@ function resetToBlank() {
 let originalTemplateState = null;
 function getCleanTemplateState(state) {
     if (!state) return null;
-    const clean = JSON.parse(JSON.stringify(state)); 
-    
-    delete clean.isEditMode;
-    delete clean.showBreakdown; 
-    delete clean.ignoreBlanks;
-    delete clean.targetGradePercent;
+
+    const clean = {
+        subject: state.subject,
+        globalPassingScore: state.globalPassingScore,
+        enableHeartPoints: state.enableHeartPoints,
+        gradingSystemType: state.gradingSystemType,
+        gradeScale: JSON.parse(JSON.stringify(state.gradeScale || [])),
+        heartScale: JSON.parse(JSON.stringify(state.heartScale || [])),
+        categories: JSON.parse(JSON.stringify(state.categories || []))
+    };
     
     clean.categories.forEach(cat => {
         cat.components.forEach(comp => {
@@ -126,6 +130,7 @@ function getCleanTemplateState(state) {
             delete comp.extraPoints;
         });
     });
+    
     return clean;
 }
 
