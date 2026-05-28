@@ -14,9 +14,7 @@ function applyGlobalTheme() {
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
 function formatGradeVal(val) {
-    // Check global state OR fallback to 1.0-5.0 if the legacy template is missing the property
     const system = appState.gradingSystemType || '1.0-5.0'; 
-    
     if (system === '1.0-5.0') {
         let num = Number(val);
         return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(2);
@@ -25,7 +23,7 @@ function formatGradeVal(val) {
         let num = Number(val);
         return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(1);
     }
-    return String(val); // Ensure string output for letters
+    return String(val); 
 }
 
 const scalePresets = {
@@ -82,8 +80,8 @@ const defaultState = {
         {
             id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true,
             components: [ 
-                { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true },
-                { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true }
+                { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false },
+                { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false }
             ]
         }
     ],
@@ -195,16 +193,27 @@ function calculateGrades() {
         let totalCompWeightValue = 0;
         let catMissingR_percent = 0;
         
-        cat.components.forEach(comp => totalCompWeightValue += parseWeight(comp.weight));
+        cat.components.forEach(comp => {
+            if (!comp.isBonus) {
+                if (cat.calcMode === 'weighted') {
+                    totalCompWeightValue += parseWeight(comp.weight);
+                } else {
+                    sumMax += comp.max;
+                }
+            }
+        });
+
+        let catR = 0, catE = 0;
 
         cat.components.forEach((comp, compIdx) => {
-            let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0 };
+            let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0, isBonus: !!comp.isBonus };
             
             let isBlank = (comp.score == null || comp.score === "");
-            let actualScore = isBlank ? 0 : Number(comp.score);
+            // FORCE score to 0 if it is a bonus component to cleanly separate it to extraPoints pipeline
+            let actualScore = (isBlank || comp.isBonus) ? 0 : Number(comp.score);
             let actualExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
             
-            if (comp.capAtMax) {
+            if (comp.capAtMax && comp.max > 0) {
                 if (actualScore > comp.max) actualScore = comp.max;
                 if (actualScore + actualExtra > comp.max) {
                     actualExtra = Math.max(0, comp.max - actualScore);
@@ -215,17 +224,33 @@ function calculateGrades() {
             let pExtra = comp.max > 0 ? (actualExtra / comp.max) * 100 : 0;
             compInsight.scorePercent = pScore + pExtra;
 
+            let localWeightFrac = 0;
+
             if (cat.calcMode === 'weighted') {
                 let parsedCompW = parseWeight(comp.weight);
-                compInsight.effectiveWeight = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) * 100 : 0;
-                compInsight.weightedContribution = compInsight.scorePercent * (compInsight.effectiveWeight / 100);
-                if (isBlank) catMissingR_percent += compInsight.effectiveWeight;
+                localWeightFrac = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) : 0;
+                
+                if (isBlank && !comp.isBonus) {
+                    catMissingR_percent += (localWeightFrac * 100);
+                }
+                
+                catR += pScore * localWeightFrac;
+                catE += pExtra * localWeightFrac;
+
             } else {
+                localWeightFrac = sumMax > 0 ? (comp.max / sumMax) : 0;
+                
                 sumScore += actualScore;
-                sumMax += comp.max;
                 sumExtra += actualExtra;
-                if (isBlank) missingMax += comp.max;
+                
+                if (isBlank && !comp.isBonus) {
+                    missingMax += comp.max;
+                }
             }
+            
+            compInsight.effectiveWeight = localWeightFrac * catInsight.effectiveWeight;
+            compInsight.weightedContribution = (compInsight.scorePercent / 100) * compInsight.effectiveWeight;
+
             catInsight.components.push(compInsight);
         });
 
@@ -235,28 +260,7 @@ function calculateGrades() {
                 catInsight.ePercent = (sumExtra / sumMax) * 100;
                 catMissingR_percent = (missingMax / sumMax) * 100;
             }
-            catInsight.components.forEach((cInsight, i) => {
-                let c = cat.components[i];
-                cInsight.effectiveWeight = sumMax > 0 ? (c.max / sumMax) * 100 : 0;
-                cInsight.weightedContribution = cInsight.scorePercent * (cInsight.effectiveWeight / 100);
-            });
         } else {
-            let catR = 0, catE = 0;
-            catInsight.components.forEach((cInsight, i) => {
-                let c = cat.components[i];
-                let isBlank = (c.score == null || c.score === "");
-                let actualScore = isBlank ? 0 : Number(c.score);
-                let actualExtra = appState.enableHeartPoints ? (c.extraPoints || 0) : 0;
-                
-                if (c.capAtMax) {
-                    if (actualScore > c.max) actualScore = c.max;
-                    if (actualScore + actualExtra > c.max) actualExtra = Math.max(0, c.max - actualScore);
-                }
-                let pScore = c.max > 0 ? (actualScore / c.max) * 100 : 0;
-                let pExtra = c.max > 0 ? (actualExtra / c.max) * 100 : 0;
-                catR += pScore * (cInsight.effectiveWeight / 100);
-                catE += pExtra * (cInsight.effectiveWeight / 100);
-            });
             catInsight.rPercent = catR;
             catInsight.ePercent = catE;
         }
@@ -285,19 +289,64 @@ function calculateGrades() {
         total_missing_r_weighted += catMissingR_percent * (catInsight.effectiveWeight / 100);
     });
 
-    let totalEarnedExtra = appState.enableHeartPoints ? finalE_Weighted : 0;
-    calcInsights.minRaw = finalR_Weighted + totalEarnedExtra;
-    calcInsights.maxRaw = finalR_Weighted + total_missing_r_weighted + totalEarnedExtra;
+    let base_R = finalR_Weighted; 
+    let base_E = finalE_Weighted;
+    
+    function getTruePercentage(R, E) {
+        if (!appState.enableHeartPoints || !appState.heartScale || appState.heartScale.length === 0 || !appState.gradeScale || appState.gradeScale.length === 0) return R + E;
+        const sortedScale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
+        let bestGradeIndex = sortedScale.length;
+        let maxP = R;
+        appState.heartScale.forEach(rule => {
+            let computedPercent = R + (E * rule.mult);
+            let computedGradeStr = scoreToGrade(computedPercent);
+            let computedIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === computedGradeStr);
+            let limitIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === formatGradeVal(rule.limit));
+            if (limitIndex === -1) limitIndex = 0;
+            let finalIndexForRule = Math.max(computedIndex, limitIndex);
+            
+            if (finalIndexForRule < bestGradeIndex) {
+                bestGradeIndex = finalIndexForRule;
+                maxP = Math.max(maxP, computedPercent);
+            } else if (finalIndexForRule === bestGradeIndex) {
+                maxP = Math.max(maxP, computedPercent);
+            }
+        });
+        if (bestGradeIndex < sortedScale.length) return maxP;
+        return R + E;
+    }
+
+    calcInsights.minRaw = getTruePercentage(base_R, base_E);
+    calcInsights.maxRaw = getTruePercentage(base_R + total_missing_r_weighted, base_E);
+
+    let bestNeededR = Infinity;
+    if (appState.targetGradePercent !== null && appState.targetGradePercent !== undefined && total_missing_r_weighted > 0) {
+        let targetP = appState.targetGradePercent;
+        if (appState.enableHeartPoints && appState.heartScale && appState.heartScale.length > 0 && appState.gradeScale && appState.gradeScale.length > 0) {
+            const sortedScale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
+            let targetGradeStr = scoreToGrade(targetP);
+            let targetGradeIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === targetGradeStr);
+            
+            appState.heartScale.forEach(rule => {
+                let limitIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === formatGradeVal(rule.limit));
+                if (limitIndex === -1) limitIndex = 0;
+                
+                if (limitIndex <= targetGradeIndex) {
+                    let needed = targetP - base_R - (base_E * rule.mult);
+                    if (needed < bestNeededR) bestNeededR = needed;
+                }
+            });
+            if (bestNeededR === Infinity) bestNeededR = targetP - base_R;
+        } else {
+            bestNeededR = targetP - base_R - base_E;
+        }
+        calcInsights.targetNeeded = (bestNeededR / total_missing_r_weighted) * 100;
+    }
 
     let attempted_weight = 100 - total_missing_r_weighted;
     if (appState.ignoreBlanks && attempted_weight > 0 && attempted_weight < 100) {
         finalR_Weighted = (finalR_Weighted / attempted_weight) * 100;
         finalE_Weighted = (finalE_Weighted / attempted_weight) * 100;
-    }
-
-    if (appState.targetGradePercent !== undefined && appState.targetGradePercent !== null && total_missing_r_weighted > 0) {
-        let missingNeeded = appState.targetGradePercent - calcInsights.minRaw;
-        calcInsights.targetNeeded = (missingNeeded / total_missing_r_weighted) * 100;
     }
 
     calcInsights.totalRaw = finalR_Weighted;
@@ -528,26 +577,39 @@ function render() {
             
             let isBlank = (comp.score == null || comp.score === "");
             let targetHint = '';
-            if (isBlank && calcInsights.targetNeeded !== null && calcInsights.targetNeeded !== undefined && calcInsights.targetNeeded <= 100 && calcInsights.targetNeeded > 0) {
+            if (isBlank && !comp.isBonus && calcInsights.targetNeeded !== null && calcInsights.targetNeeded !== undefined && calcInsights.targetNeeded <= 100 && calcInsights.targetNeeded > 0) {
                 let targetPts = (calcInsights.targetNeeded / 100) * comp.max;
                 targetHint = `<div style="font-size: 0.75rem; color: var(--up-green); margin-top: 4px; font-weight: 500;">Target: ${targetPts.toFixed(2)}</div>`;
             }
+
+            let effDisplay = comp.isBonus ? `<span style="color:var(--up-green); font-weight:600;">Bonus (+${cInsight.effectiveWeight.toFixed(2)}%)</span>` : `${cInsight.effectiveWeight.toFixed(2)}%`;
 
             componentsHtml += `
                 <tr>
                     <td class="col-item">${isEdit ? `<input type="text" value="${comp.name}" onchange="updateComp(${cIndex}, ${compIndex}, 'name', this.value)">` : comp.name}</td>
                     
                     <td class="col-num">
-                        <input type="number" value="${comp.score == null || comp.score === '' ? '' : comp.score}" onchange="updateComp(${cIndex}, ${compIndex}, 'score', this.value === '' ? null : Number(this.value))" class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;">
-                        ${targetHint}
+                        <input type="number" 
+                            value="${comp.score == null || comp.score === '' ? '' : comp.score}" 
+                            onchange="updateComp(${cIndex}, ${compIndex}, 'score', this.value === '' ? null : Number(this.value))" 
+                            class="input-minimal ${!isEdit && !comp.isBonus ? 'view-editable' : ''}" 
+                            style="width:85px; ${comp.isBonus ? 'opacity: 0.4; cursor: not-allowed; background-color: var(--input-bg);' : ''}"
+                            ${comp.isBonus ? 'disabled title=\"Bonus items use Extra Points\"' : ''}>
+                        ${!comp.isBonus ? targetHint : ''}
                     </td>
                     
                     <td class="col-num">
                         ${isEdit ? `
                             <input type="number" value="${comp.max}" onchange="updateComp(${cIndex}, ${compIndex}, 'max', Number(this.value))" class="input-minimal" style="width:85px;">
                             <div class="cap-control">
-                                <input type="checkbox" id="cap-${cIndex}-${compIndex}" ${comp.capAtMax ? 'checked' : ''} onchange="updateComp(${cIndex}, ${compIndex}, 'capAtMax', this.checked)">
-                                <label for="cap-${cIndex}-${compIndex}">Cap</label>
+                                <div class="cap-control-item">
+                                    <input type="checkbox" id="cap-${cIndex}-${compIndex}" ${comp.capAtMax ? 'checked' : ''} onchange="updateComp(${cIndex}, ${compIndex}, 'capAtMax', this.checked)">
+                                    <label for="cap-${cIndex}-${compIndex}">Cap</label>
+                                </div>
+                                <div class="cap-control-item">
+                                    <input type="checkbox" id="bonus-${cIndex}-${compIndex}" ${comp.isBonus ? 'checked' : ''} onchange="updateComp(${cIndex}, ${compIndex}, 'isBonus', this.checked)">
+                                    <label for="bonus-${cIndex}-${compIndex}" style="color: var(--up-green); font-weight:600;">Bonus</label>
+                                </div>
                             </div>
                         ` : comp.max}
                     </td>
@@ -562,8 +624,8 @@ function render() {
                     ${cat.calcMode === 'weighted' ? `<td class="col-num">${isEdit ? `<input type="text" value="${comp.weight}" onchange="updateComp(${cIndex}, ${compIndex}, 'weight', this.value)">` : comp.weight}</td>` : ''}
                     
                     ${showBreakdown ? `
-                    <td class="col-num"><span class="stat-pill">${cInsight.effectiveWeight.toFixed(1)}%</span></td>
-                    <td class="col-num"><span class="stat-pill">${cInsight.scorePercent.toFixed(1)}%</span></td>
+                    <td class="col-num"><span class="stat-pill" style="${comp.isBonus ? 'background: rgba(72, 187, 120, 0.1);' : ''}">${effDisplay}</span></td>
+                    <td class="col-num"><span class="stat-pill">${cInsight.isBonus ? 'Bonus' : cInsight.scorePercent.toFixed(1) + '%'}</span></td>
                     <td class="col-num" style="font-weight:600;">+${cInsight.weightedContribution.toFixed(2)}</td>
                     ` : ''}
                     
@@ -590,7 +652,7 @@ window.removeCat = (cIdx) => { appState.categories.splice(cIdx, 1); render(); };
 window.updateComp = (cIdx, compIdx, field, val) => { appState.categories[cIdx].components[compIdx][field] = val; render(); };
 window.removeComp = (cIdx, compIdx) => { appState.categories[cIdx].components.splice(compIdx, 1); render(); };
 window.addComp = (cIdx) => {
-    appState.categories[cIdx].components.push({ id: generateId(), name: "New Item", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true });
+    appState.categories[cIdx].components.push({ id: generateId(), name: "New Item", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false });
     render();
 };
 window.updateScale = (idx, field, val) => { appState.gradeScale[idx][field] = val; render(); };
