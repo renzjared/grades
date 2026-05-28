@@ -186,23 +186,6 @@ th, td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
 .calc-card h3 { color: var(--up-green); margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: 700; line-height: 1.3;}
 .calc-card .meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem; flex-grow: 1;}
 
-.submit-wrapper { display: flex; align-items: center; gap: 0.5rem; position: relative; }
-.info-icon { cursor: help; font-size: 1.1rem; opacity: 0.7; transition: opacity 0.2s; }
-.info-icon:hover { opacity: 1; }
-.tooltip-text {
-    visibility: hidden; opacity: 0; width: 220px;
-    background-color: var(--text-main); color: var(--bg-color);
-    text-align: left; border-radius: 6px; padding: 0.75rem;
-    position: absolute; z-index: 10; bottom: 125%; left: 50%;
-    transform: translateX(-50%); font-size: 0.75rem; line-height: 1.4;
-    transition: opacity 0.2s, visibility 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-.tooltip-text::after {
-    content: ""; position: absolute; top: 100%; left: 50%;
-    margin-left: -5px; border-width: 5px; border-style: solid;
-    border-color: var(--text-main) transparent transparent transparent;
-}
-
 .active-grade-row {
     background-color: var(--up-maroon);
     color: white;
@@ -232,11 +215,54 @@ input[type=number] {
     -moz-appearance: textfield;
 }
 
-
-.info-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 .footer-content { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
 .footer-links { font-size: 0.85rem; color: var(--text-muted); }
 .footer-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: color 0.2s; }
 .footer-links a:hover { color: var(--up-maroon); text-decoration: underline; }
 .footer-divider { margin: 0 0.5rem; opacity: 0.5; }
 footer { text-align: center; margin-top: auto; padding-top: 3rem; color: var(--text-muted); font-size: 0.85rem; }
+
+/* The Toggle Switch Styles */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-hover);
+  transition: .2s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .2s;
+}
+input:checked + .slider {
+  background-color: var(--up-green);
+}
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+.slider.round {
+  border-radius: 20px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}

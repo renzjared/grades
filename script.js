@@ -4,7 +4,26 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let chartInstance = null;
 
+let isGlobalDarkMode = localStorage.getItem('global_dark_mode') === 'true';
+function applyGlobalTheme() {
+    document.body.setAttribute('data-theme', isGlobalDarkMode ? 'dark' : 'light');
+    const themeBtn = document.getElementById('theme-btn');
+    if (themeBtn) themeBtn.innerHTML = isGlobalDarkMode ? 'Light Mode' : 'Dark Mode';
+}
+
 function generateId() { return Math.random().toString(36).substr(2, 9); }
+
+function formatGradeVal(val) {
+    if (appState.gradingSystemType === '1.0-5.0') {
+        let num = Number(val);
+        return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(2);
+    }
+    if (appState.gradingSystemType === '4.0-0.0') {
+        let num = Number(val);
+        return (isNaN(num) || val === "" || val === null) ? val : num.toFixed(1);
+    }
+    return val;
+}
 
 const scalePresets = {
     '1.0-5.0': {
@@ -49,18 +68,19 @@ const scalePresets = {
 const defaultState = {
     subject: "New Subject",
     isEditMode: true,
-    darkMode: false,
     showBreakdown: false,
     globalPassingScore: 60,
     enableHeartPoints: true,
+    ignoreBlanks: false,
+    targetGradePercent: null,
     gradingSystemType: "1.0-5.0",
     heartScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].heartScale)),
     categories: [
         {
             id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true,
             components: [ 
-                { id: generateId(), name: "Midterm Exam", score: 85, max: 100, weight: "1", extraPoints: 0, capAtMax: true },
-                { id: generateId(), name: "Final Exam", score: 90, max: 100, weight: "1", extraPoints: 5, capAtMax: true }
+                { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true },
+                { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true }
             ]
         }
     ],
@@ -70,6 +90,8 @@ const defaultState = {
 let appState = JSON.parse(JSON.stringify(defaultState));
 let calcInsights = {};
 let currentCalculatorId = new URLSearchParams(window.location.search).get('id');
+
+applyGlobalTheme();
 
 function resetToBlank() {
     window.history.replaceState(null, null, window.location.pathname);
@@ -92,9 +114,11 @@ let originalTemplateState = null;
 function getCleanTemplateState(state) {
     if (!state) return null;
     const clean = JSON.parse(JSON.stringify(state)); 
+    
     delete clean.isEditMode;
-    delete clean.showBreakdown;
-    delete clean.darkMode; 
+    delete clean.showBreakdown; 
+    delete clean.ignoreBlanks;
+    delete clean.targetGradePercent;
     
     clean.categories.forEach(cat => {
         cat.components.forEach(comp => {
@@ -139,34 +163,37 @@ function scoreToGrade(percentage) {
     if (!appState.gradeScale || appState.gradeScale.length === 0) return `${percentage.toFixed(2)}%`;
     const scale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
     for (let item of scale) {
-        if (percentage >= item.min) return String(item.grade);
+        if (percentage >= item.min) return formatGradeVal(item.grade);
     }
-    return String(scale[scale.length - 1].grade);
+    return formatGradeVal(scale[scale.length - 1].grade);
 }
 
 function calculateGrades() {
-    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1, finalPercentage: 0 };
+    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1, finalPercentage: 0, minRaw: 0, maxRaw: 0, targetNeeded: null };
     
     let totalCatWeightValue = 0;
     appState.categories.forEach(cat => totalCatWeightValue += parseWeight(cat.weight));
 
     let finalR_Weighted = 0;
     let finalE_Weighted = 0;
+    let total_missing_r_weighted = 0; 
 
     appState.categories.forEach((cat, cIdx) => {
         let catInsight = { components: [], effectiveWeight: 0, rPercent: 0, ePercent: 0, finalContribution: 0 };
         let parsedCatW = parseWeight(cat.weight);
         catInsight.effectiveWeight = totalCatWeightValue > 0 ? (parsedCatW / totalCatWeightValue) * 100 : 0;
 
-        let sumScore = 0, sumMax = 0, sumExtra = 0;
+        let sumScore = 0, sumMax = 0, sumExtra = 0, missingMax = 0;
         let totalCompWeightValue = 0;
+        let catMissingR_percent = 0;
         
         cat.components.forEach(comp => totalCompWeightValue += parseWeight(comp.weight));
 
         cat.components.forEach((comp, compIdx) => {
             let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0 };
             
-            let actualScore = comp.score;
+            let isBlank = (comp.score == null || comp.score === "");
+            let actualScore = isBlank ? 0 : Number(comp.score);
             let actualExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
             
             if (comp.capAtMax) {
@@ -184,10 +211,12 @@ function calculateGrades() {
                 let parsedCompW = parseWeight(comp.weight);
                 compInsight.effectiveWeight = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) * 100 : 0;
                 compInsight.weightedContribution = compInsight.scorePercent * (compInsight.effectiveWeight / 100);
+                if (isBlank) catMissingR_percent += compInsight.effectiveWeight;
             } else {
                 sumScore += actualScore;
                 sumMax += comp.max;
                 sumExtra += actualExtra;
+                if (isBlank) missingMax += comp.max;
             }
             catInsight.components.push(compInsight);
         });
@@ -196,6 +225,7 @@ function calculateGrades() {
             if (sumMax > 0) {
                 catInsight.rPercent = (sumScore / sumMax) * 100;
                 catInsight.ePercent = (sumExtra / sumMax) * 100;
+                catMissingR_percent = (missingMax / sumMax) * 100;
             }
             catInsight.components.forEach((cInsight, i) => {
                 let c = cat.components[i];
@@ -206,7 +236,8 @@ function calculateGrades() {
             let catR = 0, catE = 0;
             catInsight.components.forEach((cInsight, i) => {
                 let c = cat.components[i];
-                let actualScore = c.score;
+                let isBlank = (c.score == null || c.score === "");
+                let actualScore = isBlank ? 0 : Number(c.score);
                 let actualExtra = appState.enableHeartPoints ? (c.extraPoints || 0) : 0;
                 
                 if (c.capAtMax) {
@@ -224,27 +255,79 @@ function calculateGrades() {
 
         if (cat.capAtMax) {
             if (catInsight.rPercent > 100) catInsight.rPercent = 100;
-            if (catInsight.rPercent + catInsight.ePercent > 100) {
-                catInsight.ePercent = Math.max(0, 100 - catInsight.rPercent);
-            }
+            if (catInsight.rPercent + catInsight.ePercent > 100) catInsight.ePercent = Math.max(0, 100 - catInsight.rPercent);
+            if (catInsight.rPercent + catMissingR_percent > 100) catMissingR_percent = Math.max(0, 100 - catInsight.rPercent);
         }
 
         catInsight.finalContribution = (catInsight.rPercent + catInsight.ePercent) * (catInsight.effectiveWeight / 100);
 
         let requiredPass = cat.passingScore !== "" ? Number(cat.passingScore) : appState.globalPassingScore;
-        if (catInsight.rPercent < requiredPass) {
-            calcInsights.warnings.push(`${cat.name} score (${catInsight.rPercent.toFixed(1)}%) is below passing (${requiredPass}%).`);
+        let attemptedCatPercent = 100 - catMissingR_percent;
+        if (appState.ignoreBlanks && attemptedCatPercent > 0) {
+            if ((catInsight.rPercent / (attemptedCatPercent/100)) < requiredPass) {
+                calcInsights.warnings.push(`Current standing for ${cat.name} is below passing (${requiredPass}%).`);
+            }
+        } else if (!appState.ignoreBlanks && catInsight.rPercent < requiredPass) {
+             calcInsights.warnings.push(`${cat.name} score (${catInsight.rPercent.toFixed(1)}%) is below passing (${requiredPass}%).`);
         }
 
         calcInsights.categories.push(catInsight);
         finalR_Weighted += catInsight.rPercent * (catInsight.effectiveWeight / 100);
         finalE_Weighted += catInsight.ePercent * (catInsight.effectiveWeight / 100);
+        total_missing_r_weighted += catMissingR_percent * (catInsight.effectiveWeight / 100);
     });
+
+    let totalEarnedExtra = appState.enableHeartPoints ? finalE_Weighted : 0;
+    calcInsights.minRaw = finalR_Weighted + totalEarnedExtra;
+    calcInsights.maxRaw = finalR_Weighted + total_missing_r_weighted + totalEarnedExtra;
+
+    let attempted_weight = 100 - total_missing_r_weighted;
+    if (appState.ignoreBlanks && attempted_weight > 0 && attempted_weight < 100) {
+        finalR_Weighted = (finalR_Weighted / attempted_weight) * 100;
+        finalE_Weighted = (finalE_Weighted / attempted_weight) * 100;
+    }
+
+    if (appState.targetGradePercent !== undefined && appState.targetGradePercent !== null && total_missing_r_weighted > 0) {
+        let missingNeeded = appState.targetGradePercent - calcInsights.minRaw;
+        calcInsights.targetNeeded = (missingNeeded / total_missing_r_weighted) * 100;
+    }
 
     calcInsights.totalRaw = finalR_Weighted;
     calcInsights.totalExtra = finalE_Weighted;
-
     document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(2);
+
+    const rangeDisplay = document.getElementById('range-display');
+    if (rangeDisplay) {
+        if (total_missing_r_weighted > 0) {
+            rangeDisplay.classList.remove('hidden');
+            let minGradeStr = scoreToGrade(calcInsights.minRaw);
+            let maxGradeStr = scoreToGrade(calcInsights.maxRaw);
+            document.getElementById('grade-range-values').innerText = `${minGradeStr} to ${maxGradeStr} (${calcInsights.minRaw.toFixed(2)}% to ${calcInsights.maxRaw.toFixed(2)}%)`;
+        } else {
+            rangeDisplay.classList.add('hidden');
+        }
+    }
+
+    const targetOutput = document.getElementById('target-output');
+    if (targetOutput) {
+        if (appState.targetGradePercent !== null && total_missing_r_weighted > 0) {
+            targetOutput.classList.remove('hidden');
+            let tNeeded = calcInsights.targetNeeded;
+            const tnValue = document.getElementById('target-needed-value');
+            if (tNeeded > 100) {
+                tnValue.innerText = `Impossible (>100% on rest)`;
+                tnValue.style.color = 'var(--up-maroon)';
+            } else if (tNeeded <= 0) {
+                tnValue.innerText = `Goal Achieved!`;
+                tnValue.style.color = 'var(--up-green)';
+            } else {
+                tnValue.innerText = `${tNeeded.toFixed(2)}% avg. on rest`;
+                tnValue.style.color = 'inherit';
+            }
+        } else {
+            targetOutput.classList.add('hidden');
+        }
+    }
 
     let finalPercentage = finalR_Weighted;
     let finalGradeString = "";
@@ -257,9 +340,9 @@ function calculateGrades() {
             appState.heartScale.forEach((rule, idx) => {
                 let computedPercent = finalR_Weighted + (finalE_Weighted * rule.mult);
                 let computedGradeStr = scoreToGrade(computedPercent);
-                let computedIndex = sortedScale.findIndex(g => String(g.grade) === String(computedGradeStr));
+                let computedIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === computedGradeStr);
                 
-                let limitIndex = sortedScale.findIndex(g => String(g.grade) === String(rule.limit));
+                let limitIndex = sortedScale.findIndex(g => formatGradeVal(g.grade) === formatGradeVal(rule.limit));
                 if (limitIndex === -1) limitIndex = 0; 
                 
                 let finalIndexForRule = Math.max(computedIndex, limitIndex);
@@ -272,20 +355,20 @@ function calculateGrades() {
             });
             
             if (bestGradeIndex < sortedScale.length) {
-                finalGradeString = sortedScale[bestGradeIndex].grade;
-                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+                finalGradeString = formatGradeVal(sortedScale[bestGradeIndex].grade);
+                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => formatGradeVal(g.grade) === finalGradeString);
             }
         } else {
             finalPercentage = finalR_Weighted + finalE_Weighted;
             finalGradeString = scoreToGrade(finalPercentage);
             if (appState.gradeScale && appState.gradeScale.length > 0) {
-                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+                calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => formatGradeVal(g.grade) === finalGradeString);
             }
         }
     } else {
         finalGradeString = scoreToGrade(finalPercentage);
         if (appState.gradeScale && appState.gradeScale.length > 0) {
-            calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => String(g.grade) === String(finalGradeString));
+            calcInsights.activeGradeIndex = appState.gradeScale.findIndex(g => formatGradeVal(g.grade) === finalGradeString);
         }
     }
     
@@ -327,9 +410,6 @@ function render() {
         shareBtn.classList.add('primary');
     }
 
-    document.body.setAttribute('data-theme', appState.darkMode ? 'dark' : 'light');
-    document.getElementById('theme-btn').innerHTML = appState.darkMode ? 'Light Mode' : 'Dark Mode';
-    
     const presetSelector = document.getElementById('preset-selector');
     if (presetSelector) presetSelector.value = appState.gradingSystemType || "1.0-5.0";
 
@@ -344,13 +424,16 @@ function render() {
     document.getElementById('global-passing').value = appState.globalPassingScore;
     document.getElementById('global-passing').disabled = !isEdit;
 
+    document.getElementById('toggle-ignore-blanks').checked = appState.ignoreBlanks;
+    document.getElementById('target-grade').value = appState.targetGradePercent !== null && appState.targetGradePercent !== undefined ? appState.targetGradePercent : '';
+
     const scaleBody = document.getElementById('grade-scale-body');
     if (appState.gradeScale && appState.gradeScale.length > 0) {
         document.querySelector('.grade-scale-card').classList.remove('hidden');
         scaleBody.innerHTML = appState.gradeScale.map((item, idx) => `
             <tr class="${idx === calcInsights.activeGradeIndex ? 'active-grade-row' : ''}">
                 <td>${isEdit ? `<input type="number" value="${item.min}" onchange="updateScale(${idx}, 'min', Number(this.value))" class="input-minimal" style="width:85px;">%` : `≥ ${item.min}%`}</td>
-                <td style="font-weight: 500;">${isEdit ? `<input type="text" value="${item.grade}" onchange="updateScale(${idx}, 'grade', this.value)" class="input-minimal" style="width:85px;">` : item.grade}</td>
+                <td style="font-weight: 500;">${isEdit ? `<input type="text" value="${formatGradeVal(item.grade)}" onchange="updateScale(${idx}, 'grade', this.value)" class="input-minimal" style="width:85px;">` : formatGradeVal(item.grade)}</td>
                 <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeScale(${idx})">×</button></td>
             </tr>
         `).join('');
@@ -358,7 +441,9 @@ function render() {
         document.querySelector('.grade-scale-card').classList.add('hidden');
     }
 
-    document.getElementById('enable-heart-points').checked = appState.enableHeartPoints;
+    const heartToggle = document.getElementById('enable-heart-points');
+    heartToggle.checked = appState.enableHeartPoints;
+    heartToggle.disabled = !appState.isEditMode;
     
     const heartCard = document.querySelector('.heart-scale-card');
     if (!appState.enableHeartPoints || !appState.heartScale || appState.heartScale.length === 0) {
@@ -369,7 +454,7 @@ function render() {
         if (appState.heartScale) {
             heartBody.innerHTML = appState.heartScale.map((item, idx) => `
                 <tr class="${idx === calcInsights.activeHeartIndex ? 'active-grade-row' : ''}">
-                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Max Grade:</span> ${isEdit ? `<input type="text" value="${item.limit}" onchange="updateHeartScale(${idx}, 'limit', this.value)" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.limit}</span>`}</td>
+                    <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Max Grade:</span> ${isEdit ? `<input type="text" value="${formatGradeVal(item.limit)}" onchange="updateHeartScale(${idx}, 'limit', this.value)" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${formatGradeVal(item.limit)}</span>`}</td>
                     <td><span style="font-size: 0.8rem; ${idx === calcInsights.activeHeartIndex ? 'color: inherit;' : 'color: var(--text-muted);'}">Mult:</span> ${isEdit ? `<input type="number" value="${item.mult}" step="0.01" onchange="updateHeartScale(${idx}, 'mult', Number(this.value))" class="input-minimal" style="width:85px;">` : `<span style="font-weight: 500;">${item.mult.toFixed(2)}x</span>`}</td>
                     <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeHeartScale(${idx})">×</button></td>
                 </tr>
@@ -432,11 +517,22 @@ function render() {
 
         cat.components.forEach((comp, compIndex) => {
             let cInsight = catInsight.components[compIndex];
+            
+            let isBlank = (comp.score == null || comp.score === "");
+            let targetHint = '';
+            if (isBlank && calcInsights.targetNeeded !== null && calcInsights.targetNeeded !== undefined && calcInsights.targetNeeded <= 100 && calcInsights.targetNeeded > 0) {
+                let targetPts = (calcInsights.targetNeeded / 100) * comp.max;
+                targetHint = `<div style="font-size: 0.75rem; color: var(--up-green); margin-top: 4px; font-weight: 500;">Target: ${targetPts.toFixed(2)}</div>`;
+            }
+
             componentsHtml += `
                 <tr>
                     <td class="col-item">${isEdit ? `<input type="text" value="${comp.name}" onchange="updateComp(${cIndex}, ${compIndex}, 'name', this.value)">` : comp.name}</td>
                     
-                    <td class="col-num"><input type="number" value="${comp.score}" onchange="updateComp(${cIndex}, ${compIndex}, 'score', Number(this.value))" class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;"></td>
+                    <td class="col-num">
+                        <input type="number" value="${comp.score == null || comp.score === '' ? '' : comp.score}" onchange="updateComp(${cIndex}, ${compIndex}, 'score', this.value === '' ? null : Number(this.value))" class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;">
+                        ${targetHint}
+                    </td>
                     
                     <td class="col-num">
                         ${isEdit ? `
@@ -450,8 +546,8 @@ function render() {
                     
                     ${appState.enableHeartPoints ? `
                         <td class="col-num">
-                            <input type="number" value="${comp.extraPoints || 0}" 
-                                onchange="updateComp(${cIndex}, ${compIndex}, 'extraPoints', Number(this.value))" 
+                            <input type="number" value="${comp.extraPoints == null || comp.extraPoints === '' ? '' : comp.extraPoints}" 
+                                onchange="updateComp(${cIndex}, ${compIndex}, 'extraPoints', this.value === '' ? null : Number(this.value))" 
                                 class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;">
                         </td>` : ''}
                         
@@ -486,7 +582,7 @@ window.removeCat = (cIdx) => { appState.categories.splice(cIdx, 1); render(); };
 window.updateComp = (cIdx, compIdx, field, val) => { appState.categories[cIdx].components[compIdx][field] = val; render(); };
 window.removeComp = (cIdx, compIdx) => { appState.categories[cIdx].components.splice(compIdx, 1); render(); };
 window.addComp = (cIdx) => {
-    appState.categories[cIdx].components.push({ id: generateId(), name: "New Item", score: 0, max: 100, weight: "1", extraPoints: 0, capAtMax: true });
+    appState.categories[cIdx].components.push({ id: generateId(), name: "New Item", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true });
     render();
 };
 window.updateScale = (idx, field, val) => { appState.gradeScale[idx][field] = val; render(); };
@@ -497,6 +593,14 @@ window.removeHeartScale = (idx) => { appState.heartScale.splice(idx, 1); render(
 document.getElementById('subject-name').addEventListener('change', (e) => { appState.subject = e.target.value; render(); });
 document.getElementById('global-passing').addEventListener('change', (e) => { appState.globalPassingScore = Number(e.target.value); render(); });
 document.getElementById('enable-heart-points').addEventListener('change', (e) => { appState.enableHeartPoints = e.target.checked; render(); });
+document.getElementById('toggle-ignore-blanks').addEventListener('change', (e) => { appState.ignoreBlanks = e.target.checked; render(); });
+document.getElementById('target-grade').addEventListener('input', (e) => { appState.targetGradePercent = e.target.value === '' ? null : Number(e.target.value); render(); });
+
+document.getElementById('theme-btn').addEventListener('click', () => { 
+    isGlobalDarkMode = !isGlobalDarkMode; 
+    localStorage.setItem('global_dark_mode', isGlobalDarkMode);
+    applyGlobalTheme();
+});
 
 document.getElementById('preset-selector').addEventListener('change', (e) => {
     const selected = e.target.value;
@@ -516,13 +620,12 @@ document.getElementById('add-scale-btn').addEventListener('click', () => { appSt
 document.getElementById('add-heart-scale-btn').addEventListener('click', () => { appState.heartScale.push({ limit: "1.00", mult: 1.00 }); render(); });
 
 document.getElementById('mode-btn').addEventListener('click', () => { appState.isEditMode = !appState.isEditMode; render(); });
-document.getElementById('theme-btn').addEventListener('click', () => { appState.darkMode = !appState.darkMode; render(); });
 document.getElementById('breakdown-btn').addEventListener('click', () => { appState.showBreakdown = !appState.showBreakdown; render(); });
 document.getElementById('reset-scores-btn').addEventListener('click', (e) => {
     appState.categories.forEach(cat => {
         cat.components.forEach(comp => {
-            comp.score = 0;
-            comp.extraPoints = 0;
+            comp.score = null;
+            comp.extraPoints = null;
         });
     });
     render();
@@ -558,7 +661,6 @@ document.getElementById('nav-explore-btn').addEventListener('click', () => {
     fetchAndRenderCalculators();
 });
 
-// make header title act like explore button
 document.getElementById('home-link').addEventListener('click', () => {
     switchView('explore');
     fetchAndRenderCalculators();
@@ -630,10 +732,12 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     const shareState = JSON.parse(JSON.stringify(appState));
     shareState.isEditMode = false;
     shareState.showBreakdown = false;
+    shareState.targetGradePercent = null; 
+    shareState.ignoreBlanks = false;
     
     shareState.categories.forEach(cat => {
         cat.components.forEach(comp => {
-            comp.score = 0; comp.extraPoints = 0;
+            comp.score = null; comp.extraPoints = null;
         });
     });
 
@@ -698,12 +802,10 @@ async function loadCalculatorFromSupabase() {
     if (data) {
         originalTemplateState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
         
-        // check if the user has visited this specific calculator before and saved personal scores
         const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);
         if (savedState) {
             try { 
                 let parsedState = JSON.parse(savedState); 
-                // repair: if local save is a blank default, but the DB template isn't, overwrite
                 if (parsedState.subject === "New Subject" && data.config.subject !== "New Subject") {
                     appState = { ...defaultState, ...data.config };
                 } else {
@@ -804,14 +906,14 @@ async function fetchAndRenderStats(calculatorId, userRawScore = null) {
     const gradeCounts = {};
     
     if (appState.gradeScale && appState.gradeScale.length > 0) {
-        appState.gradeScale.forEach(scale => gradeCounts[String(scale.grade)] = 0);
+        appState.gradeScale.forEach(scale => gradeCounts[formatGradeVal(scale.grade)] = 0);
         grades.forEach(g => {
-            const key = String(g);
+            const key = formatGradeVal(g);
             if(gradeCounts[key] !== undefined) gradeCounts[key]++;
         });
     } else {
         grades.forEach(g => {
-            const key = String(g);
+            const key = formatGradeVal(g);
             if(gradeCounts[key] === undefined) gradeCounts[key] = 0;
             gradeCounts[key]++;
         });
@@ -830,12 +932,15 @@ async function fetchAndRenderStats(calculatorId, userRawScore = null) {
         if (isNumeric) {
             scale.sort((a, b) => Number(a.grade) - Number(b.grade));
         }
-        labels = scale.map(s => String(s.grade));
+        labels = scale.map(s => formatGradeVal(s.grade));
         values = labels.map(l => gradeCounts[l] || 0);
 
     } else {
-        // fallback (percent mode)
-        labels = Object.keys(gradeCounts).sort((a, b) => Number(a) - Number(b));
+        labels = Object.keys(gradeCounts).sort((a, b) => {
+            let numA = Number(a); let numB = Number(b);
+            if(!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.localeCompare(b);
+        });
         values = labels.map(l => gradeCounts[l]);
     }
 

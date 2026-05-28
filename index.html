@@ -78,6 +78,28 @@
                     <div class="grade-display" id="final-grade">--</div>
                     <div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div>
                     <div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div>
+                    
+                    <div id="range-display" class="hidden" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Potential Range: <span id="grade-range-values" style="font-weight:600; color: var(--text-main);">--</span>
+                    </div>
+                    <div id="target-output" class="hidden" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                        Target needed: <span id="target-needed-value" style="font-weight:600;">--</span>
+                    </div>
+
+                    <div style="margin-top: 1.25rem; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 1rem;">
+                        <div class="setting-row" style="justify-content: space-between; margin-bottom: 0.75rem;">
+                            <label for="toggle-ignore-blanks" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; text-align: left; line-height: 1.2;">Ignore Blanks<br><span style="font-size: 0.7rem; opacity: 0.7;">(Current Standing)</span></label>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-ignore-blanks">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="setting-row" style="justify-content: space-between; margin-bottom: 0;">
+                            <label for="target-grade" style="font-size: 0.85rem; color: var(--text-muted); text-align: left;">Target Score (%)</label>
+                            <input type="number" id="target-grade" placeholder="e.g. 90" class="input-minimal" style="width: 70px; text-align: center; padding: 0.2rem; font-size: 0.85rem;">
+                        </div>
+                    </div>
+
                     <div id="passing-warnings" class="warnings"></div>
                 </div>
 
