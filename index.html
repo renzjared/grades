@@ -39,7 +39,22 @@
             </div>
         </div>
         <div class="header-controls">
-            <button id="theme-btn" class="btn text-btn">Dark Mode</button>
+            <div class="theme-dropdown">
+                <button class="btn text-btn dropdown-trigger">Themes</button>
+                <div class="theme-menu" style="min-width: 180px;">
+                    <div class="theme-section">
+                        <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Classic</h4>
+                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('light')">Light Mode</button>
+                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.75rem; text-align: left;" onclick="setFullTheme('dark')">Dark Mode</button>
+                    </div>
+                    <div class="theme-section">
+                        <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Custom</h4>
+                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('pastel')">Pastel Pink</button>
+                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('autumn')">Autumn</button>
+                        <button class="btn secondary" style="width: 100%; text-align: left;" onclick="setFullTheme('red-gray')">Red /Gray</button>
+                    </div>
+                </div>
+            </div>
             <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
             <button id="share-btn" class="btn primary">Share as Template</button>
         </div>

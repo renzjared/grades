@@ -4,12 +4,27 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let chartInstance = null;
 
-let isGlobalDarkMode = localStorage.getItem('global_dark_mode') === 'true';
-function applyGlobalTheme() {
-    document.body.setAttribute('data-theme', isGlobalDarkMode ? 'dark' : 'light');
-    const themeBtn = document.getElementById('theme-btn');
-    if (themeBtn) themeBtn.innerHTML = isGlobalDarkMode ? 'Light Mode' : 'Dark Mode';
+// --- THEME MANAGEMENT ---
+let currentTheme = localStorage.getItem('app_full_theme') || 'light';
+
+function setFullTheme(themeName) {
+    currentTheme = themeName;
+    localStorage.setItem('app_full_theme', themeName);
+    
+    // Apply the theme to the body
+    document.body.setAttribute('data-theme', themeName);
+
+    // Update chart colors dynamically if rendered
+    if (chartInstance) {
+        const primaryColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
+        chartInstance.data.datasets[0].backgroundColor = primaryColor + 'b3'; 
+        chartInstance.data.datasets[0].borderColor = primaryColor;
+        chartInstance.update();
+    }
 }
+// Initialize immediately on load
+setFullTheme(currentTheme);
+// ------------------------
 
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -78,7 +93,7 @@ const defaultState = {
     heartScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].heartScale)),
     categories: [
         {
-            id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true,
+            id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true, dropLowestX: 0,
             components: [ 
                 { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false },
                 { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false }
@@ -91,8 +106,6 @@ const defaultState = {
 let appState = JSON.parse(JSON.stringify(defaultState));
 let calcInsights = {};
 let currentCalculatorId = new URLSearchParams(window.location.search).get('id');
-
-applyGlobalTheme();
 
 function resetToBlank() {
     window.history.replaceState(null, null, window.location.pathname);
@@ -193,8 +206,31 @@ function calculateGrades() {
         let totalCompWeightValue = 0;
         let catMissingR_percent = 0;
         
-        cat.components.forEach(comp => {
-            if (!comp.isBonus) {
+        let droppedIndices = [];
+        let numDroppable = cat.components.filter(c => !c.isBonus).length;
+        let numToDrop = Math.min(cat.dropLowestX || 0, Math.max(0, numDroppable - 1));
+        
+        if (numToDrop > 0) {
+            let droppable = [];
+            cat.components.forEach((comp, idx) => {
+                if (!comp.isBonus) {
+                    let isBlank = (comp.score == null || comp.score === "");
+                    let actualScore = isBlank ? 0 : Number(comp.score);
+                    let actualExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
+                    if (comp.capAtMax && comp.max > 0) {
+                        if (actualScore > comp.max) actualScore = comp.max;
+                        if (actualScore + actualExtra > comp.max) actualExtra = Math.max(0, comp.max - actualScore);
+                    }
+                    let pct = comp.max > 0 ? (actualScore + actualExtra) / comp.max : 0;
+                    droppable.push({ idx, pct });
+                }
+            });
+            droppable.sort((a, b) => a.pct - b.pct);
+            droppedIndices = droppable.slice(0, numToDrop).map(d => d.idx);
+        }
+
+        cat.components.forEach((comp, idx) => {
+            if (!comp.isBonus && !droppedIndices.includes(idx)) {
                 if (cat.calcMode === 'weighted') {
                     totalCompWeightValue += parseWeight(comp.weight);
                 } else {
@@ -206,12 +242,21 @@ function calculateGrades() {
         let catR = 0, catE = 0;
 
         cat.components.forEach((comp, compIdx) => {
-            let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0, isBonus: !!comp.isBonus };
+            let isDropped = droppedIndices.includes(compIdx);
+            let compInsight = { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0, isBonus: !!comp.isBonus, isDropped: isDropped };
             
             let isBlank = (comp.score == null || comp.score === "");
-            // FORCE score to 0 if it is a bonus component to cleanly separate it to extraPoints pipeline
-            let actualScore = (isBlank || comp.isBonus) ? 0 : Number(comp.score);
-            let actualExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
+            
+            let displayScore = isBlank ? 0 : Number(comp.score);
+            let displayExtra = appState.enableHeartPoints ? (comp.extraPoints || 0) : 0;
+            if (comp.capAtMax && comp.max > 0) {
+                if (displayScore > comp.max) displayScore = comp.max;
+                if (displayScore + displayExtra > comp.max) displayExtra = Math.max(0, comp.max - displayScore);
+            }
+            compInsight.scorePercent = comp.max > 0 ? ((displayScore + displayExtra) / comp.max) * 100 : 0;
+
+            let actualScore = (isBlank || comp.isBonus || isDropped) ? 0 : Number(comp.score);
+            let actualExtra = (appState.enableHeartPoints && !isDropped) ? (comp.extraPoints || 0) : 0;
             
             if (comp.capAtMax && comp.max > 0) {
                 if (actualScore > comp.max) actualScore = comp.max;
@@ -222,34 +267,46 @@ function calculateGrades() {
 
             let pScore = comp.max > 0 ? (actualScore / comp.max) * 100 : 0;
             let pExtra = comp.max > 0 ? (actualExtra / comp.max) * 100 : 0;
-            compInsight.scorePercent = pScore + pExtra;
 
             let localWeightFrac = 0;
 
-            if (cat.calcMode === 'weighted') {
-                let parsedCompW = parseWeight(comp.weight);
-                localWeightFrac = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) : 0;
-                
-                if (isBlank && !comp.isBonus) {
-                    catMissingR_percent += (localWeightFrac * 100);
-                }
-                
-                catR += pScore * localWeightFrac;
-                catE += pExtra * localWeightFrac;
+            if (!isDropped) {
+                if (cat.calcMode === 'weighted') {
+                    let parsedCompW = parseWeight(comp.weight);
+                    localWeightFrac = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) : 0;
+                    
+                    if (isBlank && !comp.isBonus) {
+                        catMissingR_percent += (localWeightFrac * 100);
+                    }
+                    
+                    catR += pScore * localWeightFrac;
+                    catE += pExtra * localWeightFrac;
 
-            } else {
-                localWeightFrac = sumMax > 0 ? (comp.max / sumMax) : 0;
-                
-                sumScore += actualScore;
-                sumExtra += actualExtra;
-                
-                if (isBlank && !comp.isBonus) {
-                    missingMax += comp.max;
+                } else {
+                    localWeightFrac = sumMax > 0 ? (comp.max / sumMax) : 0;
+                    
+                    sumScore += actualScore;
+                    sumExtra += actualExtra;
+                    
+                    if (isBlank && !comp.isBonus) {
+                        missingMax += comp.max;
+                    }
                 }
             }
             
-            compInsight.effectiveWeight = localWeightFrac * catInsight.effectiveWeight;
-            compInsight.weightedContribution = (compInsight.scorePercent / 100) * compInsight.effectiveWeight;
+            if (isDropped) {
+                compInsight.effectiveWeight = 0;
+                compInsight.weightedContribution = 0;
+            } else {
+                compInsight.effectiveWeight = localWeightFrac * catInsight.effectiveWeight;
+                if (cat.calcMode === 'sum' && !comp.isBonus) {
+                     compInsight.weightedContribution = sumMax > 0 ? ((actualScore + actualExtra) / sumMax) * catInsight.effectiveWeight : 0;
+                } else if (cat.calcMode === 'sum' && comp.isBonus) {
+                     compInsight.weightedContribution = sumMax > 0 ? ((actualScore + actualExtra) / sumMax) * catInsight.effectiveWeight : 0;
+                } else {
+                     compInsight.weightedContribution = ((pScore + pExtra) / 100) * compInsight.effectiveWeight;
+                }
+            }
 
             catInsight.components.push(compInsight);
         });
@@ -541,6 +598,7 @@ function render() {
                         <option value="sum" ${cat.calcMode === 'sum' ? 'selected' : ''}>Sum Points</option>
                     </select>
                 </div>
+                <div><label>Drop Lowest:</label> <input type="number" min="0" value="${cat.dropLowestX || 0}" onchange="updateCat(${cIndex}, 'dropLowestX', Number(this.value))" style="width:50px; display:inline-block; padding:0.2rem;"> items</div>
                 <div><label>Pass %:</label> <input type="number" placeholder="Global" value="${cat.passingScore}" onchange="updateCat(${cIndex}, 'passingScore', this.value)" style="width:85px; display:inline-block; padding:0.2rem;"></div>
                 <div>
                     <label>Cap to Max:</label> 
@@ -577,25 +635,27 @@ function render() {
             
             let isBlank = (comp.score == null || comp.score === "");
             let targetHint = '';
-            if (isBlank && !comp.isBonus && calcInsights.targetNeeded !== null && calcInsights.targetNeeded !== undefined && calcInsights.targetNeeded <= 100 && calcInsights.targetNeeded > 0) {
+            if (isBlank && !comp.isBonus && !cInsight.isDropped && calcInsights.targetNeeded !== null && calcInsights.targetNeeded !== undefined && calcInsights.targetNeeded <= 100 && calcInsights.targetNeeded > 0) {
                 let targetPts = (calcInsights.targetNeeded / 100) * comp.max;
                 targetHint = `<div style="font-size: 0.75rem; color: var(--up-green); margin-top: 4px; font-weight: 500;">Target: ${targetPts.toFixed(2)}</div>`;
             }
 
-            let effDisplay = comp.isBonus ? `<span style="color:var(--up-green); font-weight:600;">Bonus (+${cInsight.effectiveWeight.toFixed(2)}%)</span>` : `${cInsight.effectiveWeight.toFixed(2)}%`;
+            let effDisplay = cInsight.isDropped ? `<span style="color:var(--up-maroon); font-weight:600;">Dropped</span>` 
+                           : comp.isBonus ? `<span style="color:var(--up-green); font-weight:600;">Bonus (+${cInsight.effectiveWeight.toFixed(2)}%)</span>` 
+                           : `${cInsight.effectiveWeight.toFixed(2)}%`;
 
             componentsHtml += `
-                <tr>
+                <tr style="${cInsight.isDropped ? 'opacity: 0.5;' : ''}">
                     <td class="col-item">${isEdit ? `<input type="text" value="${comp.name}" onchange="updateComp(${cIndex}, ${compIndex}, 'name', this.value)">` : comp.name}</td>
                     
                     <td class="col-num">
                         <input type="number" 
                             value="${comp.score == null || comp.score === '' ? '' : comp.score}" 
                             onchange="updateComp(${cIndex}, ${compIndex}, 'score', this.value === '' ? null : Number(this.value))" 
-                            class="input-minimal ${!isEdit && !comp.isBonus ? 'view-editable' : ''}" 
+                            class="input-minimal ${!isEdit && !comp.isBonus && !cInsight.isDropped ? 'view-editable' : ''}" 
                             style="width:85px; ${comp.isBonus ? 'opacity: 0.4; cursor: not-allowed; background-color: var(--input-bg);' : ''}"
                             ${comp.isBonus ? 'disabled title=\"Bonus items use Extra Points\"' : ''}>
-                        ${!comp.isBonus ? targetHint : ''}
+                        ${!comp.isBonus && !cInsight.isDropped ? targetHint : ''}
                     </td>
                     
                     <td class="col-num">
@@ -624,9 +684,9 @@ function render() {
                     ${cat.calcMode === 'weighted' ? `<td class="col-num">${isEdit ? `<input type="text" value="${comp.weight}" onchange="updateComp(${cIndex}, ${compIndex}, 'weight', this.value)">` : comp.weight}</td>` : ''}
                     
                     ${showBreakdown ? `
-                    <td class="col-num"><span class="stat-pill" style="${comp.isBonus ? 'background: rgba(72, 187, 120, 0.1);' : ''}">${effDisplay}</span></td>
-                    <td class="col-num"><span class="stat-pill">${cInsight.isBonus ? 'Bonus' : cInsight.scorePercent.toFixed(1) + '%'}</span></td>
-                    <td class="col-num" style="font-weight:600;">+${cInsight.weightedContribution.toFixed(2)}</td>
+                    <td class="col-num"><span class="stat-pill" style="${comp.isBonus ? 'background: rgba(72, 187, 120, 0.1);' : cInsight.isDropped ? 'background: rgba(123, 17, 19, 0.1);' : ''}">${effDisplay}</span></td>
+                    <td class="col-num"><span class="stat-pill">${cInsight.isBonus ? 'Bonus' : cInsight.isDropped ? '0.0%' : cInsight.scorePercent.toFixed(1) + '%'}</span></td>
+                    <td class="col-num" style="font-weight:600; ${cInsight.isDropped ? 'color: var(--text-muted);' : ''}">+${cInsight.weightedContribution.toFixed(2)}</td>
                     ` : ''}
                     
                     <td class="edit-only ${isEdit ? '' : 'hidden'}"><button class="btn danger" onclick="removeComp(${cIndex}, ${compIndex})">×</button></td>
@@ -666,12 +726,6 @@ document.getElementById('enable-heart-points').addEventListener('change', (e) =>
 document.getElementById('toggle-ignore-blanks').addEventListener('change', (e) => { appState.ignoreBlanks = e.target.checked; render(); });
 document.getElementById('target-grade').addEventListener('input', (e) => { appState.targetGradePercent = e.target.value === '' ? null : Number(e.target.value); render(); });
 
-document.getElementById('theme-btn').addEventListener('click', () => { 
-    isGlobalDarkMode = !isGlobalDarkMode; 
-    localStorage.setItem('global_dark_mode', isGlobalDarkMode);
-    applyGlobalTheme();
-});
-
 document.getElementById('preset-selector').addEventListener('change', (e) => {
     const selected = e.target.value;
     appState.gradingSystemType = selected;
@@ -683,7 +737,7 @@ document.getElementById('preset-selector').addEventListener('change', (e) => {
 });
 
 document.getElementById('add-category-btn').addEventListener('click', () => {
-    appState.categories.push({ id: generateId(), name: "New Category", weight: "1", calcMode: 'weighted', passingScore: "", capAtMax: true, components: [] });
+    appState.categories.push({ id: generateId(), name: "New Category", weight: "1", calcMode: 'weighted', passingScore: "", capAtMax: true, dropLowestX: 0, components: [] });
     render();
 });
 document.getElementById('add-scale-btn').addEventListener('click', () => { appState.gradeScale.push({ min: 50, grade: "4.00" }); render(); });
@@ -1014,6 +1068,9 @@ async function fetchAndRenderStats(calculatorId, userRawScore = null) {
         values = labels.map(l => gradeCounts[l]);
     }
 
+    // Use dynamic theme color instead of hardcoded hex
+    const activeColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
+
     chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -1021,8 +1078,8 @@ async function fetchAndRenderStats(calculatorId, userRawScore = null) {
             datasets: [{
                 label: 'Students',
                 data: values,
-                backgroundColor: 'rgba(123, 17, 19, 0.7)',
-                borderColor: '#7b1113',
+                backgroundColor: activeColor + 'b3', // adds transparency
+                borderColor: activeColor,
                 borderWidth: 1
             }]
         },

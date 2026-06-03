@@ -1,3 +1,7 @@
+/* =========================================
+   FULL THEME PALETTES
+   ========================================= */
+/* Default (Classic Light) */
 :root {
     --up-maroon: #7b1113;
     --up-maroon-hover: #5a0c0e;
@@ -17,6 +21,7 @@
     --shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
+/* Classic Dark */
 [data-theme="dark"] {
     --bg-color: #191919;
     --card-bg: #202020;
@@ -33,6 +38,60 @@
     --subject-color: #48bb78;
 }
 
+/* 🌸 Pastel Pink Theme */
+[data-theme="pastel"] {
+    --bg-color: #fff0f3;       
+    --card-bg: #ffffff;        
+    --text-main: #590d22;      
+    --text-muted: #c9184a;     
+    --border: #ffb3c6;         
+    --border-hover: #ff8fab;
+    --input-bg: #fff0f3;
+    --input-bg-hover: #ffe5ec;
+    --up-maroon: #ff4d6d;      
+    --up-maroon-hover: #c9184a;
+    --up-maroon-light: rgba(255, 77, 109, 0.15);
+    --up-green: #899475;       
+    --subject-color: #ff4d6d;
+}
+
+/* 🍂 Autumn Theme */
+[data-theme="autumn"] {
+    --bg-color: #fdf8f5;       
+    --card-bg: #ffffff;
+    --text-main: #4a3728;      
+    --text-muted: #8b7355;
+    --border: #e8d8c8;
+    --border-hover: #d2b48c;
+    --input-bg: #f5ebe1;
+    --input-bg-hover: #fae1cd;
+    --up-maroon: #d95d39;      
+    --up-maroon-hover: #b04121;
+    --up-maroon-light: rgba(217, 93, 57, 0.15);
+    --up-green: #6b705c;
+    --subject-color: #d95d39;
+}
+
+/* 🖤 Red & Gray Theme (Dark Variant) */
+[data-theme="red-gray"] {
+    --bg-color: #1e1e24;       
+    --card-bg: #2b2b36;        
+    --text-main: #f5f5f5;      
+    --text-muted: #a9a9b3;
+    --border: #3f3f4e;         
+    --border-hover: #56566a;
+    --input-bg: #1e1e24;
+    --input-bg-hover: #3f3f4e;
+    --up-maroon: #fb3640;      
+    --up-maroon-hover: #fd1d29;
+    --up-maroon-light: rgba(251, 54, 64, 0.15);
+    --up-green: #48bb78;
+    --subject-color: #fb3640;
+}
+
+/* =========================================
+   BASE STYLES & LAYOUT
+   ========================================= */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -72,6 +131,9 @@ body {
 .section-header h2 { font-size: 1.15rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;}
 .header-actions { display: flex; gap: 0.5rem; }
 
+/* =========================================
+   BUTTONS & INPUTS
+   ========================================= */
 .btn {
     padding: 0.4rem 0.8rem; border-radius: var(--radius); border: none; cursor: pointer;
     font-weight: 500; font-size: 0.9rem; font-family: inherit; transition: all 0.2s;
@@ -97,10 +159,51 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
 
 .input-minimal { border: 1px solid var(--border) !important; background: transparent !important; }
 
-
 .view-editable { background: var(--input-bg); border: 1px dashed var(--border-hover) !important; }
 .view-editable:focus { border-style: solid !important; border-color: var(--up-maroon) !important; }
 
+/* =========================================
+   THEME DROPDOWN MENU
+   ========================================= */
+.theme-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.theme-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 200;
+}
+
+.theme-dropdown:hover .theme-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.theme-section {
+    margin-bottom: 1rem;
+}
+.theme-section:last-child {
+    margin-bottom: 0;
+}
+
+/* =========================================
+   CARDS & COMPONENTS
+   ========================================= */
 .card {
     background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow);
@@ -134,7 +237,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
 .cap-control label { cursor: pointer; line-height: 1; margin: 0; }
 
 .stat-pill { background: var(--input-bg); padding: 0.2rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem; }
-.heart-text { color: #e53e3e; }
+.heart-text { color: var(--up-maroon); } /* Updated to use theme color */
 
 .result-card { text-align: center; border-top: 4px solid var(--up-maroon); background: var(--up-maroon-light); border-color: transparent;}
 .result-title { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--up-maroon); margin-bottom: 0.5rem;}
@@ -166,7 +269,6 @@ th, td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
     border-color: var(--text-main) transparent transparent transparent;
 }
 .info-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
-
 
 .nav-links { display: flex; gap: 0.25rem; margin-left: 1.5rem; padding-left: 1.5rem; border-left: 2px solid var(--border); }
 .active-nav { font-weight: 700 !important; color: var(--up-maroon) !important; background: var(--up-maroon-light) !important; }
