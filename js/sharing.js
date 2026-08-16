@@ -1,9 +1,33 @@
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('share-btn').addEventListener('click', async () => {
-        if (!currentUser) return document.getElementById('auth-modal').classList.remove('hidden');
-        
+        const { data: authData } = await supabaseClient.auth.getUser();
+        const activeUser = authData?.user;
+
+        let isOwner = false;
+        if (currentCalculatorId) {
+            const { data: cData } = await supabaseClient.from('calculators').select('owner_id').eq('id', currentCalculatorId).single();
+            if (cData && activeUser && cData.owner_id === activeUser.id) {
+                isOwner = true;
+            }
+        } else {
+            if (!activeUser) return document.getElementById('auth-modal').classList.remove('hidden');
+            isOwner = true; 
+        }
+
         const btn = document.getElementById('share-btn');
-        btn.innerText = "Saving...";
+        btn.innerText = "Processing...";
+
+        if (!isOwner) {
+            document.getElementById('sharing-modal').classList.remove('hidden');
+            document.getElementById('owner-sharing-controls').classList.add('hidden');
+            document.getElementById('owner-link-modes').classList.add('hidden');
+            document.getElementById('modal-share-url').value = window.location.origin + window.location.pathname + '?id=' + currentCalculatorId;
+            btn.innerText = "Share / Permissions";
+            return;
+        }
+
+        document.getElementById('owner-sharing-controls').classList.remove('hidden');
+        document.getElementById('owner-link-modes').classList.remove('hidden');
 
         const shareState = JSON.parse(JSON.stringify(appState));
         shareState.isEditMode = false;
@@ -19,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .insert([{ 
                     title: shareState.subject, 
                     config: shareState, 
-                    owner_id: currentUser.id,
+                    owner_id: activeUser.id,
                     link_sharing_mode: 'restricted'
                 }]).select();
                 

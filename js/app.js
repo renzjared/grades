@@ -2,7 +2,6 @@ function setFullTheme(themeName) {
     localStorage.setItem('app_full_theme', themeName);
     document.body.setAttribute('data-theme', themeName);
     
-    // Update chart colors dynamically if it exists
     if (typeof chartInstance !== 'undefined' && chartInstance) {
         const primaryColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
         chartInstance.data.datasets[0].backgroundColor = primaryColor + 'b3'; 
@@ -11,22 +10,17 @@ function setFullTheme(themeName) {
     }
 }
 
-// Init Global Themes
 setFullTheme(localStorage.getItem('app_full_theme') || 'light');
 
-// Main Navigation Controller
 function switchView(viewName) {
-    // Hide all panels
     document.getElementById('calculator-view').classList.add('hidden');
     document.getElementById('explore-view').classList.add('hidden');
     document.getElementById('assignments-view').classList.add('hidden');
     
-    // Remove active styling from all nav tabs
     document.getElementById('nav-calc-btn').classList.remove('active-nav');
     document.getElementById('nav-explore-btn').classList.remove('active-nav');
     document.getElementById('nav-assignments-btn').classList.remove('active-nav');
 
-    // Show selected panel & adjust header controls
     if (viewName === 'calc') {
         document.getElementById('calculator-view').classList.remove('hidden');
         document.getElementById('nav-calc-btn').classList.add('active-nav');
@@ -45,7 +39,6 @@ function switchView(viewName) {
     }
 }
 
-// Nav Listeners
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-calc-btn').addEventListener('click', () => switchView('calc'));
     

@@ -3,27 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades Calculator</title>
+    <title>Grades & Assignments Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <meta name="title" content="Grades Calculator">
-    <meta name="description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://renzjared.github.io/grades">
-    <meta property="og:title" content="Grades Calculator">
-    <meta property="og:image" content="https://i.imgur.com/KHMUVn3.png">
-    <meta property="og:description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://renzjared.github.io/grades">
-    <meta property="twitter:title" content="Grades Calculator">
-    <meta name="twitter:image" content="https://i.imgur.com/KHMUVn3.png">
-    <meta property="twitter:description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta name="theme-color" content="#7b1113">
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -31,7 +13,7 @@
     <nav class="topbar">
         <div class="topbar-left">
             <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">Grade Calculator</h1>
+            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
             
             <div class="nav-links">
                 <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
@@ -67,7 +49,7 @@
         <div class="modal-content card">
             <h2>Log In to Dashboard</h2>
             <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
-            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (Soon)</button>
+            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (soon)</button>
             <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
             <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
         </div>
@@ -82,37 +64,50 @@
         </div>
     </div>
 
+    <!-- ACCESS DENIED MODAL -->
+    <div id="access-denied-modal" class="modal hidden">
+        <div class="modal-content card" style="text-align: center;">
+            <h2 style="color: var(--up-maroon);">Access Denied</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">This calculator is restricted and hasn't been shared with you.</p>
+            <button class="btn primary" style="width: 100%;" onclick="document.getElementById('access-denied-modal').classList.add('hidden'); switchView('explore'); fetchAndRenderCalculators();">Return to Explore</button>
+        </div>
+    </div>
+
     <!-- SHARING MODAL -->
     <div id="sharing-modal" class="modal hidden">
         <div class="modal-content card" style="max-width: 500px;">
             <h2>Share Calculator</h2>
             
-            <div style="margin: 1.5rem 0;">
-                <h4 style="margin-bottom: 0.5rem;">Add people</h4>
-                <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" id="share-add-username" placeholder="Add by username">
-                    <select id="share-add-role" style="width: 100px;">
-                        <option value="view">Viewer</option>
-                        <option value="edit">Editor</option>
-                    </select>
-                    <button id="share-add-btn" class="btn primary">Add</button>
+            <div id="owner-sharing-controls">
+                <div style="margin: 1.5rem 0;">
+                    <h4 style="margin-bottom: 0.5rem;">Add people</h4>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="share-add-username" placeholder="Add by username">
+                        <select id="share-add-role" style="width: 100px;">
+                            <option value="view">Viewer</option>
+                            <option value="edit">Editor</option>
+                        </select>
+                        <button id="share-add-btn" class="btn primary">Add</button>
+                    </div>
                 </div>
-            </div>
 
-            <div style="margin: 1.5rem 0;">
-                <h4 style="margin-bottom: 0.5rem;">People with access</h4>
-                <div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;">
-                    <!-- Filled by JS -->
+                <div style="margin: 1.5rem 0;">
+                    <h4 style="margin-bottom: 0.5rem;">People with access</h4>
+                    <div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;">
+                        <!-- Filled by JS -->
+                    </div>
                 </div>
             </div>
 
             <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);">
-                <h4 style="margin-bottom: 0.5rem;">General access</h4>
-                <select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;">
-                    <option value="restricted">Restricted (Only people added can open)</option>
-                    <option value="view">Anyone with the link (Viewer)</option>
-                    <option value="edit">Anyone with the link (Editor)</option>
-                </select>
+                <h4 style="margin-bottom: 0.5rem;">General access / Link</h4>
+                <div id="owner-link-modes">
+                    <select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;">
+                        <option value="restricted">Restricted (Only people added can open)</option>
+                        <option value="view">Anyone with the link (Viewer)</option>
+                        <option value="edit">Anyone with the link (Editor)</option>
+                    </select>
+                </div>
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);">
                     <button id="modal-copy-btn" class="btn secondary">Copy Link</button>
@@ -138,7 +133,6 @@
             </div>
 
             <div class="assignments-layout">
-                <!-- Left: Table View -->
                 <div class="card">
                     <div class="card-header">
                         <h3>Tasks & Deadlines</h3>
@@ -153,13 +147,10 @@
                                 <th>Due Date</th>
                             </tr>
                         </thead>
-                        <tbody id="assignments-body">
-                            <!-- JS Filled -->
-                        </tbody>
+                        <tbody id="assignments-body"></tbody>
                     </table>
                 </div>
 
-                <!-- Right: Calendar View -->
                 <div class="card">
                     <div class="card-header">
                         <h3>Calendar</h3>
@@ -169,9 +160,7 @@
                             <button class="btn text-btn" id="cal-next">&gt;</button>
                         </div>
                     </div>
-                    <div class="calendar-grid" id="calendar-grid">
-                        <!-- JS Filled -->
-                    </div>
+                    <div class="calendar-grid" id="calendar-grid"></div>
                 </div>
             </div>
         </div>
@@ -179,10 +168,33 @@
         <!-- EXPLORE VIEW -->
         <div id="explore-view" class="hidden">
             <div class="explore-header">
-                <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Shared Templates</h2>
-                <input type="text" id="search-input" placeholder="Search (e.g., Math 21, CS 11)..." class="search-bar">
+                <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Explore Templates</h2>
+                <input type="text" id="search-input" placeholder="Search templates..." class="search-bar">
             </div>
-            <div id="calculators-grid" class="calculators-grid"></div>
+
+            <div id="section-my" class="explore-section">
+                <div class="section-header-row">
+                    <h3>My Calculators</h3>
+                    <button class="btn text-btn" id="view-all-my-btn">View All</button>
+                </div>
+                <div id="my-calcs-grid" class="calculators-grid"></div>
+            </div>
+
+            <div id="section-shared" class="explore-section">
+                <div class="section-header-row">
+                    <h3>Shared With Me</h3>
+                    <button class="btn text-btn" id="view-all-shared-btn">View All</button>
+                </div>
+                <div id="shared-calcs-grid" class="calculators-grid"></div>
+            </div>
+
+            <div id="section-public" class="explore-section">
+                <div class="section-header-row">
+                    <h3>Public Calculators</h3>
+                    <button class="btn text-btn" id="view-all-public-btn">View All</button>
+                </div>
+                <div id="public-calcs-grid" class="calculators-grid"></div>
+            </div>
         </div>
 
         <!-- CALCULATOR VIEW -->
@@ -318,7 +330,6 @@
         </footer>
     </div>
     
-    <!-- Script loading order fixed -->
     <script src="js/api.js" defer></script>
     <script src="js/app.js" defer></script>
     <script src="js/auth.js" defer></script>

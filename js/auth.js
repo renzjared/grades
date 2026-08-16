@@ -33,12 +33,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Helper to dynamically get the current full URL path (handles the /grades/ subfolder)
+    const getRedirectUrl = () => {
+        return window.location.origin + window.location.pathname;
+    };
+
     document.getElementById('login-google').addEventListener('click', () => {
-        supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+        supabaseClient.auth.signInWithOAuth({ 
+            provider: 'google',
+            options: {
+                redirectTo: getRedirectUrl()
+            }
+        });
     });
 
     document.getElementById('login-discord').addEventListener('click', () => {
-        supabaseClient.auth.signInWithOAuth({ provider: 'discord' });
+        supabaseClient.auth.signInWithOAuth({ 
+            provider: 'discord',
+            options: {
+                redirectTo: getRedirectUrl()
+            }
+        });
     });
 
     document.getElementById('save-username-btn').addEventListener('click', async () => {
@@ -48,10 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { error } = await supabaseClient.from('profiles').insert([{ id: currentUser.id, username: input }]);
         
         if (error) {
-            // Log the specific error to the console for debugging
             console.error("Supabase Insert Error:", error);
-            
-            // Check for specific unique constraint error code (Postgres code 23505)
             if (error.code === '23505') {
                 alert("This username is already taken. Please try another.");
             } else {

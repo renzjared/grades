@@ -485,17 +485,6 @@ function render() {
     const idToSave = currentCalculatorId || 'blank';
     localStorage.setItem(`calc_state_${idToSave}`, JSON.stringify(appState));
 
-    const shareBtn = document.getElementById('share-btn');
-    if (currentCalculatorId && !hasTemplateChanged()) {
-        shareBtn.innerText = "Copy Template Link";
-        shareBtn.classList.remove('primary');
-        shareBtn.classList.add('secondary');
-    } else {
-        shareBtn.innerText = "Share / Permissions";
-        shareBtn.classList.remove('secondary');
-        shareBtn.classList.add('primary');
-    }
-
     const presetSelector = document.getElementById('preset-selector');
     if (presetSelector) presetSelector.value = appState.gradingSystemType || "1.0-5.0";
 
@@ -692,132 +681,76 @@ window.removeScale = (idx) => { appState.gradeScale.splice(idx, 1); render(); };
 window.updateHeartScale = (idx, field, val) => { appState.heartScale[idx][field] = val; render(); };
 window.removeHeartScale = (idx) => { appState.heartScale.splice(idx, 1); render(); };
 
-// --- EVENT LISTENERS (Inputs & Modals) ---
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('subject-name').addEventListener('change', (e) => { appState.subject = e.target.value; render(); });
-    document.getElementById('global-passing').addEventListener('change', (e) => { appState.globalPassingScore = Number(e.target.value); render(); });
-    document.getElementById('enable-heart-points').addEventListener('change', (e) => { appState.enableHeartPoints = e.target.checked; render(); });
-    document.getElementById('toggle-ignore-blanks').addEventListener('change', (e) => { appState.ignoreBlanks = e.target.checked; render(); });
-    document.getElementById('target-grade').addEventListener('input', (e) => { appState.targetGradePercent = e.target.value === '' ? null : Number(e.target.value); render(); });
-
-    document.getElementById('preset-selector').addEventListener('change', (e) => {
-        const selected = e.target.value;
-        appState.gradingSystemType = selected;
-        if (scalePresets[selected]) {
-            appState.gradeScale = JSON.parse(JSON.stringify(scalePresets[selected].gradeScale));
-            appState.heartScale = JSON.parse(JSON.stringify(scalePresets[selected].heartScale));
-        }
-        render();
-    });
-
-    document.getElementById('add-category-btn').addEventListener('click', () => {
-        appState.categories.push({ id: generateId(), name: "New Category", weight: "1", calcMode: 'weighted', passingScore: "", capAtMax: true, dropLowestX: 0, components: [] });
-        render();
-    });
-    document.getElementById('add-scale-btn').addEventListener('click', () => { appState.gradeScale.push({ min: 50, grade: "4.00" }); render(); });
-    document.getElementById('add-heart-scale-btn').addEventListener('click', () => { appState.heartScale.push({ limit: "1.00", mult: 1.00 }); render(); });
-
-    document.getElementById('mode-btn').addEventListener('click', () => { appState.isEditMode = !appState.isEditMode; render(); });
-    document.getElementById('breakdown-btn').addEventListener('click', () => { appState.showBreakdown = !appState.showBreakdown; render(); });
-    
-    document.getElementById('reset-scores-btn').addEventListener('click', (e) => {
-        appState.categories.forEach(cat => {
-            cat.components.forEach(comp => {
-                comp.score = null;
-                comp.extraPoints = null;
-            });
-        });
-        render();
-        
-        const btn = e.target;
-        btn.innerText = "✓ Scores Reset!";
-        setTimeout(() => btn.innerText = "↺ Reset Scores", 2000);
-    });
-
-    document.getElementById('submit-grade-btn').addEventListener('click', async () => {
-        if (!currentCalculatorId) return alert("You must be using a saved template to submit grades.");
-
-        const btn = document.getElementById('submit-grade-btn');
-        btn.innerText = "Submitting...";
-        btn.disabled = true;
-
-        const rawScore = calcInsights.finalPercentage; 
-        const finalGrade = document.getElementById('final-grade').innerText;
-
-        const { error } = await supabaseClient
-            .from('submissions')
-            .insert([{ calculator_id: currentCalculatorId, raw_score: rawScore, final_grade: finalGrade }]);
-
-        if (!error) {
-            btn.innerText = "Submitted!";
-            btn.disabled = true;
-            setSubmissionStatus(currentCalculatorId); 
-            fetchAndRenderStats(currentCalculatorId, rawScore); 
-        } else {
-            console.error(error);
-            btn.innerText = "Error Submitting";
-            btn.disabled = false;
-        }
-    });
-});
-
-// --- API & DATA FETCHING ---
-async function fetchAndRenderCalculators(searchQuery = '') {
-    const grid = document.getElementById('calculators-grid');
+function renderGrid(elementId, data, includeBlank) {
+    const grid = document.getElementById(elementId);
     if (!grid) return;
-    grid.innerHTML = '<p style="color: var(--text-muted);">Loading templates...</p>';
+    let html = '';
     
-    let query = supabaseClient
-        .from('calculators')
-        .select('id, title, created_at')
-        .order('created_at', { ascending: false })
-        .limit(30);
-        
-    if (searchQuery) {
-        query = query.ilike('title', `%${searchQuery}%`);
+    if (includeBlank) {
+        html += `
+            <div class="calc-card blank-card" onclick="resetToBlank()">
+                <span style="font-size: 2rem; margin-bottom: 0.5rem;">+</span>
+                <h3>Create Blank</h3>
+            </div>
+        `;
     }
-    
-    const { data, error } = await query;
-    
-    if (error) {
-        grid.innerHTML = '<p style="color: var(--danger);">Error loading database.</p>';
-        return;
-    }
-
-    let html = `
-        <div class="calc-card blank-card" onclick="resetToBlank()">
-            <span style="font-size: 2rem; margin-bottom: 0.5rem;">+</span>
-            <h3>Create Blank Calculator</h3>
-        </div>
-    `;
     
     if (data && data.length > 0) {
         html += data.map(calc => {
-            const date = new Date(calc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            const date = new Date(calc.created_at).toLocaleDateString();
             return `
             <div class="calc-card" onclick="window.location.href='?id=${calc.id}'">
                 <h3>${calc.title}</h3>
                 <div class="meta">Added: ${date}</div>
-                <button class="btn secondary" style="width: 100%;">Use Template</button>
+                <button class="btn secondary" style="width: 100%;">Open</button>
             </div>
         `}).join('');
+    } else if (!includeBlank) {
+        html += '<p class="text-muted" style="grid-column: 1/-1;">No calculators found here.</p>';
     }
     
     grid.innerHTML = html;
 }
 
-// Add Search Event Listener
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(window.searchTimeout);
-            window.searchTimeout = setTimeout(() => {
-                fetchAndRenderCalculators(e.target.value);
-            }, 300);
-        });
+async function fetchAndRenderCalculators(searchQuery = '', limitOverride = 8, activeCategory = 'all') {
+    const { data: authData } = await supabaseClient.auth.getUser();
+    const activeUser = authData?.user;
+
+    // 1. My Calculators
+    if (activeUser && (activeCategory === 'all' || activeCategory === 'my')) {
+        let q = supabaseClient.from('calculators').select('id, title, created_at').eq('owner_id', activeUser.id).order('created_at', { ascending: false });
+        if (searchQuery) q = q.ilike('title', `%${searchQuery}%`);
+        if (limitOverride) q = q.limit(limitOverride);
+        const { data } = await q;
+        renderGrid('my-calcs-grid', data, true); 
+    } else if (!activeUser && activeCategory === 'all') {
+        document.getElementById('my-calcs-grid').innerHTML = '<p class="text-muted">Please log in to view your templates.</p>';
     }
-});
+
+    // 2. Shared With Me
+    if (activeUser && (activeCategory === 'all' || activeCategory === 'shared')) {
+        let q = supabaseClient.from('calculator_permissions').select('calculator_id, calculators!inner(id, title, created_at)').eq('user_id', activeUser.id);
+        if (searchQuery) q = q.ilike('calculators.title', `%${searchQuery}%`);
+        const { data } = await q;
+        const sharedData = data ? data.map(d => d.calculators).sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limitOverride || 999) : [];
+        renderGrid('shared-calcs-grid', sharedData, false);
+    } else if (!activeUser && activeCategory === 'all') {
+        document.getElementById('shared-calcs-grid').innerHTML = '<p class="text-muted">Please log in to view shared templates.</p>';
+    }
+
+    // 3. Public Calculators
+    if (activeCategory === 'all' || activeCategory === 'public') {
+        let q = supabaseClient.from('calculators').select('id, title, created_at').in('link_sharing_mode', ['view', 'edit']).order('created_at', { ascending: false });
+        if (searchQuery) q = q.ilike('title', `%${searchQuery}%`);
+        if (limitOverride) q = q.limit(limitOverride);
+        const { data } = await q;
+        renderGrid('public-calcs-grid', data, !activeUser && activeCategory === 'all'); 
+    }
+    
+    document.getElementById('section-my').style.display = (activeCategory === 'all' || activeCategory === 'my') ? 'block' : 'none';
+    document.getElementById('section-shared').style.display = (activeCategory === 'all' || activeCategory === 'shared') ? 'block' : 'none';
+    document.getElementById('section-public').style.display = (activeCategory === 'all' || activeCategory === 'public') ? 'block' : 'none';
+}
 
 async function loadCalculatorFromSupabase() {
     if (!currentCalculatorId) {
@@ -827,168 +760,79 @@ async function loadCalculatorFromSupabase() {
         }
         
         if (typeof switchView === 'function') switchView('explore');
-        if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators();
+        fetchAndRenderCalculators();
         return; 
+    }
+
+    const { data: authData } = await supabaseClient.auth.getUser();
+    const activeUser = authData?.user;
+
+    const { data, error } = await supabaseClient
+        .from('calculators')
+        .select('*')
+        .eq('id', currentCalculatorId)
+        .single();
+
+    if (error || !data) {
+        document.getElementById('access-denied-modal').classList.remove('hidden');
+        return;
+    }
+
+    let hasAccess = false;
+    if (data.link_sharing_mode === 'view' || data.link_sharing_mode === 'edit') hasAccess = true;
+    if (activeUser && data.owner_id === activeUser.id) hasAccess = true;
+    
+    if (!hasAccess && activeUser) {
+        const { data: perm } = await supabaseClient.from('calculator_permissions')
+            .select('role')
+            .eq('calculator_id', currentCalculatorId)
+            .eq('user_id', activeUser.id)
+            .single();
+        if (perm) hasAccess = true;
+    }
+
+    if (!hasAccess) {
+        document.getElementById('access-denied-modal').classList.remove('hidden');
+        return;
     }
 
     if (typeof switchView === 'function') switchView('calc');
     document.getElementById('class-stats-card').classList.remove('hidden');
 
-    const { data, error } = await supabaseClient
-        .from('calculators')
-        .select('config')
-        .eq('id', currentCalculatorId)
-        .single();
-
-    if (data) {
-        // Deep copy the pristine DB template first
-        appState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
-        originalTemplateState = JSON.parse(JSON.stringify(appState));
-        
-        const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);
-        if (savedState) {
-            try { 
-                let parsedState = JSON.parse(savedState); 
-                // Only restore personal scores if it's the exact same subject template
-                if (!(parsedState.subject === "New Subject" && data.config.subject !== "New Subject")) {
-                    appState.categories.forEach((cat) => {
-                        let cachedCat = parsedState.categories.find(c => c.id === cat.id);
-                        if (cachedCat) {
-                            cat.components.forEach((comp) => {
-                                let cachedComp = cachedCat.components.find(c => c.id === comp.id);
-                                if (cachedComp) {
-                                    comp.score = cachedComp.score;
-                                    comp.extraPoints = cachedComp.extraPoints;
-                                }
-                            });
+    appState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
+    originalTemplateState = JSON.parse(JSON.stringify(appState));
+    
+    const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);
+    if (savedState) {
+        try { 
+            let parsedState = JSON.parse(savedState); 
+            // RESTORE ONLY LOCAL SCORES (Do not overwrite structural template data)
+            appState.categories.forEach((cat) => {
+                let cachedCat = parsedState.categories.find(c => c.id === cat.id);
+                if (cachedCat) {
+                    cat.components.forEach((comp) => {
+                        let cachedComp = cachedCat.components.find(c => c.id === comp.id);
+                        if (cachedComp) {
+                            comp.score = cachedComp.score;
+                            comp.extraPoints = cachedComp.extraPoints;
                         }
                     });
-                    appState.ignoreBlanks = parsedState.ignoreBlanks || false;
-                    appState.targetGradePercent = parsedState.targetGradePercent || null;
                 }
-            } catch(e) {}
-        }
-
-        render();
-        if (typeof fetchAndRenderStats === 'function') fetchAndRenderStats(currentCalculatorId);
+            });
+            appState.ignoreBlanks = parsedState.ignoreBlanks || false;
+            appState.targetGradePercent = parsedState.targetGradePercent || null;
+        } catch(e) {}
     }
 
-    const btn = document.getElementById('submit-grade-btn');
-    if (hasUserSubmitted(currentCalculatorId)) {
-        btn.innerText = "Submitted!";
-        btn.disabled = true;
-    } else {
-        btn.innerText = "Submit My Grade";
-        btn.disabled = false;
-    }
-}
-
-async function fetchAndRenderStats(calculatorId, userRawScore = null) {
-    const lockedView = document.getElementById('stats-locked-view');
-    const content = document.getElementById('stats-content');
-    const warning = document.getElementById('stats-minimum-warning');
-    if (!lockedView || !content || !warning) return; 
-    
-    const isSubmitted = hasUserSubmitted(calculatorId);
-    
-    const { data, error } = await supabaseClient
-        .from('submissions')
-        .select('final_grade, raw_score')
-        .eq('calculator_id', calculatorId);
-
-    if (error || !data) return;
-
-    const N = data.length;
-
-    if (!isSubmitted) {
-        lockedView.classList.remove('hidden');
-        content.classList.add('hidden');
-        warning.classList.add('hidden');
-        return;
-    }
-    lockedView.classList.add('hidden');
-    
-    if (N < 3) { 
-        warning.classList.remove('hidden');
-        document.getElementById('stats-needed').innerText = 3 - N;
-        content.classList.add('hidden');
-        return;
-    }
-    warning.classList.add('hidden');
-    content.classList.remove('hidden');
-
-    const rawScores = data.map(d => d.raw_score);
-    let targetRaw = userRawScore !== null ? userRawScore : calcInsights.finalPercentage;
-    
-    if (targetRaw !== undefined && !isNaN(targetRaw)) {
-        const betterScoresCount = rawScores.filter(s => s > targetRaw).length;
-        const equalScoresCount = rawScores.filter(s => s === targetRaw).length;
-        const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
-        document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
-    }
-
-    const grades = data.map(d => d.final_grade);
-    const gradeCounts = {};
-    
-    if (appState.gradeScale && appState.gradeScale.length > 0) {
-        appState.gradeScale.forEach(scale => gradeCounts[formatGradeVal(scale.grade)] = 0);
-        grades.forEach(g => {
-            const key = formatGradeVal(g);
-            if(gradeCounts[key] !== undefined) gradeCounts[key]++;
-        });
-    } else {
-        grades.forEach(g => {
-            const key = formatGradeVal(g);
-            if(gradeCounts[key] === undefined) gradeCounts[key] = 0;
-            gradeCounts[key]++;
-        });
-    }
-
-    const ctx = document.getElementById('gradeChart').getContext('2d');
-    if (chartInstance) chartInstance.destroy();
-
-    let labels = [];
-    let values = [];
-
-    if (appState.gradeScale && appState.gradeScale.length > 0) {
-        const scale = [...appState.gradeScale];
-        const isNumeric = !isNaN(scale[0].grade);
-        if (isNumeric) {
-            scale.sort((a, b) => Number(a.grade) - Number(b.grade));
-        }
-        labels = scale.map(s => formatGradeVal(s.grade));
-        values = labels.map(l => gradeCounts[l] || 0);
-
-    } else {
-        labels = Object.keys(gradeCounts).sort((a, b) => {
-            let numA = Number(a); let numB = Number(b);
-            if(!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return a.localeCompare(b);
-        });
-        values = labels.map(l => gradeCounts[l]);
-    }
-
-    const activeColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
-
-    chartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Students',
-                data: values,
-                backgroundColor: activeColor + 'b3',
-                borderColor: activeColor,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-        }
-    });
+    render();
+    if (typeof fetchAndRenderStats === 'function') fetchAndRenderStats(currentCalculatorId);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    
+    document.getElementById('view-all-my-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'my'));
+    document.getElementById('view-all-shared-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'shared'));
+    document.getElementById('view-all-public-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'public'));
+
     loadCalculatorFromSupabase();
 });
