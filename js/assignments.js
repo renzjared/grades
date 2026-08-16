@@ -118,5 +118,39 @@ function renderCalendar() {
     grid.innerHTML = html;
 }
 
-document.getElementById('cal-prev').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() - 1); renderCalendar(); });
-document.getElementById('cal-next').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() + 1); renderCalendar(); });
+// Add the missing Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('cal-prev').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() - 1); renderCalendar(); });
+    document.getElementById('cal-next').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() + 1); renderCalendar(); });
+
+    // Handle + New Term Button
+    document.getElementById('new-term-btn').addEventListener('click', async () => {
+        if (!currentUser) return alert("Please log in to create a term.");
+        const termName = prompt("Enter a name for the new term (e.g., '1st Semester 2026'):");
+        if (!termName || !termName.trim()) return;
+
+        const { data, error } = await supabaseClient
+            .from('terms')
+            .insert([{ user_id: currentUser.id, name: termName.trim() }])
+            .select();
+
+        if (error) {
+            alert("Error creating term: " + error.message);
+        } else {
+            renderAssignmentsView();
+        }
+    });
+
+    // Handle Dropdown changes to reload UI
+    document.getElementById('term-selector').addEventListener('change', (e) => {
+        const termId = e.target.value;
+        if (termId === "Please Log In" || termId === "No terms yet") return;
+        currentTerm = { id: termId };
+        loadAssignmentsForTerm(termId);
+    });
+    
+    // Stub for + Task button 
+    document.getElementById('add-assignment-btn').addEventListener('click', () => {
+        alert("Task creation modal coming soon! Next, we'll build the UI to configure subjects and add assignments.");
+    });
+});

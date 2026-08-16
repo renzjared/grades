@@ -18,22 +18,30 @@ async function fetchProfile() {
     const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
     if (data) {
         currentProfile = data;
+        const profileDisplay = document.getElementById('profile-username-display');
+        if (profileDisplay) profileDisplay.innerText = '@' + data.username;
     } else {
         document.getElementById('username-modal').classList.remove('hidden');
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    
+    // Auth Button - either open Log In or open Profile
     document.getElementById('auth-btn').addEventListener('click', async () => {
         if (currentUser) {
-            await supabaseClient.auth.signOut();
-            window.location.reload();
+            document.getElementById('profile-modal').classList.remove('hidden');
         } else {
             document.getElementById('auth-modal').classList.remove('hidden');
         }
     });
 
-    // Helper to dynamically get the current full URL path (handles the /grades/ subfolder)
+    // Actual Logout Button inside the Profile Modal
+    document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        await supabaseClient.auth.signOut();
+        window.location.reload();
+    });
+
     const getRedirectUrl = () => {
         return window.location.origin + window.location.pathname;
     };
@@ -41,18 +49,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-google').addEventListener('click', () => {
         supabaseClient.auth.signInWithOAuth({ 
             provider: 'google',
-            options: {
-                redirectTo: getRedirectUrl()
-            }
+            options: { redirectTo: getRedirectUrl() }
         });
     });
 
     document.getElementById('login-discord').addEventListener('click', () => {
         supabaseClient.auth.signInWithOAuth({ 
             provider: 'discord',
-            options: {
-                redirectTo: getRedirectUrl()
-            }
+            options: { redirectTo: getRedirectUrl() }
         });
     });
 

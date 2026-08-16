@@ -44,12 +44,12 @@
         </div>
     </nav>
 
-    <!-- AUTH & USERNAME MODALS -->
+    <!-- AUTH, USERNAME, & PROFILE MODALS -->
     <div id="auth-modal" class="modal hidden">
         <div class="modal-content card">
             <h2>Log In to Dashboard</h2>
             <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
-            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (soon)</button>
+            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button>
             <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
             <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
         </div>
@@ -61,6 +61,15 @@
             <p style="color: var(--text-muted); margin-bottom: 1rem;">This is how classmates will add you to their templates.</p>
             <input type="text" id="username-input" placeholder="e.g., student_123" style="margin-bottom: 1rem;">
             <button id="save-username-btn" class="btn primary" style="width:100%;">Save Username</button>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="modal hidden">
+        <div class="modal-content card" style="text-align: center;">
+            <h2 style="margin-bottom: 0.5rem;">Your Profile</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 1.1rem; font-weight: 600;" id="profile-username-display">@username</p>
+            <button id="logout-btn" class="btn danger" style="width:100%; border: 1px solid #e53e3e; margin-bottom: 0.5rem;">Log Out</button>
+            <button class="btn secondary" style="width:100%;" onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button>
         </div>
     </div>
 
