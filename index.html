@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades & Assignments Dashboard</title>
+    <title>Grades Calculator</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -13,7 +13,7 @@
     <nav class="topbar">
         <div class="topbar-left">
             <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
+            <h1 class="app-title" id="home-link" style="cursor: pointer;">grades calc</h1>
             
             <div class="nav-links">
                 <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
@@ -44,12 +44,12 @@
         </div>
     </nav>
 
-    <!-- AUTH, USERNAME, & PROFILE MODALS -->
+    <!-- AUTH & USERNAME MODALS -->
     <div id="auth-modal" class="modal hidden">
         <div class="modal-content card">
             <h2>Log In to Dashboard</h2>
             <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
-            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button>
+            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (Soon)</button>
             <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
             <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
         </div>
@@ -64,6 +64,7 @@
         </div>
     </div>
 
+    <!-- PROFILE MODAL (Added to fix the TypeError) -->
     <div id="profile-modal" class="modal hidden">
         <div class="modal-content card" style="text-align: center;">
             <h2 style="margin-bottom: 0.5rem;">Your Profile</h2>
