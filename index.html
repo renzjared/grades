@@ -3,27 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades Calculator</title>
+    <title>Grades & Assignments Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <meta name="title" content="Grades Calculator">
-    <meta name="description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://renzjared.github.io/grades">
-    <meta property="og:title" content="Grades Calculator">
-    <meta property="og:image" content="https://i.imgur.com/KHMUVn3.png">
-    <meta property="og:description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://renzjared.github.io/grades">
-    <meta property="twitter:title" content="Grades Calculator">
-    <meta name="twitter:image" content="https://i.imgur.com/KHMUVn3.png">
-    <meta property="twitter:description" content="Create and share grade calculator templates with your classmates.">
-
-    <meta name="theme-color" content="#7b1113">
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -31,11 +13,13 @@
     <nav class="topbar">
         <div class="topbar-left">
             <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">Grade Calculator</h1>
+            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
             
             <div class="nav-links">
-                <button id="nav-explore-btn" class="btn text-btn">Explore</button>
+                <!-- Removed 'hidden' class here so you can always see it -->
+                <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
                 <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
+                <button id="nav-explore-btn" class="btn text-btn">Explore</button>
             </div>
         </div>
         <div class="header-controls">
@@ -56,21 +40,135 @@
                 </div>
             </div>
             <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
-            <button id="share-btn" class="btn primary">Share as Template</button>
+            <button id="share-btn" class="btn primary">Share / Permissions</button>
+            <button id="auth-btn" class="btn secondary">Log In</button>
         </div>
     </nav>
 
+    <!-- AUTH & USERNAME MODALS -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content card">
+            <h2>Log In to Dashboard</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
+            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button>
+            <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
+            <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="username-modal" class="modal hidden">
+        <div class="modal-content card">
+            <h2>Choose a Username</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">This is how classmates will add you to their templates.</p>
+            <input type="text" id="username-input" placeholder="e.g., student_123" style="margin-bottom: 1rem;">
+            <button id="save-username-btn" class="btn primary" style="width:100%;">Save Username</button>
+        </div>
+    </div>
+
+    <!-- SHARING MODAL -->
+    <div id="sharing-modal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 500px;">
+            <h2>Share Calculator</h2>
+            
+            <div style="margin: 1.5rem 0;">
+                <h4 style="margin-bottom: 0.5rem;">Add people</h4>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="share-add-username" placeholder="Add by username">
+                    <select id="share-add-role" style="width: 100px;">
+                        <option value="view">Viewer</option>
+                        <option value="edit">Editor</option>
+                    </select>
+                    <button id="share-add-btn" class="btn primary">Add</button>
+                </div>
+            </div>
+
+            <div style="margin: 1.5rem 0;">
+                <h4 style="margin-bottom: 0.5rem;">People with access</h4>
+                <div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                <h4 style="margin-bottom: 0.5rem;">General access</h4>
+                <select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;">
+                    <option value="restricted">Restricted (Only people added can open)</option>
+                    <option value="view">Anyone with the link (Viewer)</option>
+                    <option value="edit">Anyone with the link (Editor)</option>
+                </select>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);">
+                    <button id="modal-copy-btn" class="btn secondary">Copy Link</button>
+                </div>
+            </div>
+
+            <button class="btn primary" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('sharing-modal').classList.add('hidden')">Done</button>
+        </div>
+    </div>
+
     <div class="container">
         
+        <!-- ASSIGNMENTS VIEW -->
+        <div id="assignments-view" class="hidden">
+            <div class="hero-alert card" id="assignment-alerts" style="background: var(--up-maroon-light); border-left: 4px solid var(--up-maroon);">
+                <h3 style="color: var(--up-maroon);">Welcome to Assignments</h3>
+                <p>Select or create a Term to get started.</p>
+            </div>
+
+            <div class="section-header">
+                <select id="term-selector" class="input-minimal" style="width: 200px; font-size: 1.2rem; font-weight: 700;"></select>
+                <button class="btn secondary" id="new-term-btn">+ New Term</button>
+            </div>
+
+            <div class="assignments-layout">
+                <!-- Left: Table View -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Tasks & Deadlines</h3>
+                        <button class="btn primary" id="add-assignment-btn">+ Task</button>
+                    </div>
+                    <table class="components-table" id="assignments-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Subject</th>
+                                <th>Task</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assignments-body">
+                            <!-- JS Filled -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Right: Calendar View -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Calendar</h3>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button class="btn text-btn" id="cal-prev">&lt;</button>
+                            <span id="cal-month-display" style="font-weight: 600;">Month Year</span>
+                            <button class="btn text-btn" id="cal-next">&gt;</button>
+                        </div>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid">
+                        <!-- JS Filled -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EXPLORE VIEW -->
         <div id="explore-view" class="hidden">
             <div class="explore-header">
                 <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Shared Templates</h2>
                 <input type="text" id="search-input" placeholder="Search (e.g., Math 21, CS 11)..." class="search-bar">
             </div>
-            <div id="calculators-grid" class="calculators-grid">
-                </div>
+            <div id="calculators-grid" class="calculators-grid"></div>
         </div>
 
+        <!-- CALCULATOR VIEW -->
         <div id="calculator-view" class="layout">
             <div class="main-content">
                 <input type="text" id="subject-name" class="subject-title large-green" value="New Subject" placeholder="Subject Name">
@@ -83,8 +181,7 @@
                         <button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button>
                     </div>
                 </div>
-                <div id="categories-container">
-                    </div>
+                <div id="categories-container"></div>
             </div>
 
             <div class="sidebar">
@@ -118,40 +215,25 @@
                     <div id="passing-warnings" class="warnings"></div>
                 </div>
 
-                <div class="card hidden" id="share-link-card">
-                    <div class="card-header">
-                        <h3>Template Link</h3>
-                    </div>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Share this link with classmates. They will get a blank copy of this calculator.</p>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="sidebar-share-url" readonly class="input-minimal" style="background: var(--bg-color); cursor: text;">
-                        <button id="sidebar-copy-btn" class="btn secondary">Copy</button>
-                    </div>
-                </div>
-
                 <div class="card chart-card hidden" id="class-stats-card">
                     <div class="card-header">
                         <h3>Class Distribution</h3>
                     </div>
-                    
                     <div id="stats-locked-view" class="stats-locked">
                         <p style="font-size: 0.9rem; color: var(--text-muted); text-align: center;">
                             🔒 Anonymously submit your grade to unlock the class distribution.
                         </p>
                     </div>
-
                     <div id="stats-minimum-warning" class="hidden">
                         Not enough submissions yet. Need <span id="stats-needed"></span> more.
                     </div>
-
                     <div id="stats-content" class="hidden">
                         <p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p>
                         <canvas id="gradeChart" width="100" height="70"></canvas>
                     </div>
-                    
                     <div class="submit-wrapper" id="submit-wrapper" style="margin-top: 1rem;">
                         <button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button>
-                        </div>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -190,8 +272,7 @@
                                 <th class="edit-only hidden" style="width: 30px;"></th>
                             </tr>
                         </thead>
-                        <tbody id="grade-scale-body">
-                        </tbody>
+                        <tbody id="grade-scale-body"></tbody>
                     </table>
                 </div>
 
@@ -202,8 +283,7 @@
                     </div>
                     <p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p>
                     <table id="heart-scale-table">
-                        <tbody id="heart-scale-body">
-                        </tbody>
+                        <tbody id="heart-scale-body"></tbody>
                     </table>
                 </div>
             </div>
@@ -220,6 +300,13 @@
             </div>
         </footer>
     </div>
-    <script src="script.js" defer></script>
+    
+    <!-- Script loading order fixed so app.js establishes dependencies first -->
+    <script src="js/api.js" defer></script>
+    <script src="js/app.js" defer></script>
+    <script src="js/auth.js" defer></script>
+    <script src="js/sharing.js" defer></script>
+    <script src="js/calculator.js" defer></script>
+    <script src="js/assignments.js" defer></script>
 </body>
 </html>

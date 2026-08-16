@@ -1,0 +1,64 @@
+let isGlobalDarkMode = localStorage.getItem('global_dark_mode') === 'true';
+
+function applyGlobalTheme() {
+    document.body.setAttribute('data-theme', isGlobalDarkMode ? 'dark' : 'light');
+}
+
+function setFullTheme(themeName) {
+    localStorage.setItem('app_full_theme', themeName);
+    document.body.setAttribute('data-theme', themeName);
+    
+    // Update chart colors dynamically if it exists
+    if (typeof chartInstance !== 'undefined' && chartInstance) {
+        const primaryColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
+        chartInstance.data.datasets[0].backgroundColor = primaryColor + 'b3'; 
+        chartInstance.data.datasets[0].borderColor = primaryColor;
+        chartInstance.update();
+    }
+}
+
+// Init Global Themes
+applyGlobalTheme();
+setFullTheme(localStorage.getItem('app_full_theme') || 'light');
+
+// Main Navigation Controller
+function switchView(viewName) {
+    // Hide all panels
+    document.getElementById('calculator-view').classList.add('hidden');
+    document.getElementById('explore-view').classList.add('hidden');
+    document.getElementById('assignments-view').classList.add('hidden');
+    
+    // Remove active styling from all nav tabs
+    document.getElementById('nav-calc-btn').classList.remove('active-nav');
+    document.getElementById('nav-explore-btn').classList.remove('active-nav');
+    document.getElementById('nav-assignments-btn').classList.remove('active-nav');
+
+    // Show selected panel & adjust header controls
+    if (viewName === 'calc') {
+        document.getElementById('calculator-view').classList.remove('hidden');
+        document.getElementById('nav-calc-btn').classList.add('active-nav');
+        document.getElementById('mode-btn').classList.remove('hidden');
+        document.getElementById('share-btn').classList.remove('hidden');
+    } else if (viewName === 'explore') {
+        document.getElementById('explore-view').classList.remove('hidden');
+        document.getElementById('nav-explore-btn').classList.add('active-nav');
+        document.getElementById('mode-btn').classList.add('hidden');
+        document.getElementById('share-btn').classList.add('hidden');
+    } else if (viewName === 'assignments') {
+        document.getElementById('assignments-view').classList.remove('hidden');
+        document.getElementById('nav-assignments-btn').classList.add('active-nav');
+        document.getElementById('mode-btn').classList.add('hidden');
+        document.getElementById('share-btn').classList.add('hidden');
+    }
+}
+
+// Nav Listeners
+document.getElementById('nav-calc-btn').addEventListener('click', () => switchView('calc'));
+document.getElementById('nav-explore-btn').addEventListener('click', () => { 
+    switchView('explore'); 
+    if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
+});
+document.getElementById('home-link').addEventListener('click', () => { 
+    switchView('explore'); 
+    if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
+});
