@@ -478,6 +478,7 @@ function calculateGrades() {
     document.getElementById('passing-warnings').innerHTML = calcInsights.warnings.map(w => `<div>⚠️ ${w}</div>`).join('');
 }
 
+
 function render() {
     calculateGrades(); 
 
@@ -691,6 +692,7 @@ window.removeScale = (idx) => { appState.gradeScale.splice(idx, 1); render(); };
 window.updateHeartScale = (idx, field, val) => { appState.heartScale[idx][field] = val; render(); };
 window.removeHeartScale = (idx) => { appState.heartScale.splice(idx, 1); render(); };
 
+// --- EVENT LISTENERS (Inputs & Modals) ---
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('subject-name').addEventListener('change', (e) => { appState.subject = e.target.value; render(); });
     document.getElementById('global-passing').addEventListener('change', (e) => { appState.globalPassingScore = Number(e.target.value); render(); });
@@ -731,6 +733,90 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerText = "✓ Scores Reset!";
         setTimeout(() => btn.innerText = "↺ Reset Scores", 2000);
     });
+
+    document.getElementById('submit-grade-btn').addEventListener('click', async () => {
+        if (!currentCalculatorId) return alert("You must be using a saved template to submit grades.");
+
+        const btn = document.getElementById('submit-grade-btn');
+        btn.innerText = "Submitting...";
+        btn.disabled = true;
+
+        const rawScore = calcInsights.finalPercentage; 
+        const finalGrade = document.getElementById('final-grade').innerText;
+
+        const { error } = await supabaseClient
+            .from('submissions')
+            .insert([{ calculator_id: currentCalculatorId, raw_score: rawScore, final_grade: finalGrade }]);
+
+        if (!error) {
+            btn.innerText = "Submitted!";
+            btn.disabled = true;
+            setSubmissionStatus(currentCalculatorId); 
+            fetchAndRenderStats(currentCalculatorId, rawScore); 
+        } else {
+            console.error(error);
+            btn.innerText = "Error Submitting";
+            btn.disabled = false;
+        }
+    });
+});
+
+// --- API & DATA FETCHING ---
+async function fetchAndRenderCalculators(searchQuery = '') {
+    const grid = document.getElementById('calculators-grid');
+    if (!grid) return;
+    grid.innerHTML = '<p style="color: var(--text-muted);">Loading templates...</p>';
+    
+    let query = supabaseClient
+        .from('calculators')
+        .select('id, title, created_at')
+        .order('created_at', { ascending: false })
+        .limit(30);
+        
+    if (searchQuery) {
+        query = query.ilike('title', `%${searchQuery}%`);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+        grid.innerHTML = '<p style="color: var(--danger);">Error loading database.</p>';
+        return;
+    }
+
+    let html = `
+        <div class="calc-card blank-card" onclick="resetToBlank()">
+            <span style="font-size: 2rem; margin-bottom: 0.5rem;">+</span>
+            <h3>Create Blank Calculator</h3>
+        </div>
+    `;
+    
+    if (data && data.length > 0) {
+        html += data.map(calc => {
+            const date = new Date(calc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            return `
+            <div class="calc-card" onclick="window.location.href='?id=${calc.id}'">
+                <h3>${calc.title}</h3>
+                <div class="meta">Added: ${date}</div>
+                <button class="btn secondary" style="width: 100%;">Use Template</button>
+            </div>
+        `}).join('');
+    }
+    
+    grid.innerHTML = html;
+}
+
+// Add Search Event Listener
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(window.searchTimeout);
+            window.searchTimeout = setTimeout(() => {
+                fetchAndRenderCalculators(e.target.value);
+            }, 300);
+        });
+    }
 });
 
 async function loadCalculatorFromSupabase() {
@@ -755,6 +841,7 @@ async function loadCalculatorFromSupabase() {
         .single();
 
     if (data) {
+        // Deep copy the pristine DB template first
         appState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
         originalTemplateState = JSON.parse(JSON.stringify(appState));
         
@@ -762,6 +849,7 @@ async function loadCalculatorFromSupabase() {
         if (savedState) {
             try { 
                 let parsedState = JSON.parse(savedState); 
+                // Only restore personal scores if it's the exact same subject template
                 if (!(parsedState.subject === "New Subject" && data.config.subject !== "New Subject")) {
                     appState.categories.forEach((cat) => {
                         let cachedCat = parsedState.categories.find(c => c.id === cat.id);
@@ -793,6 +881,112 @@ async function loadCalculatorFromSupabase() {
         btn.innerText = "Submit My Grade";
         btn.disabled = false;
     }
+}
+
+async function fetchAndRenderStats(calculatorId, userRawScore = null) {
+    const lockedView = document.getElementById('stats-locked-view');
+    const content = document.getElementById('stats-content');
+    const warning = document.getElementById('stats-minimum-warning');
+    if (!lockedView || !content || !warning) return; 
+    
+    const isSubmitted = hasUserSubmitted(calculatorId);
+    
+    const { data, error } = await supabaseClient
+        .from('submissions')
+        .select('final_grade, raw_score')
+        .eq('calculator_id', calculatorId);
+
+    if (error || !data) return;
+
+    const N = data.length;
+
+    if (!isSubmitted) {
+        lockedView.classList.remove('hidden');
+        content.classList.add('hidden');
+        warning.classList.add('hidden');
+        return;
+    }
+    lockedView.classList.add('hidden');
+    
+    if (N < 3) { 
+        warning.classList.remove('hidden');
+        document.getElementById('stats-needed').innerText = 3 - N;
+        content.classList.add('hidden');
+        return;
+    }
+    warning.classList.add('hidden');
+    content.classList.remove('hidden');
+
+    const rawScores = data.map(d => d.raw_score);
+    let targetRaw = userRawScore !== null ? userRawScore : calcInsights.finalPercentage;
+    
+    if (targetRaw !== undefined && !isNaN(targetRaw)) {
+        const betterScoresCount = rawScores.filter(s => s > targetRaw).length;
+        const equalScoresCount = rawScores.filter(s => s === targetRaw).length;
+        const percentile = ((betterScoresCount + (0.5 * equalScoresCount)) / N) * 100;
+        document.getElementById('user-percentile').innerText = `Top ${Math.max(1, Math.round(percentile))}%`;
+    }
+
+    const grades = data.map(d => d.final_grade);
+    const gradeCounts = {};
+    
+    if (appState.gradeScale && appState.gradeScale.length > 0) {
+        appState.gradeScale.forEach(scale => gradeCounts[formatGradeVal(scale.grade)] = 0);
+        grades.forEach(g => {
+            const key = formatGradeVal(g);
+            if(gradeCounts[key] !== undefined) gradeCounts[key]++;
+        });
+    } else {
+        grades.forEach(g => {
+            const key = formatGradeVal(g);
+            if(gradeCounts[key] === undefined) gradeCounts[key] = 0;
+            gradeCounts[key]++;
+        });
+    }
+
+    const ctx = document.getElementById('gradeChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+
+    let labels = [];
+    let values = [];
+
+    if (appState.gradeScale && appState.gradeScale.length > 0) {
+        const scale = [...appState.gradeScale];
+        const isNumeric = !isNaN(scale[0].grade);
+        if (isNumeric) {
+            scale.sort((a, b) => Number(a.grade) - Number(b.grade));
+        }
+        labels = scale.map(s => formatGradeVal(s.grade));
+        values = labels.map(l => gradeCounts[l] || 0);
+
+    } else {
+        labels = Object.keys(gradeCounts).sort((a, b) => {
+            let numA = Number(a); let numB = Number(b);
+            if(!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.localeCompare(b);
+        });
+        values = labels.map(l => gradeCounts[l]);
+    }
+
+    const activeColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
+
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Students',
+                data: values,
+                backgroundColor: activeColor + 'b3',
+                borderColor: activeColor,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

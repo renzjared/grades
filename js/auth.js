@@ -46,8 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (input.length < 3) return alert('Username must be at least 3 characters.');
         
         const { error } = await supabaseClient.from('profiles').insert([{ id: currentUser.id, username: input }]);
+        
         if (error) {
-            alert("Username might be taken, try another.");
+            // Log the specific error to the console for debugging
+            console.error("Supabase Insert Error:", error);
+            
+            // Check for specific unique constraint error code (Postgres code 23505)
+            if (error.code === '23505') {
+                alert("This username is already taken. Please try another.");
+            } else {
+                alert("Database Error: " + error.message);
+            }
         } else {
             document.getElementById('username-modal').classList.add('hidden');
             await fetchProfile();
