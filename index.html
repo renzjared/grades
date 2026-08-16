@@ -3,9 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades & Assignments Dashboard</title>
+    <title>Grades Calculator</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <meta name="title" content="Grades Calculator">
+    <meta name="description" content="Create and share grade calculator templates with your classmates.">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://renzjared.github.io/grades">
+    <meta property="og:title" content="Grades Calculator">
+    <meta property="og:image" content="https://i.imgur.com/KHMUVn3.png">
+    <meta property="og:description" content="Create and share grade calculator templates with your classmates.">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://renzjared.github.io/grades">
+    <meta property="twitter:title" content="Grades Calculator">
+    <meta name="twitter:image" content="https://i.imgur.com/KHMUVn3.png">
+    <meta property="twitter:description" content="Create and share grade calculator templates with your classmates.">
+
+    <meta name="theme-color" content="#7b1113">
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -13,13 +31,12 @@
     <nav class="topbar">
         <div class="topbar-left">
             <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
+            <h1 class="app-title" id="home-link" style="cursor: pointer;">Grade Calculator</h1>
             
             <div class="nav-links">
-                <!-- Removed 'hidden' class here so you can always see it -->
                 <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
-                <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
                 <button id="nav-explore-btn" class="btn text-btn">Explore</button>
+                <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
             </div>
         </div>
         <div class="header-controls">
@@ -50,7 +67,7 @@
         <div class="modal-content card">
             <h2>Log In to Dashboard</h2>
             <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
-            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button>
+            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (Soon)</button>
             <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
             <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
         </div>
@@ -301,7 +318,7 @@
         </footer>
     </div>
     
-    <!-- Script loading order fixed so app.js establishes dependencies first -->
+    <!-- Script loading order fixed -->
     <script src="js/api.js" defer></script>
     <script src="js/app.js" defer></script>
     <script src="js/auth.js" defer></script>

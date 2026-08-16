@@ -1,9 +1,3 @@
-let isGlobalDarkMode = localStorage.getItem('global_dark_mode') === 'true';
-
-function applyGlobalTheme() {
-    document.body.setAttribute('data-theme', isGlobalDarkMode ? 'dark' : 'light');
-}
-
 function setFullTheme(themeName) {
     localStorage.setItem('app_full_theme', themeName);
     document.body.setAttribute('data-theme', themeName);
@@ -18,7 +12,6 @@ function setFullTheme(themeName) {
 }
 
 // Init Global Themes
-applyGlobalTheme();
 setFullTheme(localStorage.getItem('app_full_theme') || 'light');
 
 // Main Navigation Controller
@@ -53,12 +46,21 @@ function switchView(viewName) {
 }
 
 // Nav Listeners
-document.getElementById('nav-calc-btn').addEventListener('click', () => switchView('calc'));
-document.getElementById('nav-explore-btn').addEventListener('click', () => { 
-    switchView('explore'); 
-    if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
-});
-document.getElementById('home-link').addEventListener('click', () => { 
-    switchView('explore'); 
-    if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('nav-calc-btn').addEventListener('click', () => switchView('calc'));
+    
+    document.getElementById('nav-explore-btn').addEventListener('click', () => { 
+        switchView('explore'); 
+        if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
+    });
+    
+    document.getElementById('nav-assignments-btn').addEventListener('click', () => { 
+        switchView('assignments'); 
+        if (typeof renderAssignmentsView === 'function') renderAssignmentsView(); 
+    });
+    
+    document.getElementById('home-link').addEventListener('click', () => { 
+        switchView('explore'); 
+        if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); 
+    });
 });
