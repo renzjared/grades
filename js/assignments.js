@@ -43,6 +43,7 @@ window.getContrastYIQ = function(hexcolor) {
     return (yiq >= 128) ? '#111111' : '#ffffff';
 };
 
+// --- GLOBAL ACADEMIC STATE ---
 window.AcadState = {
     terms: [],
     activeTerm: null,
@@ -276,7 +277,11 @@ window.openTaskSidebar = (taskId = null) => {
         document.getElementById('task-name').value = t.title;
         
         const d = new Date(t.due_date);
-        document.getElementById('task-date').value = d.toISOString().split('T')[0];
+        
+        // Render robust local string
+        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        
+        document.getElementById('task-date').value = localDateStr;
         document.getElementById('task-time').value = d.toTimeString().slice(0,5);
         document.getElementById('task-status').value = t.status || 'not_started';
         document.getElementById('task-link').value = t.link || '';
@@ -525,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const blocks = document.querySelectorAll('#subj-blocks-container > div');
             const instances = [];
 
-            // SAFE SCHEDULE GENERATOR (No infinite loop possibility)
+            // SAFE SCHEDULE GENERATOR
             if (window.AcadState.activeTerm?.start_date && window.AcadState.activeTerm?.end_date) {
                 const tStart = new Date(window.AcadState.activeTerm.start_date + 'T00:00:00');
                 const tEnd = new Date(window.AcadState.activeTerm.end_date + 'T23:59:59');
@@ -543,9 +548,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         curr.setDate(curr.getDate() + dayDiff);
 
                         while(curr <= tEnd) {
+                            const localClassDate = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
                             instances.push({
                                 subject_id: newSubId,
-                                class_date: curr.toISOString().split('T')[0],
+                                class_date: localClassDate,
                                 start_time: sTime,
                                 end_time: eTime,
                                 modality: mod,
