@@ -1050,7 +1050,7 @@ input:checked + .slider:before { transform: translateX(16px); }
 .action-icon { cursor: pointer; padding: 2px; border-radius: 4px; transition: background 0.2s; opacity: 0.7; }
 .action-icon:hover { background: var(--border); opacity: 1; }
 
-/* SVG Icon Picker & Subject Rendering */
+/* SVG Icon Picker */
 .icon-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 180px; overflow-y: auto; background: var(--input-bg); padding: 0.5rem; border-radius: var(--radius); border: 1px solid var(--border); }
 .icon-option { width: 36px; height: 36px; padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; transition: all 0.2s; color: var(--text-main); }
 .icon-option:hover { background: var(--border-hover); }
@@ -1069,7 +1069,6 @@ input:checked + .slider:before { transform: translateX(16px); }
 .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .sidebar-body { padding: 1.5rem; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
 .sidebar-footer { padding: 1.5rem; border-top: 1px solid var(--border); }
-/* FIXED CSS OVERLAP ISSUE: Label margin changed to positive 0.25rem */
 .right-sidebar label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.25rem; }
 
 /* NOTES SYSTEM */
@@ -1079,12 +1078,20 @@ input:checked + .slider:before { transform: translateX(16px); }
 .note-card { background: var(--input-bg); border: 1px solid var(--border); padding: 1rem; border-radius: var(--radius); cursor: pointer; transition: all 0.2s; }
 .note-card:hover { border-color: var(--up-maroon); transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
-/* Overrides for EasyMDE inside Dark Mode */
+/* FORMAT TOGGLES */
+.format-toggles button { font-weight: 600; }
+.active-format { background: var(--card-bg) !important; box-shadow: var(--shadow); color: var(--text-main) !important; }
+
+/* EASYMDE & CODEMIRROR DARK MODE FIXES */
+.CodeMirror { height: 100%; border-radius: 0 0 4px 4px; }
+.editor-toolbar { border-radius: 4px 4px 0 0; }
 [data-theme="dark"] .editor-toolbar { background: var(--card-bg); border-color: var(--border); }
-[data-theme="dark"] .editor-toolbar a { color: var(--text-main) !important; }
-[data-theme="dark"] .editor-toolbar a:hover { background: var(--input-bg); }
+[data-theme="dark"] .editor-toolbar button { color: var(--text-main) !important; }
+[data-theme="dark"] .editor-toolbar button:hover, [data-theme="dark"] .editor-toolbar button.active { background: var(--input-bg); border-color: var(--border); }
+[data-theme="dark"] .editor-toolbar i { color: var(--text-main); }
 [data-theme="dark"] .CodeMirror { background: var(--input-bg); color: var(--text-main); border-color: var(--border); }
-[data-theme="dark"] .editor-preview { background: var(--card-bg); color: var(--text-main); }
+[data-theme="dark"] .editor-preview, [data-theme="dark"] .editor-preview-side { background: var(--card-bg); color: var(--text-main); border-color: var(--border); }
+[data-theme="dark"] .editor-statusbar { color: var(--text-muted); }
 
 /* CALENDAR GRIDS */
 #calendar-render-area { width: 100%; min-height: 500px; }
@@ -1099,7 +1106,7 @@ input:checked + .slider:before { transform: translateX(16px); }
 .cal-event-task { border: 1px solid currentColor; background: transparent; color: var(--text-main); font-weight: 600; border-left-width: 4px; }
 .cal-icon { margin-right: 3px; font-size: 0.75rem; vertical-align: middle;}
 
-/* 24-Hour Absolute Grid System (Week/Day) */
+/* 24-Hour Absolute Grid System */
 .time-grid-container { position: relative; height: 1440px; border: 1px solid var(--border); background: var(--card-bg); overflow: hidden; border-radius: var(--radius); }
 .time-label { position: absolute; left: 0; width: 50px; text-align: right; padding-right: 8px; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); transform: translateY(-50%); z-index: 5;}
 .time-grid-line { position: absolute; left: 50px; right: 0; border-top: 1px solid var(--border-hover); opacity: 0.5; z-index: 1;}
@@ -1117,3 +1124,23 @@ input[type=number] { -moz-appearance: textfield; }
 .footer-links a:hover { color: var(--up-maroon); text-decoration: underline; }
 .footer-divider { margin: 0 0.5rem; opacity: 0.5; }
 footer { text-align: center; margin-top: auto; padding-top: 3rem; color: var(--text-muted); font-size: 0.85rem; }
+
+/* EASYMDE TOOLBAR WRAPPING FIX */
+.editor-toolbar { 
+    display: flex !important; 
+    flex-wrap: wrap; 
+    align-items: center; 
+    padding: 0.25rem;
+}
+.editor-toolbar::before, .editor-toolbar::after { 
+    display: none !important; 
+}
+.editor-toolbar button { 
+    margin: 2px !important; 
+}
+.editor-toolbar i.separator { 
+    margin: 0 4px !important; 
+    display: inline-block; 
+    height: 20px; 
+    border-left: 1px solid var(--border); 
+}

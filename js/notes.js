@@ -1,8 +1,13 @@
 // --- RICH NOTES & LOCAL SYNC ENGINE ---
 let localNotes = [];
 let activeNoteEditor = null;
-let currentNotesContext = { type: 'root', id: null }; // root | term | subject | assignment
+let currentNotesContext = { type: 'root', id: null }; 
 let isOnline = navigator.onLine;
+let currentFormat = 'md'; // md, latex, typst
+
+// Typst WASM State
+let typstRenderer = null;
+let isTypstLoading = false;
 
 window.addEventListener('online', () => {
     isOnline = true;
@@ -14,48 +19,107 @@ window.addEventListener('offline', () => {
     document.getElementById('notes-sync-status').innerText = 'Offline (Local mode)';
 });
 
-// Initialize on App Load
 async function initNotes() {
     if (!currentUser) return;
     
-    // Load local cache
     const cached = localStorage.getItem(`notes_cache_${currentUser.id}`);
     if (cached) localNotes = JSON.parse(cached);
     
-    // Initialize the Markdown Engine
     if (!activeNoteEditor) {
         activeNoteEditor = new EasyMDE({
             element: document.getElementById('note-mde-editor'),
             spellChecker: false,
-            autosave: {
-                enabled: true,
-                uniqueId: "note-temp-autosave",
-                delay: 5000,
-            },
-            previewRender: function(plainText, preview) {
-                // Async KaTeX rendering pipeline
-                setTimeout(() => {
-                    preview.innerHTML = marked.parse(plainText);
-                    renderMathInElement(preview, {
-                        delimiters: [
-                            {left: "$$", right: "$$", display: true},
-                            {left: "$", right: "$", display: false}
-                        ]
-                    });
-                }, 0);
-                return "Rendering preview...";
-            }
+            status: false,
+            autosave: { enabled: true, uniqueId: "note-temp-autosave", delay: 5000 },
         });
 
-        // Event Listeners for Editor
+        // Custom Live Side-By-Side Preview Rendering
+        activeNoteEditor.codemirror.on("change", updateLivePreview);
+
         document.getElementById('save-note-content-btn').addEventListener('click', saveActiveNote);
         document.getElementById('back-to-notes-btn').addEventListener('click', closeEditor);
         document.getElementById('new-note-btn').addEventListener('click', () => openEditor());
         document.getElementById('delete-note-btn').addEventListener('click', deleteActiveNote);
+
+        // Format Toggles
+        document.getElementById('fmt-md').addEventListener('click', () => setFormat('md'));
+        document.getElementById('fmt-latex').addEventListener('click', () => setFormat('latex'));
+        document.getElementById('fmt-typst').addEventListener('click', () => setFormat('typst'));
     }
     
     if (isOnline) await syncNotesWithServer();
     window.updateNotesTree();
+}
+
+function setFormat(fmt) {
+    currentFormat = fmt;
+    document.querySelectorAll('.format-toggles button').forEach(b => b.classList.remove('active-format'));
+    document.getElementById(`fmt-${fmt}`).classList.add('active-format');
+    updateLivePreview();
+}
+
+function updateLivePreview() {
+    const raw = activeNoteEditor.value();
+    const pane = document.getElementById('custom-preview-pane');
+    
+    if (!raw.trim()) {
+        pane.innerHTML = `<div class="text-muted" style="text-align: center; margin-top: 2rem;">Start typing to see preview...</div>`;
+        return;
+    }
+
+    if (currentFormat === 'md') {
+        pane.innerHTML = marked.parse(raw);
+        renderMathInElement(pane, {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "$", right: "$", display: false}
+            ],
+            throwOnError: false
+        });
+    } else if (currentFormat === 'latex') {
+        try {
+            // The LaTeX tab treats the entire box as a math environment.
+            // We automatically strip leading/trailing $ signs so KaTeX doesn't throw a red syntax error!
+            let mathString = raw.trim().replace(/(^\$\$?)|(\$\$?$)/g, '');
+            pane.innerHTML = katex.renderToString(mathString, { displayMode: true, throwOnError: false });
+        } catch (e) {
+            pane.innerHTML = `<span style="color:red; font-family: monospace;">LaTeX Error: ${e.message}</span>`;
+        }
+    } else if (currentFormat === 'typst') {
+        renderTypstPreview(raw, pane);
+    }
+}
+
+async function renderTypstPreview(raw, pane) {
+    if (!typstRenderer && !isTypstLoading) {
+        isTypstLoading = true;
+        pane.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:2rem;">Downloading Typst Compiler (WASM)...</div>';
+        try {
+            const module = await import('https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/esm/main.js');
+            typstRenderer = module.$typst;
+            await typstRenderer.setCompilerInitOptions({
+                getModule: () => 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/wasm/typst_ts_web_compiler_bg.wasm'
+            });
+            await typstRenderer.setRendererInitOptions({
+                getModule: () => 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/wasm/typst_ts_renderer_bg.wasm'
+            });
+            isTypstLoading = false;
+        } catch (e) {
+            pane.innerHTML = `<span style="color:red; font-family: monospace;">Typst Init Error: ${e.message || e}</span>`;
+            isTypstLoading = false;
+            return;
+        }
+    } else if (isTypstLoading) {
+        pane.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:2rem;">Compiling Typst...</div>';
+        return;
+    }
+
+    try {
+        const svg = await typstRenderer.svg({ mainContent: raw });
+        pane.innerHTML = svg;
+    } catch (e) {
+        pane.innerHTML = `<div style="color:#e53e3e; font-family: monospace; padding: 1rem; background: rgba(229,62,62,0.1); border-radius: 4px;">Typst Compile Error:<br>${e}</div>`;
+    }
 }
 
 window.updateNotesTree = function() {
@@ -140,6 +204,7 @@ function openEditor(noteId = null) {
         activeNoteEditor.value('');
         document.getElementById('delete-note-btn').classList.add('hidden');
     }
+    updateLivePreview();
 }
 
 function closeEditor() {
@@ -161,7 +226,7 @@ async function saveActiveNote() {
         note._isDirty = true;
     } else {
         note = {
-            id: generateId(),
+            id: Math.random().toString(36).substr(2, 9),
             user_id: currentUser.id,
             title: title,
             content: content,
@@ -192,7 +257,7 @@ async function deleteActiveNote() {
     localNotes = localNotes.filter(n => n.id !== activeNoteId);
     localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
     
-    if (isOnline && !activeNoteId.startsWith('temp_')) {
+    if (isOnline && activeNoteId.length > 15) { 
         await supabaseClient.from('notes').delete().eq('id', activeNoteId);
     }
     
@@ -202,15 +267,11 @@ async function deleteActiveNote() {
 async function syncNotesWithServer() {
     if (!isOnline) return;
     
-    // 1. Push dirty local notes to cloud
     const dirtyNotes = localNotes.filter(n => n._isDirty);
     if (dirtyNotes.length > 0) {
         const uploadPayload = dirtyNotes.map(n => {
             let clean = {...n};
             delete clean._isDirty;
-            // Ensure IDs are valid UUIDs for Supabase if generating locally. 
-            // Note: Since generateId() returns short strings, in a true production environment 
-            // you should use uuidv4. Supabase will handle this on insert if we omit ID.
             if (clean.id.length < 15) delete clean.id; 
             return clean;
         });
@@ -218,7 +279,6 @@ async function syncNotesWithServer() {
         await supabaseClient.from('notes').upsert(uploadPayload);
     }
     
-    // 2. Pull fresh data from cloud
     const { data: remoteNotes, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id);
     if (!error && remoteNotes) {
         localNotes = remoteNotes.map(n => ({...n, _isDirty: false}));
