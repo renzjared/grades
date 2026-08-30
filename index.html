@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades Calculator</title>
+    <title>Grades & Assignments Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -13,10 +13,11 @@
     <nav class="topbar">
         <div class="topbar-left">
             <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">grades calc</h1>
+            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
             
             <div class="nav-links">
                 <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
+                <button id="nav-calendar-btn" class="btn text-btn">Calendar</button>
                 <button id="nav-explore-btn" class="btn text-btn">Explore</button>
                 <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
             </div>
@@ -44,134 +45,262 @@
         </div>
     </nav>
 
-    <!-- AUTH & USERNAME MODALS -->
-    <div id="auth-modal" class="modal hidden">
-        <div class="modal-content card">
-            <h2>Log In to Dashboard</h2>
-            <p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments across devices.</p>
-            <button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google (Soon)</button>
-            <button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button>
-            <button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button>
-        </div>
-    </div>
-
-    <div id="username-modal" class="modal hidden">
-        <div class="modal-content card">
-            <h2>Choose a Username</h2>
-            <p style="color: var(--text-muted); margin-bottom: 1rem;">This is how classmates will add you to their templates.</p>
-            <input type="text" id="username-input" placeholder="e.g., student_123" style="margin-bottom: 1rem;">
-            <button id="save-username-btn" class="btn primary" style="width:100%;">Save Username</button>
-        </div>
-    </div>
-
-    <!-- PROFILE MODAL (Added to fix the TypeError) -->
-    <div id="profile-modal" class="modal hidden">
-        <div class="modal-content card" style="text-align: center;">
-            <h2 style="margin-bottom: 0.5rem;">Your Profile</h2>
-            <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 1.1rem; font-weight: 600;" id="profile-username-display">@username</p>
-            <button id="logout-btn" class="btn danger" style="width:100%; border: 1px solid #e53e3e; margin-bottom: 0.5rem;">Log Out</button>
-            <button class="btn secondary" style="width:100%;" onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button>
-        </div>
-    </div>
-
-    <!-- ACCESS DENIED MODAL -->
-    <div id="access-denied-modal" class="modal hidden">
-        <div class="modal-content card" style="text-align: center;">
-            <h2 style="color: var(--up-maroon);">Access Denied</h2>
-            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">This calculator is restricted and hasn't been shared with you.</p>
-            <button class="btn primary" style="width: 100%;" onclick="document.getElementById('access-denied-modal').classList.add('hidden'); switchView('explore'); fetchAndRenderCalculators();">Return to Explore</button>
+    <!-- CORE MODALS -->
+    <div id="auth-modal" class="modal hidden"><div class="modal-content card"><h2>Log In</h2><p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments.</p><button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button><button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button><button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button></div></div>
+    <div id="username-modal" class="modal hidden"><div class="modal-content card"><h2>Choose Username</h2><input type="text" id="username-input" placeholder="student_123" style="margin-bottom: 1rem;"><button id="save-username-btn" class="btn primary" style="width:100%;">Save</button></div></div>
+    <div id="profile-modal" class="modal hidden"><div class="modal-content card" style="text-align: center;"><h2 style="margin-bottom: 0.5rem;">Your Profile</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem; font-weight: 600;" id="profile-username-display">@username</p><button id="logout-btn" class="btn danger" style="width:100%; margin-bottom: 0.5rem; border: 1px solid #e53e3e;">Log Out</button><button class="btn secondary" style="width:100%;" onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button></div></div>
+    <div id="access-denied-modal" class="modal hidden"><div class="modal-content card" style="text-align: center;"><h2 style="color: var(--up-maroon);">Access Denied</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem;">This calculator is restricted and hasn't been shared with you.</p><button class="btn primary" style="width: 100%; margin-top: 1rem;" onclick="document.getElementById('access-denied-modal').classList.add('hidden'); switchView('explore'); fetchAndRenderCalculators();">Return to Explore</button></div></div>
+    
+    <div id="delete-confirm-modal" class="modal hidden">
+        <div class="modal-content card" style="text-align: center; max-width: 350px;">
+            <h2 style="color: #e53e3e; margin-bottom: 0.5rem;">Delete Task?</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">This action cannot be undone. Are you sure you want to delete this assignment?</p>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn secondary" style="flex:1;" onclick="document.getElementById('delete-confirm-modal').classList.add('hidden')">Cancel</button>
+                <button class="btn danger" style="flex:1; background: #e53e3e; color: white;" id="confirm-delete-btn">Delete</button>
+            </div>
         </div>
     </div>
 
     <!-- SHARING MODAL -->
-    <div id="sharing-modal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 500px;">
-            <h2>Share Calculator</h2>
-            
-            <div id="owner-sharing-controls">
-                <div style="margin: 1.5rem 0;">
-                    <h4 style="margin-bottom: 0.5rem;">Add people</h4>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="share-add-username" placeholder="Add by username">
-                        <select id="share-add-role" style="width: 100px;">
-                            <option value="view">Viewer</option>
-                            <option value="edit">Editor</option>
-                        </select>
-                        <button id="share-add-btn" class="btn primary">Add</button>
-                    </div>
-                </div>
+    <div id="sharing-modal" class="modal hidden"><div class="modal-content card" style="max-width: 500px;"><h2>Share Calculator</h2><div id="owner-sharing-controls"><div style="margin: 1.5rem 0;"><h4>Add people</h4><div style="display: flex; gap: 0.5rem;"><input type="text" id="share-add-username" placeholder="Add by username"><select id="share-add-role" style="width: 100px;"><option value="view">Viewer</option><option value="edit">Editor</option></select><button id="share-add-btn" class="btn primary">Add</button></div></div><div style="margin: 1.5rem 0;"><h4>People with access</h4><div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;"></div></div></div><div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);"><h4>General access / Link</h4><div id="owner-link-modes"><select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;"><option value="restricted">Restricted</option><option value="view">Anyone with the link (Viewer)</option><option value="edit">Anyone with the link (Editor)</option></select></div><div style="display: flex; gap: 0.5rem;"><input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);"><button id="modal-copy-btn" class="btn secondary">Copy</button></div></div><button class="btn primary" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('sharing-modal').classList.add('hidden')">Done</button></div></div>
 
-                <div style="margin: 1.5rem 0;">
-                    <h4 style="margin-bottom: 0.5rem;">People with access</h4>
-                    <div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;">
-                        <!-- Filled by JS -->
-                    </div>
-                </div>
+    <!-- ASSIGNMENTS MODALS -->
+    <div id="term-modal" class="modal hidden">
+        <div class="modal-content card">
+            <h2>Term Setup</h2>
+            <label>Term Name</label><input type="text" id="term-name" placeholder="e.g., 1st Semester 2026" style="margin-bottom:1rem;">
+            <div style="display:flex; gap:1rem; margin-bottom:1.5rem;">
+                <div style="flex:1;"><label>Start Date</label><input type="date" id="term-start"></div>
+                <div style="flex:1;"><label>End Date</label><input type="date" id="term-end"></div>
             </div>
-
-            <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);">
-                <h4 style="margin-bottom: 0.5rem;">General access / Link</h4>
-                <div id="owner-link-modes">
-                    <select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;">
-                        <option value="restricted">Restricted (Only people added can open)</option>
-                        <option value="view">Anyone with the link (Viewer)</option>
-                        <option value="edit">Anyone with the link (Editor)</option>
-                    </select>
-                </div>
-                <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);">
-                    <button id="modal-copy-btn" class="btn secondary">Copy Link</button>
-                </div>
-            </div>
-
-            <button class="btn primary" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('sharing-modal').classList.add('hidden')">Done</button>
+            <button class="btn primary" id="save-term-btn" style="width:100%; margin-bottom:0.5rem;">Save Term</button>
+            <button class="btn text-btn" style="width:100%;" onclick="document.getElementById('term-modal').classList.add('hidden')">Cancel</button>
         </div>
     </div>
 
+    <div id="manage-tags-modal" class="modal hidden">
+        <div class="modal-content card">
+            <h2>Manage Tags</h2>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Create tags to organize your assignments for this term.</p>
+            <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem;">
+                <input type="text" id="new-tag-name" placeholder="Tag name (e.g. Exam)">
+                <input type="color" id="new-tag-color" value="#48bb78" style="width:50px; height:38px; padding:0;">
+                <button class="btn primary" id="add-tag-btn">Add</button>
+            </div>
+            <div id="manage-tags-list" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; max-height:200px; overflow-y:auto;"></div>
+            <button class="btn secondary" style="width:100%;" onclick="document.getElementById('manage-tags-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+
+    <!-- UPDATED COURSE MODAL -->
+    <div id="subject-modal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 600px;">
+            <h2 id="subject-modal-title">Course Setup</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                <div><label>Course Code</label><input type="text" id="subj-code" placeholder="CS 12"></div>
+                <div><label>Section</label><input type="text" id="subj-sec" placeholder="THX"></div>
+                <div style="grid-column: 1/-1;"><label>Course Name</label><input type="text" id="subj-name" placeholder="Data Structures"></div>
+                <div><label>Color</label><input type="color" id="subj-color" value="#7b1113" style="height:38px; padding:0;"></div>
+                <div><label>Instructor(s)</label><input type="text" id="subj-inst"></div>
+                <div style="grid-column: 1/-1;">
+                    <label>Course Icon</label>
+                    <div id="icon-picker" class="icon-picker"></div>
+                    <input type="hidden" id="subj-icon" value="svg:0">
+                </div>
+                <div style="grid-column: 1/-1;"><label>Venue</label><input type="text" id="subj-venue"></div>
+            </div>
+            
+            <div id="subj-blocks-wrapper" style="margin-bottom: 1.5rem;">
+                <label>Schedule Blocks (Will generate calendar classes)</label>
+                <div id="subj-blocks-container" style="background:var(--input-bg); padding:0.5rem; border-radius:var(--radius); margin-bottom:0.5rem; max-height: 150px; overflow-y:auto;"></div>
+                <button class="btn secondary" id="add-subj-block-btn" style="font-size:0.8rem;">+ Add Time Block</button>
+            </div>
+            
+            <input type="hidden" id="subj-id">
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn primary" id="save-subject-btn" style="flex:1;">Save Course</button>
+                <button class="btn danger hidden" id="delete-subject-btn">Delete</button>
+                <button class="btn secondary" onclick="document.getElementById('subject-modal').classList.add('hidden')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLASS INSTANCE MODAL -->
+    <div id="class-instance-modal" class="modal hidden">
+        <div class="modal-content card">
+            <h2>Edit Class Session</h2>
+            <p id="class-inst-course" style="color:var(--text-muted); font-weight:600; margin-bottom:1rem;"></p>
+            <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                <div style="flex:1;"><label>Date</label><input type="date" id="inst-date"></div>
+                <div style="flex:1;"><label>Modality</label>
+                    <select id="inst-modality">
+                        <option value="f2f">Face to Face</option>
+                        <option value="online">Online</option>
+                        <option value="async">Asynchronous</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                <div style="flex:1;"><label>Start Time</label><input type="time" id="inst-start"></div>
+                <div style="flex:1;"><label>End Time</label><input type="time" id="inst-end"></div>
+            </div>
+            <div style="margin-bottom:1.5rem;"><label>Venue Override</label><input type="text" id="inst-venue"></div>
+            <input type="hidden" id="inst-id">
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn primary" id="save-inst-btn" style="flex:1;">Update Session</button>
+                <button class="btn danger" id="delete-inst-btn">Delete</button>
+                <button class="btn secondary" onclick="document.getElementById('class-instance-modal').classList.add('hidden')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT SLIDING SIDEBAR FOR TASKS -->
+    <div id="task-sidebar" class="right-sidebar">
+        <div class="sidebar-header">
+            <h2 id="task-sidebar-title">New Task</h2>
+            <button class="btn text-btn" onclick="closeTaskSidebar()" style="font-size: 1.5rem; padding: 0 0.5rem;">✕</button>
+        </div>
+        <div class="sidebar-body">
+            <div><label>Course</label><select id="task-course"></select></div>
+            <div><label>Task Name</label><input type="text" id="task-name" placeholder="e.g. Problem Set 1"></div>
+            <div>
+                <label>Due Date & Time</label>
+                <div style="display:flex; gap:0.5rem;">
+                    <input type="date" id="task-date">
+                    <input type="time" id="task-time">
+                </div>
+            </div>
+            <div>
+                <label>Status</label>
+                <select id="task-status">
+                    <option value="not_started">Not Started</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="dropped">Dropped</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div>
+                <label>Tags</label>
+                <div id="task-sidebar-tags-container" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;"></div>
+            </div>
+            <div><label>LMS Link</label><input type="text" id="task-link" placeholder="https://..."></div>
+            <div style="flex: 1; display:flex; flex-direction:column;">
+                <label>Notes</label>
+                <textarea id="task-notes" placeholder="Add any details, rubrics, or reminders here..." style="flex:1; width:100%; min-height: 150px; resize:vertical; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text-main); font-family: inherit; font-size: 0.9rem;"></textarea>
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <input type="hidden" id="task-id">
+            <button class="btn primary" style="width:100%; padding: 0.75rem; font-size: 1rem;" id="save-task-btn">Save Task</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
     <div class="container">
         
-        <!-- ASSIGNMENTS VIEW -->
-        <div id="assignments-view" class="hidden">
-            <div class="hero-alert card" id="assignment-alerts" style="background: var(--up-maroon-light); border-left: 4px solid var(--up-maroon);">
-                <h3 style="color: var(--up-maroon);">Welcome to Assignments</h3>
-                <p>Select or create a Term to get started.</p>
-            </div>
+        <!-- ASSIGNMENTS DASHBOARD -->
+        <div id="assignments-view" class="hidden layout" style="grid-template-columns: 280px 1fr;">
+            
+            <!-- SLEEKER LEFT SIDEBAR -->
+            <div class="sidebar card" style="height: fit-content; position: sticky; top: 90px; padding: 1.25rem;">
+                
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">Current Term</div>
+                    <select id="sidebar-term-selector" style="margin-bottom:0.5rem; font-weight:600; font-size:1rem; border-color: var(--border-hover);"></select>
+                    <button class="btn text-btn" id="sidebar-new-term" style="width:100%; text-align:left; font-size:0.8rem; padding: 0.25rem 0.5rem;">+ Create New Term</button>
+                </div>
 
-            <div class="section-header">
-                <select id="term-selector" class="input-minimal" style="width: 200px; font-size: 1.2rem; font-weight: 700;"></select>
-                <button class="btn secondary" id="new-term-btn">+ New Term</button>
-            </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">Filters</div>
+                    <input type="text" id="task-search" placeholder="Search tasks..." style="margin-bottom: 0.5rem;">
+                    <select id="task-sort">
+                        <option value="date_added">Date Added (Newest)</option>
+                        <option value="date_asc">Due Date (Nearest)</option>
+                        <option value="date_desc">Due Date (Furthest)</option>
+                        <option value="status">Status</option>
+                    </select>
+                </div>
 
-            <div class="assignments-layout">
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Tasks & Deadlines</h3>
-                        <button class="btn primary" id="add-assignment-btn">+ Task</button>
+                <div class="sidebar-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                        <div class="sidebar-section-header" style="margin-bottom:0;">Courses</div>
+                        <button class="btn text-btn action-icon" id="sidebar-new-course" style="padding:0; font-size:1.2rem; color:var(--text-muted);">+</button>
                     </div>
-                    <table class="components-table" id="assignments-table">
-                        <thead>
-                            <tr>
-                                <th>Status</th>
-                                <th>Subject</th>
-                                <th>Task</th>
-                                <th>Due Date</th>
-                            </tr>
-                        </thead>
-                        <tbody id="assignments-body"></tbody>
-                    </table>
+                    <div id="sidebar-subjects-list" style="display:flex; flex-direction:column; gap:0.1rem;">
+                        <!-- JS Filled -->
+                    </div>
+                </div>
+
+                <div class="sidebar-section" style="margin-bottom:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                        <div class="sidebar-section-header" style="margin-bottom:0;">Tags</div>
+                        <button class="btn text-btn action-icon" id="sidebar-manage-tags" style="padding:2px;" title="Manage Tags"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                    </div>
+                    <div id="sidebar-tags-list" style="display:flex; flex-direction:column; gap:0.1rem;">
+                        <!-- JS Filled -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Main Content -->
+            <div class="main-content">
+                <div class="bento-grid" id="assignments-bento">
+                    <div class="bento-card urgent"><div class="bento-num" id="bento-urgent">0</div><div class="bento-label">Due ≤ 48h</div></div>
+                    <div class="bento-card overdue"><div class="bento-num" id="bento-overdue">0</div><div class="bento-label">Overdue</div></div>
+                    <div class="bento-card active"><div class="bento-num" id="bento-progress">0</div><div class="bento-label">In Progress</div></div>
+                    <div class="bento-card standard"><div class="bento-num" id="bento-total">0</div><div class="bento-label">Total Tasks</div></div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <h3>Calendar</h3>
-                        <div style="display:flex; gap:0.5rem;">
-                            <button class="btn text-btn" id="cal-prev">&lt;</button>
-                            <span id="cal-month-display" style="font-weight: 600;">Month Year</span>
-                            <button class="btn text-btn" id="cal-next">&gt;</button>
+                        <h3>Tasks</h3>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn primary" id="main-add-task-btn">+ New Task</button>
                         </div>
                     </div>
-                    <div class="calendar-grid" id="calendar-grid"></div>
+                    <div style="overflow-x: auto;">
+                        <table class="components-table" id="assignments-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 140px;">Status</th>
+                                    <th style="width: 140px;">Deadline</th>
+                                    <th style="width: 100px;">Course</th>
+                                    <th>Task Details</th>
+                                    <th style="width: 100px; text-align:right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assignments-body"></tbody>
+                        </table>
+                    </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- CALENDAR VIEW -->
+        <div id="calendar-view" class="hidden">
+            <div class="card">
+                <div class="card-header" style="margin-bottom: 1.5rem;">
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <button class="btn secondary" id="cal-today-btn">Today</button>
+                        <div style="display:flex; gap:0.25rem;">
+                            <button class="btn secondary" id="cal-prev-btn">&lt;</button>
+                            <button class="btn secondary" id="cal-next-btn">&gt;</button>
+                        </div>
+                        <h2 id="cal-date-display" style="margin:0 1rem; font-weight:700; font-size:1.5rem;">Month Year</h2>
+                    </div>
+                    <div>
+                        <select id="cal-view-selector" class="input-minimal" style="width:120px; font-weight:600;">
+                            <option value="month">Month</option>
+                            <option value="week">Week</option>
+                            <option value="day">Day</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="calendar-render-area"></div>
             </div>
         </div>
 
@@ -211,120 +340,15 @@
         <div id="calculator-view" class="layout">
             <div class="main-content">
                 <input type="text" id="subject-name" class="subject-title large-green" value="New Subject" placeholder="Subject Name">
-                
-                <div class="section-header">
-                    <h2>Grade Breakdown</h2>
-                    <div class="header-actions">
-                        <button id="reset-scores-btn" class="btn text-btn" style="color: var(--up-maroon);">↺ Reset Scores</button>
-                        <button id="breakdown-btn" class="btn text-btn">Show Details</button>
-                        <button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button>
-                    </div>
-                </div>
+                <div class="section-header"><h2>Grade Breakdown</h2><div class="header-actions"><button id="reset-scores-btn" class="btn text-btn" style="color: var(--up-maroon);">↺ Reset Scores</button><button id="breakdown-btn" class="btn text-btn">Show Details</button><button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button></div></div>
                 <div id="categories-container"></div>
             </div>
-
             <div class="sidebar">
-                <div class="card result-card">
-                    <h2 class="result-title">Final Grade</h2>
-                    <div class="grade-display" id="final-grade">--</div>
-                    <div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div>
-                    <div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div>
-                    
-                    <div id="range-display" class="hidden" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
-                        Potential Range: <span id="grade-range-values" style="font-weight:600; color: var(--text-main);">--</span>
-                    </div>
-                    <div id="target-output" class="hidden" style="font-size: 0.85rem; margin-top: 0.25rem;">
-                        Target needed: <span id="target-needed-value" style="font-weight:600;">--</span>
-                    </div>
-
-                    <div style="margin-top: 1.25rem; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 1rem;">
-                        <div class="setting-row" style="justify-content: space-between; margin-bottom: 0.75rem;">
-                            <label for="toggle-ignore-blanks" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; text-align: left; line-height: 1.2;">Ignore Blanks<br><span style="font-size: 0.7rem; opacity: 0.7;">(Current Standing)</span></label>
-                            <label class="switch">
-                                <input type="checkbox" id="toggle-ignore-blanks">
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
-                        <div class="setting-row" style="justify-content: space-between; margin-bottom: 0;">
-                            <label for="target-grade" style="font-size: 0.85rem; color: var(--text-muted); text-align: left;">Target Score (%)</label>
-                            <input type="number" id="target-grade" placeholder="e.g. 90" class="input-minimal" style="width: 70px; text-align: center; padding: 0.2rem; font-size: 0.85rem;">
-                        </div>
-                    </div>
-
-                    <div id="passing-warnings" class="warnings"></div>
-                </div>
-
-                <div class="card chart-card hidden" id="class-stats-card">
-                    <div class="card-header">
-                        <h3>Class Distribution</h3>
-                    </div>
-                    <div id="stats-locked-view" class="stats-locked">
-                        <p style="font-size: 0.9rem; color: var(--text-muted); text-align: center;">
-                            🔒 Anonymously submit your grade to unlock the class distribution.
-                        </p>
-                    </div>
-                    <div id="stats-minimum-warning" class="hidden">
-                        Not enough submissions yet. Need <span id="stats-needed"></span> more.
-                    </div>
-                    <div id="stats-content" class="hidden">
-                        <p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p>
-                        <canvas id="gradeChart" width="100" height="70"></canvas>
-                    </div>
-                    <div class="submit-wrapper" id="submit-wrapper" style="margin-top: 1rem;">
-                        <button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Settings</h3>
-                    </div>
-                    <div class="setting-row edit-only hidden">
-                        <label>Grading System</label>
-                        <select id="preset-selector" style="width: auto;" class="input-minimal">
-                            <option value="1.0-5.0">1.0-5.0 (1.0 highest)</option>
-                            <option value="4.0-0.0">4.0-0.0 (4.0 highest)</option>
-                            <option value="letter">Letter Grades (A-F)</option>
-                            <option value="percentage">Percentage (0-100%)</option>
-                        </select>
-                    </div>
-                    <div class="setting-row">
-                        <label>Passing Score (%)</label>
-                        <input type="number" id="global-passing" value="60" class="input-minimal" style="width: 85px; text-align: right;">
-                    </div>
-                    <div class="setting-row edit-only hidden">
-                        <label>Enable Extra Points (❤️)</label>
-                        <input type="checkbox" id="enable-heart-points" style="width: auto;">
-                    </div>
-                </div>
-
-                <div class="card grade-scale-card">
-                    <div class="card-header">
-                        <h3>Grade Scale</h3>
-                        <button id="add-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button>
-                    </div>
-                    <table id="grade-scale-table">
-                        <thead>
-                            <tr>
-                                <th>Min %</th>
-                                <th>Grade</th>
-                                <th class="edit-only hidden" style="width: 30px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="grade-scale-body"></tbody>
-                    </table>
-                </div>
-
-                <div class="card heart-scale-card">
-                    <div class="card-header">
-                        <h3>Extra Points ❤️</h3>
-                        <button id="add-heart-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button>
-                    </div>
-                    <p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p>
-                    <table id="heart-scale-table">
-                        <tbody id="heart-scale-body"></tbody>
-                    </table>
-                </div>
+                <div class="card result-card"><h2 class="result-title">Final Grade</h2><div class="grade-display" id="final-grade">--</div><div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div><div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div><div id="range-display" class="hidden" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">Potential Range: <span id="grade-range-values" style="font-weight:600; color: var(--text-main);">--</span></div><div id="target-output" class="hidden" style="font-size: 0.85rem; margin-top: 0.25rem;">Target needed: <span id="target-needed-value" style="font-weight:600;">--</span></div><div style="margin-top: 1.25rem; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 1rem;"><div class="setting-row" style="justify-content: space-between; margin-bottom: 0.75rem;"><label for="toggle-ignore-blanks" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; text-align: left; line-height: 1.2;">Ignore Blanks<br><span style="font-size: 0.7rem; opacity: 0.7;">(Current Standing)</span></label><label class="switch"><input type="checkbox" id="toggle-ignore-blanks"><span class="slider round"></span></label></div><div class="setting-row" style="justify-content: space-between; margin-bottom: 0;"><label for="target-grade" style="font-size: 0.85rem; color: var(--text-muted); text-align: left;">Target Score (%)</label><input type="number" id="target-grade" placeholder="e.g. 90" class="input-minimal" style="width: 70px; text-align: center; padding: 0.2rem; font-size: 0.85rem;"></div></div><div id="passing-warnings" class="warnings"></div></div>
+                <div class="card chart-card hidden" id="class-stats-card"><div class="card-header"><h3>Class Distribution</h3></div><div id="stats-locked-view" class="stats-locked"><p style="font-size: 0.9rem; color: var(--text-muted); text-align: center;">🔒 Anonymously submit your grade to unlock the class distribution.</p></div><div id="stats-minimum-warning" class="hidden">Not enough submissions yet. Need <span id="stats-needed"></span> more.</div><div id="stats-content" class="hidden"><p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p><canvas id="gradeChart" width="100" height="70"></canvas></div><div class="submit-wrapper" id="submit-wrapper" style="margin-top: 1rem;"><button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button></div></div>
+                <div class="card"><div class="card-header"><h3>Settings</h3></div><div class="setting-row edit-only hidden"><label>Grading System</label><select id="preset-selector" style="width: auto;" class="input-minimal"><option value="1.0-5.0">1.0-5.0 (1.0 highest)</option><option value="4.0-0.0">4.0-0.0 (4.0 highest)</option><option value="letter">Letter Grades (A-F)</option><option value="percentage">Percentage (0-100%)</option></select></div><div class="setting-row"><label>Passing Score (%)</label><input type="number" id="global-passing" value="60" class="input-minimal" style="width: 85px; text-align: right;"></div><div class="setting-row edit-only hidden"><label>Enable Extra Points (❤️)</label><input type="checkbox" id="enable-heart-points" style="width: auto;"></div></div>
+                <div class="card grade-scale-card"><div class="card-header"><h3>Grade Scale</h3><button id="add-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><table id="grade-scale-table"><thead><tr><th>Min %</th><th>Grade</th><th class="edit-only hidden" style="width: 30px;"></th></tr></thead><tbody id="grade-scale-body"></tbody></table></div>
+                <div class="card heart-scale-card"><div class="card-header"><h3>Extra Points ❤️</h3><button id="add-heart-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p><table id="heart-scale-table"><tbody id="heart-scale-body"></tbody></table></div>
             </div>
         </div>
         
@@ -346,5 +370,6 @@
     <script src="js/sharing.js" defer></script>
     <script src="js/calculator.js" defer></script>
     <script src="js/assignments.js" defer></script>
+    <script src="js/calendar.js" defer></script>
 </body>
 </html>
