@@ -14,47 +14,15 @@ function formatGradeVal(val) {
 }
 
 const scalePresets = {
-    '1.0-5.0': {
-        gradeScale: [
-            { min: 92, grade: "1.00" }, { min: 88, grade: "1.25" },
-            { min: 84, grade: "1.50" }, { min: 80, grade: "1.75" },
-            { min: 76, grade: "2.00" }, { min: 72, grade: "2.25" },
-            { min: 68, grade: "2.50" }, { min: 64, grade: "2.75" },
-            { min: 60, grade: "3.00" }, { min: 0,  grade: "5.00" }
-        ],
-        heartScale: [
-            { limit: "2.00", mult: 1.00 }, { limit: "1.75", mult: 0.40 },
-            { limit: "1.50", mult: 0.16 }, { limit: "1.25", mult: 0.06 },
-            { limit: "1.00", mult: 0.02 }
-        ]
-    },
-    '4.0-0.0': {
-        gradeScale: [
-            { min: 93, grade: "4.0" }, { min: 90, grade: "3.7" },
-            { min: 87, grade: "3.3" }, { min: 83, grade: "3.0" },
-            { min: 80, grade: "2.7" }, { min: 77, grade: "2.3" },
-            { min: 73, grade: "2.0" }, { min: 70, grade: "1.7" },
-            { min: 67, grade: "1.3" }, { min: 65, grade: "1.0" },
-            { min: 0, grade: "0.0" }
-        ],
-        heartScale: []
-    },
-    'letter': {
-        gradeScale: [
-            { min: 90, grade: "A" }, { min: 80, grade: "B" },
-            { min: 70, grade: "C" }, { min: 60, grade: "D" },
-            { min: 0, grade: "F" }
-        ],
-        heartScale: []
-    },
-    'percentage': {
-        gradeScale: [],
-        heartScale: []
-    }
+    '1.0-5.0': { gradeScale: [{ min: 92, grade: "1.00" }, { min: 88, grade: "1.25" }, { min: 84, grade: "1.50" }, { min: 80, grade: "1.75" }, { min: 76, grade: "2.00" }, { min: 72, grade: "2.25" }, { min: 68, grade: "2.50" }, { min: 64, grade: "2.75" }, { min: 60, grade: "3.00" }, { min: 0,  grade: "5.00" }], heartScale: [{ limit: "2.00", mult: 1.00 }, { limit: "1.75", mult: 0.40 }, { limit: "1.50", mult: 0.16 }, { limit: "1.25", mult: 0.06 }, { limit: "1.00", mult: 0.02 }] },
+    '4.0-0.0': { gradeScale: [{ min: 93, grade: "4.0" }, { min: 90, grade: "3.7" }, { min: 87, grade: "3.3" }, { min: 83, grade: "3.0" }, { min: 80, grade: "2.7" }, { min: 77, grade: "2.3" }, { min: 73, grade: "2.0" }, { min: 70, grade: "1.7" }, { min: 67, grade: "1.3" }, { min: 65, grade: "1.0" }, { min: 0, grade: "0.0" }], heartScale: [] },
+    'letter': { gradeScale: [{ min: 90, grade: "A" }, { min: 80, grade: "B" }, { min: 70, grade: "C" }, { min: 60, grade: "D" }, { min: 0, grade: "F" }], heartScale: [] },
+    'percentage': { gradeScale: [], heartScale: [] }
 };
 
 const defaultState = {
     subject: "New Subject",
+    description: "",
     isEditMode: true,
     showBreakdown: false,
     globalPassingScore: 60,
@@ -62,15 +30,12 @@ const defaultState = {
     ignoreBlanks: false,
     targetGradePercent: null,
     gradingSystemType: "1.0-5.0",
+    advancedScript: "", 
+    routes: [], // Array of {id, name, activeCategories: []}
+    activeRouteId: null,
     heartScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].heartScale)),
     categories: [
-        {
-            id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true, dropLowestX: 0,
-            components: [ 
-                { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false },
-                { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false }
-            ]
-        }
+        { id: generateId(), name: "Lecture", weight: "60", calcMode: 'weighted', passingScore: "", capAtMax: true, dropLowestX: 0, components: [ { id: generateId(), name: "Midterm Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false }, { id: generateId(), name: "Final Exam", score: null, max: 100, weight: "1", extraPoints: null, capAtMax: true, isBonus: false } ] }
     ],
     gradeScale: JSON.parse(JSON.stringify(scalePresets['1.0-5.0'].gradeScale))
 };
@@ -99,24 +64,20 @@ function resetToBlank() {
 
 function getCleanTemplateState(state) {
     if (!state) return null;
-    
     const clean = {
         subject: state.subject,
+        description: state.description,
         globalPassingScore: state.globalPassingScore,
         enableHeartPoints: state.enableHeartPoints,
         gradingSystemType: state.gradingSystemType,
+        advancedScript: state.advancedScript,
+        routes: JSON.parse(JSON.stringify(state.routes || [])),
+        activeRouteId: state.activeRouteId,
         gradeScale: JSON.parse(JSON.stringify(state.gradeScale || [])),
         heartScale: JSON.parse(JSON.stringify(state.heartScale || [])),
         categories: JSON.parse(JSON.stringify(state.categories || []))
     };
-    
-    clean.categories.forEach(cat => {
-        cat.components.forEach(comp => {
-            delete comp.score;
-            delete comp.extraPoints;
-        });
-    });
-    
+    clean.categories.forEach(cat => { cat.components.forEach(comp => { delete comp.score; delete comp.extraPoints; }); });
     return clean;
 }
 
@@ -125,6 +86,29 @@ function hasTemplateChanged() {
     const cleanCurrent = getCleanTemplateState(appState);
     const cleanOriginal = getCleanTemplateState(originalTemplateState);
     return JSON.stringify(cleanCurrent) !== JSON.stringify(cleanOriginal);
+}
+
+function updateSaveStatus() {
+    const saveBtn = document.getElementById('save-cloud-btn');
+    const statusText = document.getElementById('save-status-text');
+    
+    if (!saveBtn || !statusText) return;
+    
+    if (!appState.isEditMode || document.getElementById('calculator-view').classList.contains('hidden')) {
+        saveBtn.style.display = 'none';
+        statusText.style.display = 'none';
+        return;
+    }
+
+    const changed = hasTemplateChanged();
+    if (changed || !currentCalculatorId) {
+        saveBtn.style.display = 'inline-flex';
+        statusText.style.display = 'none';
+    } else {
+        saveBtn.style.display = 'none';
+        statusText.style.display = 'inline-flex';
+        statusText.style.alignItems = 'center';
+    }
 }
 
 function parseWeight(val) {
@@ -142,14 +126,6 @@ function parseWeight(val) {
     return isNaN(res) ? 0 : res;
 }
 
-function hasUserSubmitted(calculatorId) {
-    return localStorage.getItem(`submitted_${calculatorId}`) === 'true';
-}
-
-function setSubmissionStatus(calculatorId) {
-    localStorage.setItem(`submitted_${calculatorId}`, 'true');
-}
-
 function scoreToGrade(percentage) {
     if (!appState.gradeScale || appState.gradeScale.length === 0) return `${percentage.toFixed(2)}%`;
     const scale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
@@ -160,17 +136,26 @@ function scoreToGrade(percentage) {
 }
 
 function calculateGrades() {
-    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], activeHeartIndex: -1, activeGradeIndex: -1, finalPercentage: 0, minRaw: 0, maxRaw: 0, targetNeeded: null };
+    calcInsights = { categories: [], totalRaw: 0, totalExtra: 0, warnings: [], advancedExtras: [], notices: [], activeHeartIndex: -1, activeGradeIndex: -1, finalPercentage: 0, minRaw: 0, maxRaw: 0, targetNeeded: null };
     
     let totalCatWeightValue = 0;
-    appState.categories.forEach(cat => totalCatWeightValue += parseWeight(cat.weight));
+    
+    const activeCatIds = (appState.routes && appState.routes.length > 0 && appState.activeRouteId) 
+        ? (appState.routes.find(r => r.id === appState.activeRouteId)?.activeCategories || [])
+        : appState.categories.map(c => c.id);
+
+    appState.categories.forEach(cat => {
+        if (activeCatIds.includes(cat.id)) totalCatWeightValue += parseWeight(cat.weight);
+    });
 
     let finalR_Weighted = 0;
     let finalE_Weighted = 0;
     let total_missing_r_weighted = 0; 
 
     appState.categories.forEach((cat, cIdx) => {
-        let catInsight = { components: [], effectiveWeight: 0, rPercent: 0, ePercent: 0, finalContribution: 0 };
+        if (!activeCatIds.includes(cat.id)) return; 
+        
+        let catInsight = { id: cat.id, name: cat.name, components: [], effectiveWeight: 0, rPercent: 0, ePercent: 0, finalContribution: 0 };
         let parsedCatW = parseWeight(cat.weight);
         catInsight.effectiveWeight = totalCatWeightValue > 0 ? (parsedCatW / totalCatWeightValue) * 100 : 0;
 
@@ -201,15 +186,35 @@ function calculateGrades() {
             droppedIndices = droppable.slice(0, numToDrop).map(d => d.idx);
         }
 
-        cat.components.forEach((comp, idx) => {
-            if (!comp.isBonus && !droppedIndices.includes(idx)) {
-                if (cat.calcMode === 'weighted') {
-                    totalCompWeightValue += parseWeight(comp.weight);
-                } else {
-                    sumMax += comp.max;
+        let rankedMapping = [];
+        if (cat.calcMode === 'ranked') {
+            let validComps = cat.components.map((c, i) => ({ ...c, originalIndex: i }))
+                .filter((c, i) => !c.isBonus && !droppedIndices.includes(i));
+            
+            validComps.sort((a, b) => {
+                let aBlank = (a.score == null || a.score === "");
+                let bBlank = (b.score == null || b.score === "");
+                let aPct = aBlank ? 0 : (Number(a.score) + (a.extraPoints||0)) / (a.max||1);
+                let bPct = bBlank ? 0 : (Number(b.score) + (b.extraPoints||0)) / (b.max||1);
+                return bPct - aPct; 
+            });
+
+            let customWeights = (cat.rankedWeights || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            let sumCustom = customWeights.reduce((a, b) => a + b, 0) || 1;
+            
+            validComps.forEach((vc, rank) => {
+                let assignedWeight = customWeights[rank] !== undefined ? customWeights[rank] : 0;
+                rankedMapping[vc.originalIndex] = assignedWeight / sumCustom;
+                totalCompWeightValue += assignedWeight / sumCustom;
+            });
+        } else {
+            cat.components.forEach((comp, idx) => {
+                if (!comp.isBonus && !droppedIndices.includes(idx)) {
+                    if (cat.calcMode === 'weighted') totalCompWeightValue += parseWeight(comp.weight);
+                    else sumMax += comp.max;
                 }
-            }
-        });
+            });
+        }
 
         let catR = 0, catE = 0;
 
@@ -232,9 +237,7 @@ function calculateGrades() {
             
             if (comp.capAtMax && comp.max > 0) {
                 if (actualScore > comp.max) actualScore = comp.max;
-                if (actualScore + actualExtra > comp.max) {
-                    actualExtra = Math.max(0, comp.max - actualScore);
-                }
+                if (actualScore + actualExtra > comp.max) actualExtra = Math.max(0, comp.max - actualScore);
             }
 
             let pScore = comp.max > 0 ? (actualScore / comp.max) * 100 : 0;
@@ -243,26 +246,19 @@ function calculateGrades() {
             let localWeightFrac = 0;
 
             if (!isDropped) {
-                if (cat.calcMode === 'weighted') {
-                    let parsedCompW = parseWeight(comp.weight);
+                if (cat.calcMode === 'weighted' || cat.calcMode === 'ranked') {
+                    let parsedCompW = cat.calcMode === 'ranked' ? (rankedMapping[compIdx] || 0) : parseWeight(comp.weight);
                     localWeightFrac = totalCompWeightValue > 0 ? (parsedCompW / totalCompWeightValue) : 0;
                     
-                    if (isBlank && !comp.isBonus) {
-                        catMissingR_percent += (localWeightFrac * 100);
-                    }
-                    
+                    if (isBlank && !comp.isBonus) catMissingR_percent += (localWeightFrac * 100);
                     catR += pScore * localWeightFrac;
                     catE += pExtra * localWeightFrac;
 
                 } else {
                     localWeightFrac = sumMax > 0 ? (comp.max / sumMax) : 0;
-                    
                     sumScore += actualScore;
                     sumExtra += actualExtra;
-                    
-                    if (isBlank && !comp.isBonus) {
-                        missingMax += comp.max;
-                    }
+                    if (isBlank && !comp.isBonus) missingMax += comp.max;
                 }
             }
             
@@ -321,6 +317,26 @@ function calculateGrades() {
     let base_R = finalR_Weighted; 
     let base_E = finalE_Weighted;
     
+    if (appState.advancedScript && appState.advancedScript.trim().length > 0) {
+        try {
+            const hook = new Function('appState', 'calcInsights', appState.advancedScript);
+            const res = hook(appState, calcInsights);
+            if (res) {
+                if (res.finalPercentage !== undefined) {
+                    base_R = res.finalPercentage; 
+                    finalR_Weighted = res.totalRaw !== undefined ? res.totalRaw : res.finalPercentage;
+                    finalE_Weighted = res.totalExtra !== undefined ? res.totalExtra : 0;
+                    total_missing_r_weighted = 0; 
+                }
+                if (res.warnings) calcInsights.warnings.push(...res.warnings);
+                if (res.extras && Array.isArray(res.extras)) calcInsights.advancedExtras = res.extras;
+                if (res.notices && Array.isArray(res.notices)) calcInsights.notices = res.notices;
+            }
+        } catch(e) {
+            calcInsights.warnings.push("Advanced Script Error: " + e.message);
+        }
+    }
+    
     function getTruePercentage(R, E) {
         if (!appState.enableHeartPoints || !appState.heartScale || appState.heartScale.length === 0 || !appState.gradeScale || appState.gradeScale.length === 0) return R + E;
         const sortedScale = [...appState.gradeScale].sort((a, b) => b.min - a.min);
@@ -373,7 +389,7 @@ function calculateGrades() {
     }
 
     let attempted_weight = 100 - total_missing_r_weighted;
-    if (appState.ignoreBlanks && attempted_weight > 0 && attempted_weight < 100) {
+    if (appState.ignoreBlanks && attempted_weight > 0 && attempted_weight < 100 && !appState.advancedScript) {
         finalR_Weighted = (finalR_Weighted / attempted_weight) * 100;
         finalE_Weighted = (finalE_Weighted / attempted_weight) * 100;
     }
@@ -384,7 +400,7 @@ function calculateGrades() {
 
     const rangeDisplay = document.getElementById('range-display');
     if (rangeDisplay) {
-        if (total_missing_r_weighted > 0) {
+        if (total_missing_r_weighted > 0 && !appState.advancedScript) {
             rangeDisplay.classList.remove('hidden');
             let minGradeStr = scoreToGrade(calcInsights.minRaw);
             let maxGradeStr = scoreToGrade(calcInsights.maxRaw);
@@ -396,7 +412,7 @@ function calculateGrades() {
 
     const targetOutput = document.getElementById('target-output');
     if (targetOutput) {
-        if (appState.targetGradePercent !== null && total_missing_r_weighted > 0) {
+        if (appState.targetGradePercent !== null && total_missing_r_weighted > 0 && !appState.advancedScript) {
             targetOutput.classList.remove('hidden');
             let tNeeded = calcInsights.targetNeeded;
             const tnValue = document.getElementById('target-needed-value');
@@ -476,6 +492,20 @@ function calculateGrades() {
     gradeDisplay.style.color = finalPercentage >= appState.globalPassingScore ? "var(--up-green)" : "var(--up-maroon)";
     
     document.getElementById('passing-warnings').innerHTML = calcInsights.warnings.map(w => `<div>⚠️ ${w}</div>`).join('');
+    
+    const advContainer = document.getElementById('advanced-output-container');
+    if (advContainer) {
+        if (calcInsights.advancedExtras && calcInsights.advancedExtras.length > 0) {
+            advContainer.innerHTML = calcInsights.advancedExtras.map(e => `
+                <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted);">${e.label}</span>
+                    <strong style="color: var(--text-main);">${e.value}</strong>
+                </div>
+            `).join('');
+        } else {
+            advContainer.innerHTML = '<span class="text-muted" style="font-size: 0.85rem;">No advanced variables generated.</span>';
+        }
+    }
 }
 
 
@@ -496,11 +526,50 @@ function render() {
     document.querySelectorAll('.edit-only').forEach(el => el.classList.toggle('hidden', !isEdit));
     
     document.getElementById('subject-name').value = appState.subject;
+    document.getElementById('calc-description').value = appState.description || '';
+    
     document.getElementById('global-passing').value = appState.globalPassingScore;
     document.getElementById('global-passing').disabled = !isEdit;
 
     document.getElementById('toggle-ignore-blanks').checked = appState.ignoreBlanks;
     document.getElementById('target-grade').value = appState.targetGradePercent !== null && appState.targetGradePercent !== undefined ? appState.targetGradePercent : '';
+
+    const scriptInput = document.getElementById('advanced-script-input');
+    if (scriptInput && document.activeElement !== scriptInput) scriptInput.value = appState.advancedScript || '';
+
+    const noticesContainer = document.getElementById('calc-notices-container');
+    if (calcInsights.notices && calcInsights.notices.length > 0) {
+        noticesContainer.innerHTML = calcInsights.notices.map(n => {
+            let icon = 'ℹ️';
+            if (n.type === 'success') icon = '✅';
+            if (n.type === 'error') icon = '⚠️';
+            return `<div class="notice-alert notice-${n.type}"><span>${icon}</span> <span>${n.text}</span></div>`;
+        }).join('');
+    } else {
+        noticesContainer.innerHTML = '';
+    }
+
+    const tabsContainer = document.getElementById('calc-tabs-container');
+    if ((appState.routes && appState.routes.length > 0) || isEdit) {
+        tabsContainer.classList.remove('hidden');
+        if (appState.routes && appState.routes.length > 0 && !appState.activeRouteId) {
+            appState.activeRouteId = appState.routes[0].id;
+        }
+        
+        let tabsHtml = '';
+        if (appState.routes && appState.routes.length > 0) {
+            tabsHtml += appState.routes.map(r => `
+                <div class="calc-tab ${appState.activeRouteId === r.id ? 'active' : ''}" onclick="switchRoute('${r.id}')">${r.name}</div>
+            `).join('');
+        }
+        
+        if (isEdit) {
+            tabsHtml += `<div class="edit-only" style="margin-left: auto; display: flex; align-items: center;"><button class="btn secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;" onclick="window.openRoutesManager()">Manage Tabs</button></div>`;
+        }
+        tabsContainer.innerHTML = tabsHtml;
+    } else {
+        tabsContainer.classList.add('hidden');
+    }
 
     const scaleBody = document.getElementById('grade-scale-body');
     if (appState.gradeScale && appState.gradeScale.length > 0) {
@@ -540,15 +609,29 @@ function render() {
     const container = document.getElementById('categories-container');
     container.innerHTML = '';
 
+    const activeCatIds = (appState.routes && appState.routes.length > 0 && appState.activeRouteId) 
+        ? (appState.routes.find(r => r.id === appState.activeRouteId)?.activeCategories || [])
+        : appState.categories.map(c => c.id);
+
     appState.categories.forEach((cat, cIndex) => {
-        const catInsight = calcInsights.categories[cIndex];
+        if (!isEdit && !activeCatIds.includes(cat.id)) return;
+
+        let isRouteInactive = isEdit && !activeCatIds.includes(cat.id);
+        let catDisabledStyle = isRouteInactive ? 'opacity: 0.4; border-color: transparent;' : 'transition: all 0.2s;';
+        
+        const catInsight = calcInsights.categories.find(c => c.id === cat.id) || { effectiveWeight: 0, rPercent: 0, ePercent: 0, finalContribution: 0, components: [] };
         const catDiv = document.createElement('div');
         catDiv.className = 'category-block';
-        
+        catDiv.style = catDisabledStyle;
+
         let headerHtml = isEdit 
-            ? `<input type="text" value="${cat.name}" onchange="updateCat(${cIndex}, 'name', this.value)" class="cat-title-input">
+            ? `<div style="display:flex; align-items:center;">
+                 <input type="text" value="${cat.name}" onchange="updateCat(${cIndex}, 'name', this.value)" class="cat-title-input">
+               </div>
                <button class="btn danger" onclick="removeCat(${cIndex})">Delete</button>`
-            : `<h3 style="font-size: 1.25rem; font-weight: 600; margin:0;">${cat.name}</h3>`;
+            : `<h3 style="font-size: 1.25rem; font-weight: 600; margin:0; display:flex; align-items:center;">
+                 ${cat.name}
+               </h3>`;
 
         let settingsHtml = isEdit ? `
             <div class="cat-settings">
@@ -557,8 +640,10 @@ function render() {
                     <select onchange="updateCat(${cIndex}, 'calcMode', this.value)" style="width:auto; display:inline-block; padding:0.2rem;">
                         <option value="weighted" ${cat.calcMode === 'weighted' ? 'selected' : ''}>Weighted</option>
                         <option value="sum" ${cat.calcMode === 'sum' ? 'selected' : ''}>Sum Points</option>
+                        <option value="ranked" ${cat.calcMode === 'ranked' ? 'selected' : ''}>Ranked Weights</option>
                     </select>
                 </div>
+                ${cat.calcMode === 'ranked' ? `<div><label>Ranks (%):</label> <input type="text" placeholder="e.g. 25,20,15" value="${cat.rankedWeights || ''}" onchange="updateCat(${cIndex}, 'rankedWeights', this.value)" style="width:100px; display:inline-block; padding:0.2rem;"></div>` : ''}
                 <div><label>Drop Lowest:</label> <input type="number" min="0" value="${cat.dropLowestX || 0}" onchange="updateCat(${cIndex}, 'dropLowestX', Number(this.value))" style="width:50px; display:inline-block; padding:0.2rem;"> items</div>
                 <div><label>Pass %:</label> <input type="number" placeholder="Global" value="${cat.passingScore}" onchange="updateCat(${cIndex}, 'passingScore', this.value)" style="width:85px; display:inline-block; padding:0.2rem;"></div>
                 <div>
@@ -569,9 +654,9 @@ function render() {
 
         let summaryHtml = `
             <div class="cat-summary-bar">
-                <div class="stat-box">Weight <strong>${catInsight.effectiveWeight.toFixed(1)}%</strong></div>
-                <div class="stat-box">Category Score <strong>${catInsight.rPercent.toFixed(1)}% ${catInsight.ePercent > 0 ? `<span class="heart-text">(+${catInsight.ePercent.toFixed(1)}%)</span>` : ''}</strong></div>
-                <div class="stat-box highlight">Final Contribution <strong>+${catInsight.finalContribution.toFixed(2)}</strong></div>
+                <div class="stat-box">Weight <strong>${catInsight.effectiveWeight ? catInsight.effectiveWeight.toFixed(1) : 0}%</strong></div>
+                <div class="stat-box">Category Score <strong>${catInsight.rPercent ? catInsight.rPercent.toFixed(1) : 0}% ${catInsight.ePercent > 0 ? `<span class="heart-text">(+${catInsight.ePercent.toFixed(1)}%)</span>` : ''}</strong></div>
+                <div class="stat-box highlight">Final Contribution <strong>+${catInsight.finalContribution ? catInsight.finalContribution.toFixed(2) : 0}</strong></div>
             </div>
         `;
 
@@ -592,7 +677,7 @@ function render() {
         `;
 
         cat.components.forEach((comp, compIndex) => {
-            let cInsight = catInsight.components[compIndex];
+            let cInsight = (catInsight.components && catInsight.components[compIndex]) ? catInsight.components[compIndex] : { effectiveWeight: 0, scorePercent: 0, weightedContribution: 0, isBonus: !!comp.isBonus, isDropped: false };
             
             let isBlank = (comp.score == null || comp.score === "");
             let targetHint = '';
@@ -613,10 +698,10 @@ function render() {
                         <input type="number" 
                             value="${comp.score == null || comp.score === '' ? '' : comp.score}" 
                             onchange="updateComp(${cIndex}, ${compIndex}, 'score', this.value === '' ? null : Number(this.value))" 
-                            class="input-minimal ${!isEdit && !comp.isBonus && !cInsight.isDropped ? 'view-editable' : ''}" 
-                            style="width:85px; ${comp.isBonus ? 'opacity: 0.4; cursor: not-allowed; background-color: var(--input-bg);' : ''}"
-                            ${comp.isBonus ? 'disabled title="Bonus items use Extra Points"' : ''}>
-                        ${!comp.isBonus && !cInsight.isDropped ? targetHint : ''}
+                            class="input-minimal ${!isEdit && !comp.isBonus && !cInsight.isDropped && !isRouteInactive ? 'view-editable' : ''}" 
+                            style="width:85px; ${comp.isBonus || isRouteInactive ? 'opacity: 0.4; cursor: not-allowed; background-color: var(--input-bg);' : ''}"
+                            ${comp.isBonus || isRouteInactive ? 'disabled title="Disabled or Bonus"' : ''}>
+                        ${!comp.isBonus && !cInsight.isDropped && !isRouteInactive ? targetHint : ''}
                     </td>
                     
                     <td class="col-num">
@@ -639,7 +724,7 @@ function render() {
                         <td class="col-num">
                             <input type="number" value="${comp.extraPoints == null || comp.extraPoints === '' ? '' : comp.extraPoints}" 
                                 onchange="updateComp(${cIndex}, ${compIndex}, 'extraPoints', this.value === '' ? null : Number(this.value))" 
-                                class="input-minimal ${!isEdit ? 'view-editable' : ''}" style="width:85px;">
+                                class="input-minimal ${!isEdit && !isRouteInactive ? 'view-editable' : ''}" style="width:85px;" ${isRouteInactive ? 'disabled' : ''}>
                         </td>` : ''}
                         
                     ${cat.calcMode === 'weighted' ? `<td class="col-num">${isEdit ? `<input type="text" value="${comp.weight}" onchange="updateComp(${cIndex}, ${compIndex}, 'weight', this.value)">` : comp.weight}</td>` : ''}
@@ -666,7 +751,19 @@ function render() {
         `;
         container.appendChild(catDiv);
     });
+
+    updateSaveStatus();
 }
+
+window.switchRoute = (routeId) => {
+    appState.activeRouteId = routeId;
+    render();
+};
+
+window.openRoutesManager = () => {
+    renderRoutesManager();
+    document.getElementById('routes-modal').classList.remove('hidden');
+};
 
 window.updateCat = (cIdx, field, val) => { appState.categories[cIdx][field] = val; render(); };
 window.removeCat = (cIdx) => { appState.categories.splice(cIdx, 1); render(); };
@@ -701,6 +798,7 @@ function renderGrid(elementId, data, includeBlank) {
             return `
             <div class="calc-card" onclick="window.location.href='?id=${calc.id}'">
                 <h3>${calc.title}</h3>
+                ${calc.config.description ? `<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">${calc.config.description}</p>` : ''}
                 <div class="meta">Added: ${date}</div>
                 <button class="btn secondary" style="width: 100%;">Open</button>
             </div>
@@ -716,9 +814,8 @@ async function fetchAndRenderCalculators(searchQuery = '', limitOverride = 8, ac
     const { data: authData } = await supabaseClient.auth.getUser();
     const activeUser = authData?.user;
 
-    // 1. My Calculators
     if (activeUser && (activeCategory === 'all' || activeCategory === 'my')) {
-        let q = supabaseClient.from('calculators').select('id, title, created_at').eq('owner_id', activeUser.id).order('created_at', { ascending: false });
+        let q = supabaseClient.from('calculators').select('id, title, config, created_at').eq('owner_id', activeUser.id).order('created_at', { ascending: false });
         if (searchQuery) q = q.ilike('title', `%${searchQuery}%`);
         if (limitOverride) q = q.limit(limitOverride);
         const { data } = await q;
@@ -727,9 +824,8 @@ async function fetchAndRenderCalculators(searchQuery = '', limitOverride = 8, ac
         document.getElementById('my-calcs-grid').innerHTML = '<p class="text-muted">Please log in to view your templates.</p>';
     }
 
-    // 2. Shared With Me
     if (activeUser && (activeCategory === 'all' || activeCategory === 'shared')) {
-        let q = supabaseClient.from('calculator_permissions').select('calculator_id, calculators!inner(id, title, created_at)').eq('user_id', activeUser.id);
+        let q = supabaseClient.from('calculator_permissions').select('calculator_id, calculators!inner(id, title, config, created_at)').eq('user_id', activeUser.id);
         if (searchQuery) q = q.ilike('calculators.title', `%${searchQuery}%`);
         const { data } = await q;
         const sharedData = data ? data.map(d => d.calculators).sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limitOverride || 999) : [];
@@ -738,9 +834,8 @@ async function fetchAndRenderCalculators(searchQuery = '', limitOverride = 8, ac
         document.getElementById('shared-calcs-grid').innerHTML = '<p class="text-muted">Please log in to view shared templates.</p>';
     }
 
-    // 3. Public Calculators
     if (activeCategory === 'all' || activeCategory === 'public') {
-        let q = supabaseClient.from('calculators').select('id, title, created_at').in('link_sharing_mode', ['view', 'edit']).order('created_at', { ascending: false });
+        let q = supabaseClient.from('calculators').select('id, title, config, created_at').in('link_sharing_mode', ['view', 'edit']).order('created_at', { ascending: false });
         if (searchQuery) q = q.ilike('title', `%${searchQuery}%`);
         if (limitOverride) q = q.limit(limitOverride);
         const { data } = await q;
@@ -806,7 +901,8 @@ async function loadCalculatorFromSupabase() {
     if (savedState) {
         try { 
             let parsedState = JSON.parse(savedState); 
-            // RESTORE ONLY LOCAL SCORES (Do not overwrite structural template data)
+            if (parsedState.activeRouteId) appState.activeRouteId = parsedState.activeRouteId;
+            
             appState.categories.forEach((cat) => {
                 let cachedCat = parsedState.categories.find(c => c.id === cat.id);
                 if (cachedCat) {
@@ -828,11 +924,138 @@ async function loadCalculatorFromSupabase() {
     if (typeof fetchAndRenderStats === 'function') fetchAndRenderStats(currentCalculatorId);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function exportCalculator() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `${(appState.subject || 'calculator').replace(/\s+/g, '_')}.rzgrade`);
+    dlAnchorElem.click();
+}
+
+function importCalculator(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const importedState = JSON.parse(e.target.result);
+            appState = { ...defaultState, ...importedState };
+            currentCalculatorId = null;
+            originalTemplateState = null;
+            window.history.replaceState(null, null, window.location.pathname);
+            render();
+            alert("Calculator imported successfully! It is currently running locally. Click Save to Cloud if you wish to upload it.");
+        } catch (err) {
+            alert("Invalid .rzgrade file structure.");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ""; 
+}
+
+function renderRoutesManager() {
+    const container = document.getElementById('routes-list-container');
+    if (!appState.routes) appState.routes = [];
     
+    container.innerHTML = appState.routes.map((r, idx) => `
+        <div style="background:var(--input-bg); padding:1rem; border-radius:4px; border:1px solid var(--border);">
+            <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+                <input type="text" value="${r.name}" onchange="appState.routes[${idx}].name = this.value" placeholder="Tab Name (e.g. Exempted)">
+                <button class="btn danger" onclick="appState.routes.splice(${idx}, 1); renderRoutesManager();">×</button>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;">Active Categories for this Tab:</p>
+            <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                ${appState.categories.map(c => `
+                    <label style="font-size:0.85rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                        <input type="checkbox" ${r.activeCategories.includes(c.id) ? 'checked' : ''} 
+                            onchange="if(this.checked) appState.routes[${idx}].activeCategories.push('${c.id}'); else appState.routes[${idx}].activeCategories = appState.routes[${idx}].activeCategories.filter(id=>id!=='${c.id}');">
+                        ${c.name}
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveCalculatorToCloud() {
+    const { data: authData } = await supabaseClient.auth.getUser();
+    const activeUser = authData?.user;
+    
+    if (!activeUser) {
+        alert("Please log in to save this calculator to the cloud.");
+        document.getElementById('auth-modal').classList.remove('hidden');
+        return;
+    }
+
+    const saveBtn = document.getElementById('save-cloud-btn');
+    const originalText = saveBtn.innerText;
+    saveBtn.innerText = "Saving...";
+    saveBtn.disabled = true;
+
+    try {
+        if (currentCalculatorId) {
+            const { error } = await supabaseClient
+                .from('calculators')
+                .update({ title: appState.subject, config: appState })
+                .eq('id', currentCalculatorId);
+            if (error) throw error;
+        } else {
+            const { data, error } = await supabaseClient
+                .from('calculators')
+                .insert([{ title: appState.subject, config: appState, owner_id: activeUser.id, link_sharing_mode: 'restricted' }])
+                .select();
+            if (error) throw error;
+            currentCalculatorId = data[0].id;
+            window.history.replaceState(null, null, `?id=${currentCalculatorId}`);
+        }
+        
+        originalTemplateState = JSON.parse(JSON.stringify(appState));
+        render(); // Immediately shifts UI to "All changes saved" state
+    } catch (err) {
+        console.error(err);
+        alert("Failed to save to cloud: " + err.message);
+    } finally {
+        saveBtn.innerText = originalText;
+        saveBtn.disabled = false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('view-all-my-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'my'));
     document.getElementById('view-all-shared-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'shared'));
     document.getElementById('view-all-public-btn')?.addEventListener('click', () => fetchAndRenderCalculators('', null, 'public'));
+
+    document.getElementById('export-calc-btn')?.addEventListener('click', exportCalculator);
+    document.getElementById('import-calc-btn')?.addEventListener('click', () => document.getElementById('import-file').click());
+    document.getElementById('import-file')?.addEventListener('change', importCalculator);
+
+    document.getElementById('subject-name')?.addEventListener('change', (e) => { appState.subject = e.target.value; render(); });
+    document.getElementById('calc-description')?.addEventListener('change', (e) => { appState.description = e.target.value; render(); });
+    document.getElementById('advanced-script-input')?.addEventListener('change', (e) => { appState.advancedScript = e.target.value; render(); });
+
+    document.getElementById('mode-btn')?.addEventListener('click', () => { appState.isEditMode = !appState.isEditMode; render(); });
+    document.getElementById('breakdown-btn')?.addEventListener('click', () => { appState.showBreakdown = !appState.showBreakdown; render(); });
+
+    document.getElementById('save-cloud-btn')?.addEventListener('click', saveCalculatorToCloud);
+
+    document.getElementById('add-route-btn')?.addEventListener('click', () => {
+        appState.routes.push({ id: generateId(), name: "New Tab", activeCategories: appState.categories.map(c=>c.id) });
+        renderRoutesManager();
+    });
+    document.getElementById('save-routes-btn')?.addEventListener('click', () => {
+        document.getElementById('routes-modal').classList.add('hidden');
+        render();
+    });
+
+    // GLOBAL SAVE HOTKEY (Ctrl + S)
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            if (!document.getElementById('calculator-view').classList.contains('hidden') && appState.isEditMode) {
+                e.preventDefault();
+                saveCalculatorToCloud();
+            }
+        }
+    });
 
     loadCalculatorFromSupabase();
 });
