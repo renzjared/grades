@@ -1,7 +1,6 @@
 let calCurrentDate = new Date();
 let timelineInterval = null;
 
-// Ensure initial state loads from LocalStorage
 let calShowClasses = localStorage.getItem('cal_show_classes') !== 'false';
 let calShowTasks = localStorage.getItem('cal_show_tasks') !== 'false';
 
@@ -16,12 +15,10 @@ async function renderCalendarView() {
     const savedView = localStorage.getItem('cal_view_pref') || 'month';
     const viewSelector = document.getElementById('cal-view-selector');
     
-    // Safely check if view selector exists before updating
     if (viewSelector && viewSelector.value !== savedView) {
         viewSelector.value = savedView;
     }
     
-    // Bind Sidebar Filter Toggles safely
     const clsToggle = document.getElementById('cal-toggle-classes');
     const tskToggle = document.getElementById('cal-toggle-tasks');
     if (clsToggle) clsToggle.checked = calShowClasses;
@@ -32,7 +29,6 @@ async function renderCalendarView() {
     
     if (!renderArea || !header) return;
 
-    // Lock the render area to absolute height limits to kill bleeding scrollbars
     renderArea.style.display = 'flex';
     renderArea.style.flexDirection = 'column';
     renderArea.style.height = '100%';
@@ -126,7 +122,7 @@ window.toggleSubjectVisibleCal = (subId, isVisible) => {
 };
 
 function getIconForModality(mod) {
-    if (mod === 'online') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
+    if (mod === 'online') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
     if (mod === 'async') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2h4"></path><path d="M12 14v-4"></path><path d="M4 13a8 8 0 0 1 8-8 8 8 0 0 1 8 8 8 8 0 0 1-8 8 8 8 0 0 1-8-8z"></path></svg>`;
     if (mod === 'cancelled') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
     return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`;
@@ -175,12 +171,12 @@ function renderEventPillsArray(dateStr) {
 
 function buildMonthGrid(year, month) {
     let html = '<div style="display:flex; flex-direction:column; height:100%; width:100%;">';
-    html += '<div class="cal-month-header-row" style="display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--border); border-left:1px solid var(--border); background:var(--card-bg); flex-shrink:0;">';
+    html += '<div class="cal-month-header-row">';
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    days.forEach(d => html += `<div style="text-align:center; font-weight:600; padding:0.5rem 0; color:var(--text-muted); font-size:0.85rem; border-right:1px solid var(--border); border-bottom:1px solid var(--border);">${d}</div>`);
+    days.forEach(d => html += `<div>${d}</div>`);
     html += '</div>';
     
-    html += '<div class="cal-grid-month" style="display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; flex:1; min-height:0; overflow:hidden; border-left:1px solid var(--border);">';
+    html += '<div class="cal-grid-month">';
     
     let now = new Date();
     let todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -198,21 +194,16 @@ function buildMonthGrid(year, month) {
         let pills = renderEventPillsArray(dStr);
         let pillsHtml = '';
         if (pills.length > 3) {
-            pillsHtml = pills.slice(0, 2).join('') + `<div class="cal-more-pill" onclick="calCurrentDate=new Date('${dStr}'); document.getElementById('cal-view-selector').value='day'; renderCalendarView();" style="font-size:0.7rem; font-weight:600; color:var(--text-main); padding:2px 4px; cursor:pointer;">+ ${pills.length - 2} more</div>`;
+            pillsHtml = pills.slice(0, 2).join('') + `<div class="cal-more-pill" onclick="calCurrentDate=new Date('${dStr}'); document.getElementById('cal-view-selector').value='day'; renderCalendarView();">+ ${pills.length - 2} more</div>`;
         } else {
             pillsHtml = pills.join('');
         }
         
-        let cellStyle = `border-right:1px solid var(--border); border-bottom:1px solid var(--border); padding:4px; overflow:hidden; display:flex; flex-direction:column; gap:2px; min-height:0; background:var(--bg-color);`;
-        if (!isCurrentMonth) cellStyle += ` opacity:0.4; background:var(--input-bg);`;
-        
-        let labelStyle = `font-size:0.75rem; font-weight:600; color:var(--text-muted); margin-bottom:2px; text-align:right; line-height:1;`;
-        let spanStyle = ``;
-        if (isToday) spanStyle = `background:var(--up-maroon); color:white; border-radius:50%; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; float:right;`;
+        let cellClass = `cal-day-cell ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'inactive' : ''}`;
         
         html += `
-        <div class="cal-day-cell ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'inactive' : ''}" style="${cellStyle}">
-            <div class="cal-date-label" style="${labelStyle}"><span style="${spanStyle}">${currDate.getDate()}</span></div>
+        <div class="${cellClass}">
+            <div class="cal-date-label"><span>${currDate.getDate()}</span></div>
             ${pillsHtml}
         </div>`;
         
