@@ -43,31 +43,13 @@ body.app-body {
 .app-sidebar:hover { width: 220px; box-shadow: 4px 0 15px rgba(0,0,0,0.05); }
 
 /* PERFECT TEXT HIDING WHEN SIDEBAR IS COLLAPSED */
-.app-sidebar .label {
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
-}
-.app-sidebar:hover .label {
-    opacity: 1;
-    transition-delay: 0.1s;
-    pointer-events: auto;
-}
+.app-sidebar .label { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.app-sidebar:hover .label { opacity: 1; transition-delay: 0.1s; pointer-events: auto; }
 
 .sidebar-brand { display: flex; align-items: center; padding: 0 22px; margin-bottom: 2rem; gap: 1rem; }
 .maroon-block { width: 12px; height: 24px; background: var(--up-maroon); border-radius: 3px; flex-shrink: 0; }
 
-.sidebar-item { 
-    display: flex; 
-    align-items: center; 
-    padding: 0.75rem 22px; 
-    color: var(--text-muted); 
-    text-decoration: none; 
-    cursor: pointer; 
-    gap: 1rem; 
-    transition: all 0.2s; 
-    font-weight: 500;
-}
+.sidebar-item { display: flex; align-items: center; padding: 0.75rem 22px; color: var(--text-muted); text-decoration: none; cursor: pointer; gap: 1rem; transition: all 0.2s; font-weight: 500; }
 .sidebar-item svg { flex-shrink: 0; }
 .sidebar-item:hover { color: var(--text-main); background: var(--input-bg); border-right: 3px solid transparent;}
 .sidebar-item.active-nav { color: var(--up-maroon); background: var(--up-maroon-light); border-right: 3px solid var(--up-maroon); font-weight: 600; }
@@ -76,61 +58,73 @@ body.app-body {
 .container { max-width: 1200px; margin: 0 auto; padding: 2rem; display: flex; flex-direction: column; min-height: calc(100vh - 70px); }
 
 /* Calculator Toolbar */
-.calc-top-toolbar { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    padding: 1rem 1.5rem; 
-    background: var(--card-bg); 
-    border: 1px solid var(--border); 
-    border-radius: var(--radius); 
-    box-shadow: var(--shadow); 
-    margin-bottom: -1rem; 
-}
+.calc-top-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: -1rem; }
 
 /* Mobile Utilities */
 .mobile-header { display: none; }
 .mobile-bottom-nav { display: none; }
+.sidebar-backdrop { display: none; }
 
 @media (max-width: 768px) {
     .hide-on-mobile { display: none !important; }
     
-    body.app-body { flex-direction: column; }
+    body.app-body { flex-direction: column; display: block; }
     
     .mobile-header { 
+        position: fixed; top: 0; left: 0; right: 0;
         display: flex; justify-content: space-between; align-items: center; 
         height: 60px; padding: 0 1rem; background: var(--bg-color); 
-        border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0;
+        border-bottom: 1px solid var(--border); z-index: 900;
     }
     
-    .app-main-wrapper { height: calc(100vh - 120px); }
+    .app-main-wrapper { 
+        position: fixed; top: 60px; bottom: 60px; left: 0; right: 0;
+        height: auto; width: 100%; overflow-y: auto; overflow-x: hidden;
+        margin: 0;
+    }
     .container { padding: 1rem; }
     
     .mobile-bottom-nav { 
+        position: fixed; bottom: 0; left: 0; right: 0;
         display: flex; justify-content: space-around; align-items: center; 
         height: 60px; background: var(--bg-color); border-top: 1px solid var(--border); 
-        z-index: 100; flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom);
+        z-index: 1000; padding-bottom: env(safe-area-inset-bottom);
     }
     .nav-icon { color: var(--text-muted); padding: 0.5rem; border-radius: var(--radius); transition: all 0.2s; cursor: pointer;}
     .nav-icon.active-nav { color: var(--up-maroon); }
 
+    /* Sidebars become off-canvas on mobile */
+    .sidebar {
+        position: fixed !important; top: 60px !important; left: -100%; bottom: 60px;
+        width: 280px; max-width: 85vw; z-index: 1000;
+        margin: 0 !important; border-radius: 0;
+        border-right: 1px solid var(--border); border-top: none; border-bottom: none;
+        transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        height: auto !important; max-height: none !important; background: var(--bg-color);
+    }
+    .sidebar.mobile-open { left: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
+    
+    .sidebar-backdrop {
+        display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 60px;
+        background: rgba(0,0,0,0.5); z-index: 950;
+        opacity: 0; visibility: hidden; transition: all 0.3s;
+    }
+    .sidebar-backdrop.mobile-open { opacity: 1; visibility: visible; }
+
+    /* Fixes for specific layouts */
+    .assignments-layout { grid-template-columns: 1fr; }
     .calendar-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -1rem; padding: 0 1rem; }
     .cal-month-header-row { min-width: 600px; }
     .cal-grid-month { min-width: 600px; }
     #time-grid-scroll { min-width: 600px; }
-    .assignments-layout { grid-template-columns: 1fr; }
-    
     .calc-top-toolbar { flex-wrap: wrap; margin-bottom: 0; }
 }
 
-@media (min-width: 769px) {
-    .hide-on-desktop { display: none !important; }
-}
+@media (min-width: 769px) { .hide-on-desktop { display: none !important; } }
 
 /* =========================================
    COMPONENTS & SHARED STYLES
    ========================================= */
-
 .subject-title { font-family: inherit; border: none; background: transparent; color: var(--text-main); outline: none; width: 100%; transition: all 0.2s;}
 .subject-title.large-green { font-size: 2.5rem; font-weight: 800; color: var(--subject-color); padding: 0; margin-bottom: 2rem; letter-spacing: -1px; line-height: 1.1; }
 .subject-title.large-green::placeholder { color: var(--subject-color); opacity: 0.4; }
@@ -310,6 +304,9 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .current-time-line::before { content: ''; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; background: #e53e3e; border-radius: 50%; }
 
 /* Calculator Specific UI */
+#calendar-view .main-content { height: 100%; overflow: hidden; }
+#calendar-view .card { height: 100%; display: flex; flex-direction: column; margin-bottom: 0; overflow: hidden; }
+
 .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); }
 .category-block { margin-bottom: 2.5rem; border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius); background: var(--card-bg); }
 .cat-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }

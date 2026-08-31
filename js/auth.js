@@ -2,53 +2,69 @@ let currentUser = null;
 
 async function checkUser() {
     const { data: authData } = await supabaseClient.auth.getUser();
-    currentUser = authData?.user;
+    currentUser = authData?.user || null;
     
-    // Safely update the old auth modal button text if it exists
-    const authBtn = document.getElementById('auth-btn');
-    if (authBtn) {
-        if (currentUser) {
-            const nameStr = currentUser.user_metadata?.full_name || currentUser.user_metadata?.custom_claims?.global_name || currentUser.email.split('@')[0];
-            authBtn.innerText = nameStr;
-            authBtn.classList.remove('secondary');
-            authBtn.classList.add('text-btn');
-        } else {
-            authBtn.innerText = "Log In";
-            authBtn.classList.add('secondary');
-            authBtn.classList.remove('text-btn');
-        }
-    }
-
-    // Securely trigger the Profile Data pull in app.js
+    // Safely update the Profile UI if the user is logged in
     if (typeof populateProfileStats === 'function') {
         populateProfileStats();
     }
 }
 
+// Automatically catch OAuth tokens in the URL redirect and establish the session
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        currentUser = session?.user || null;
+        
+        // Hide the modal instantly upon successful redirect
+        document.getElementById('auth-modal')?.classList.add('hidden');
+        
+        // Refresh the profile stats and avatar
+        if (typeof populateProfileStats === 'function') populateProfileStats();
+    } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Top Right Nav Auth Button
-    document.getElementById('auth-btn')?.addEventListener('click', () => {
-        if (currentUser) {
-            if (typeof switchView === 'function') switchView('profile');
+    const getRedirectUrl = () => {
+        // Ensures Supabase redirects exactly to where you currently are (e.g. localhost:5500)
+        return window.location.origin + window.location.pathname;
+    };
+
+    // Safely bind OAuth buttons using Optional Chaining (?.) so missing IDs never crash the app
+    document.getElementById('login-google')?.addEventListener('click', () => {
+        supabaseClient.auth.signInWithOAuth({ 
+            provider: 'google',
+            options: { redirectTo: getRedirectUrl() }
+        });
+    });
+
+    document.getElementById('login-discord')?.addEventListener('click', () => {
+        supabaseClient.auth.signInWithOAuth({ 
+            provider: 'discord',
+            options: { redirectTo: getRedirectUrl() }
+        });
+    });
+
+    // Optional Username setup logic
+    document.getElementById('save-username-btn')?.addEventListener('click', async () => {
+        const input = document.getElementById('username-input')?.value.trim();
+        if (!input || input.length < 3) return alert('Username must be at least 3 characters.');
+        
+        const { error } = await supabaseClient.from('profiles').insert([{ id: currentUser.id, username: input }]);
+        
+        if (error) {
+            console.error("Supabase Insert Error:", error);
+            if (error.code === '23505') {
+                alert("This username is already taken. Please try another.");
+            } else {
+                alert("Database Error: " + error.message);
+            }
         } else {
-            document.getElementById('auth-modal')?.classList.remove('hidden');
+            document.getElementById('username-modal')?.classList.add('hidden');
         }
     });
 
-    // Logout
-    document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        await supabaseClient.auth.signOut();
-        window.location.reload();
-    });
-
-    // OAuth Providers
-    document.getElementById('login-google')?.addEventListener('click', () => {
-        supabaseClient.auth.signInWithOAuth({ provider: 'google' });
-    });
-    
-    document.getElementById('login-discord')?.addEventListener('click', () => {
-        supabaseClient.auth.signInWithOAuth({ provider: 'discord' });
-    });
-
+    // Run initial auth check
     checkUser();
 });

@@ -13,20 +13,35 @@ function setFullTheme(themeName) {
 setFullTheme(localStorage.getItem('app_full_theme') || 'light');
 
 async function switchView(viewName) {
+    // Hide all main wrappers
     document.getElementById('calculator-view').classList.add('hidden');
     document.getElementById('explore-view').classList.add('hidden');
     document.getElementById('assignments-view').classList.add('hidden');
     document.getElementById('calendar-view').classList.add('hidden');
     document.getElementById('notes-view').classList.add('hidden');
     document.getElementById('profile-view').classList.add('hidden');
-    document.getElementById('floating-calc-header').classList.add('hidden');
+    
+    // Close mobile sidebars implicitly upon navigation
+    document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('mobile-open'));
+    document.getElementById('mobile-sidebar-backdrop')?.classList.remove('mobile-open');
+    
+    // Manage Hamburger Menu Visibility
+    const hamburger = document.getElementById('mobile-sidebar-toggle');
+    if (hamburger) {
+        // Explore and Profile views do not have customization sidebars
+        if (viewName === 'explore' || viewName === 'profile') {
+            hamburger.style.visibility = 'hidden';
+        } else {
+            hamburger.style.visibility = 'visible';
+        }
+    }
     
     document.querySelectorAll('.sidebar-item, .nav-icon').forEach(el => el.classList.remove('active-nav'));
 
+    // Route logic
     if (viewName === 'calc') {
         document.getElementById('calculator-view').classList.remove('hidden');
         document.querySelectorAll('.route-calc').forEach(el => el.classList.add('active-nav'));
-        document.getElementById('floating-calc-header').classList.remove('hidden');
     } else if (viewName === 'explore') {
         document.getElementById('explore-view').classList.remove('hidden');
         document.querySelectorAll('.route-calc').forEach(el => el.classList.add('active-nav'));
@@ -47,6 +62,15 @@ async function switchView(viewName) {
         document.getElementById('profile-view').classList.remove('hidden');
         document.querySelectorAll('.route-profile').forEach(el => el.classList.add('active-nav'));
         if (typeof populateProfileStats === 'function') populateProfileStats();
+    }
+}
+
+function toggleMobileSidebar() {
+    const activeSidebar = document.querySelector('.layout:not(.hidden) .sidebar');
+    const backdrop = document.getElementById('mobile-sidebar-backdrop');
+    if (activeSidebar) {
+        activeSidebar.classList.toggle('mobile-open');
+        backdrop?.classList.toggle('mobile-open');
     }
 }
 
@@ -139,6 +163,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.trigger-theme-modal').forEach(el => el.addEventListener('click', () => {
         document.getElementById('theme-modal').classList.remove('hidden');
     }));
+    
+    // Bind Mobile Hamburger Sidebar Triggers
+    document.getElementById('mobile-sidebar-toggle')?.addEventListener('click', toggleMobileSidebar);
+    document.getElementById('mobile-sidebar-backdrop')?.addEventListener('click', toggleMobileSidebar);
 
     document.getElementById('logout-btn-profile')?.addEventListener('click', async () => {
         await supabaseClient.auth.signOut();
