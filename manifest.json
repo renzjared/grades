@@ -1,19 +1,20 @@
 {
-  "name": "Tala - Student Dashboard",
+  "name": "TalaStudent Dashboard",
   "short_name": "Tala",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7b1113",
-  "description": "all-in-one student tool or someething application.",
+  "description": "An all-in-one student tracking application.",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
