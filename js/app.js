@@ -12,7 +12,7 @@ function setFullTheme(themeName) {
 
 setFullTheme(localStorage.getItem('app_full_theme') || 'light');
 
-function switchView(viewName) {
+async function switchView(viewName) {
     document.getElementById('calculator-view').classList.add('hidden');
     document.getElementById('explore-view').classList.add('hidden');
     document.getElementById('assignments-view').classList.add('hidden');
@@ -35,29 +35,33 @@ function switchView(viewName) {
         document.getElementById('nav-explore-btn').classList.add('active-nav');
         document.getElementById('mode-btn').classList.add('hidden');
         document.getElementById('share-btn').classList.add('hidden');
+        if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators();
     } else if (viewName === 'assignments') {
         document.getElementById('assignments-view').classList.remove('hidden');
         document.getElementById('nav-assignments-btn').classList.add('active-nav');
         document.getElementById('mode-btn').classList.add('hidden');
         document.getElementById('share-btn').classList.add('hidden');
+        if (typeof renderAssignmentsView === 'function') renderAssignmentsView();
     } else if (viewName === 'calendar') {
         document.getElementById('calendar-view').classList.remove('hidden');
         document.getElementById('nav-calendar-btn').classList.add('active-nav');
         document.getElementById('mode-btn').classList.add('hidden');
         document.getElementById('share-btn').classList.add('hidden');
+        if (typeof renderCalendarView === 'function') await renderCalendarView();
     } else if (viewName === 'notes') {
         document.getElementById('notes-view').classList.remove('hidden');
         document.getElementById('nav-notes-btn').classList.add('active-nav');
         document.getElementById('mode-btn').classList.add('hidden');
         document.getElementById('share-btn').classList.add('hidden');
+        if (typeof initNotes === 'function') initNotes();
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-calc-btn').addEventListener('click', () => switchView('calc'));
-    document.getElementById('nav-explore-btn').addEventListener('click', () => { switchView('explore'); if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); });
-    document.getElementById('nav-assignments-btn').addEventListener('click', () => { switchView('assignments'); if (typeof renderAssignmentsView === 'function') renderAssignmentsView(); });
-    document.getElementById('nav-calendar-btn').addEventListener('click', () => { switchView('calendar'); if (typeof renderCalendarView === 'function') renderCalendarView(); });
-    document.getElementById('nav-notes-btn').addEventListener('click', () => { switchView('notes'); if (typeof initNotes === 'function') initNotes(); });
-    document.getElementById('home-link').addEventListener('click', () => { switchView('explore'); if (typeof fetchAndRenderCalculators === 'function') fetchAndRenderCalculators(); });
+    document.getElementById('nav-explore-btn').addEventListener('click', () => switchView('explore'));
+    document.getElementById('nav-assignments-btn').addEventListener('click', () => switchView('assignments'));
+    document.getElementById('nav-calendar-btn').addEventListener('click', () => switchView('calendar'));
+    document.getElementById('nav-notes-btn').addEventListener('click', () => switchView('notes'));
+    document.getElementById('home-link').addEventListener('click', () => switchView('explore'));
 });

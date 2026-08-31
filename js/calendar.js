@@ -1,10 +1,25 @@
 let calCurrentDate = new Date();
 let timelineInterval = null;
 
-function renderCalendarView() {
+async function renderCalendarView() {
+    if (!currentUser) return;
+
+    if (!window.AcadState || !window.AcadState.activeTerm || window.AcadState.terms.length === 0) {
+        if (typeof fetchTerms === 'function') {
+            await fetchTerms(); 
+        }
+    }
     if (!window.AcadState || !window.AcadState.activeTerm) return;
+
+    const savedView = localStorage.getItem('cal_view_pref') || 'month';
+    const savedFilter = localStorage.getItem('cal_filter_pref') || 'all';
     
-    const v = document.getElementById('cal-view-selector').value;
+    const viewSelector = document.getElementById('cal-view-selector');
+    const filterSelector = document.getElementById('cal-filter-selector');
+    
+    if (viewSelector.value !== savedView) viewSelector.value = savedView;
+    if (filterSelector.value !== savedFilter) filterSelector.value = savedFilter;
+    
     const renderArea = document.getElementById('calendar-render-area');
     const header = document.getElementById('cal-date-display');
     
@@ -15,10 +30,10 @@ function renderCalendarView() {
     renderArea.innerHTML = ''; 
     clearInterval(timelineInterval);
 
-    if (v === 'month') {
+    if (savedView === 'month') {
         header.innerText = calCurrentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
         renderArea.innerHTML = buildMonthGrid(y, m);
-    } else if (v === 'week') {
+    } else if (savedView === 'week') {
         let sun = new Date(calCurrentDate);
         sun.setDate(d - sun.getDay());
         let sat = new Date(sun);
@@ -38,67 +53,98 @@ function renderCalendarView() {
 }
 
 function getIconForModality(mod) {
-    if (mod === 'online') return '🌐';
-    if (mod === 'async') return '⏳';
-    if (mod === 'cancelled') return '❌';
-    return '🏫'; 
+    if (mod === 'online') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
+    if (mod === 'async') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2h4"></path><path d="M12 14v-4"></path><path d="M4 13a8 8 0 0 1 8-8 8 8 0 0 1 8 8 8 8 0 0 1-8 8 8 8 0 0 1-8-8z"></path></svg>`;
+    if (mod === 'cancelled') return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
+    return `<svg class="cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`;
 }
 
 function getEventsForDate(dateStr) {
-    let classes = window.AcadState.classes.filter(c => c.class_date === dateStr && window.AcadState.visibleSubjects.has(c.subject_id));
-    let tasks = window.AcadState.assignments.filter(a => {
-        if (!window.AcadState.visibleSubjects.has(a.subject_id)) return false;
-        let d = new Date(a.due_date);
-        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` === dateStr;
-    });
+    let filterPref = document.getElementById('cal-filter-selector').value || 'all';
+    let classes = [];
+    let tasks = [];
+
+    if (filterPref === 'all' || filterPref === 'classes') {
+        classes = window.AcadState.classes.filter(c => c.class_date === dateStr && window.AcadState.visibleSubjects.has(c.subject_id));
+    }
+    
+    if (filterPref === 'all' || filterPref === 'tasks') {
+        tasks = window.AcadState.assignments.filter(a => {
+            if (!window.AcadState.visibleSubjects.has(a.subject_id)) return false;
+            let d = new Date(a.due_date);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` === dateStr;
+        });
+    }
+    
     return { classes, tasks };
 }
 
-// Simple layout for Month View
+function renderEventPills(dateStr) {
+    let { classes, tasks } = getEventsForDate(dateStr);
+    let html = '';
+
+    classes.sort((a,b) => a.start_time.localeCompare(b.start_time)).forEach(c => {
+        const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
+        const isCancelled = c.modality === 'cancelled';
+        
+        const baseColor = isCancelled ? 'var(--text-muted)' : sub.color;
+        const bgColor = isCancelled ? 'var(--input-bg)' : `${sub.color}22`;
+        const txtColor = 'var(--text-main)';
+        const decor = isCancelled ? 'text-decoration:line-through;' : '';
+        
+        html += `<div class="cal-event-pill" style="background-color:${bgColor}; color:${txtColor}; border-left: 3px solid ${baseColor}; ${decor}" onclick="openClassModal('${c.id}')" title="${sub.name} (${c.start_time.slice(0,5)})">
+            <span style="display:inline-flex; align-items:center; color:${baseColor}; margin-right:2px;">${getIconForModality(c.modality)}</span> 
+            ${c.start_time.slice(0,5)} ${sub.code}
+        </div>`;
+    });
+
+    tasks.forEach(t => {
+        const sub = window.AcadState.subjects.find(s => s.id === t.subject_id);
+        const txtColor = window.getContrastYIQ ? window.getContrastYIQ(sub.color) : '#fff';
+        
+        html += `<div class="cal-event-pill" style="background-color:${sub.color}; color:${txtColor}; border:none;" onclick="openTaskSidebar('${t.id}')" title="Due: ${t.title}">
+            <span style="font-weight:700; margin-right:4px;">${new Date(t.due_date).toTimeString().slice(0,5)}</span> ${t.title}
+        </div>`;
+    });
+
+    return html;
+}
+
 function buildMonthGrid(year, month) {
     let html = '<div class="cal-grid-month">';
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     days.forEach(d => html += `<div class="cal-month-header">${d}</div>`);
     
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
     let now = new Date();
     let todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
-    for (let i = 0; i < firstDay; i++) html += `<div class="cal-day-cell inactive"></div>`;
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-        let dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        let isToday = dStr === todayStr;
-        
-        let { classes, tasks } = getEventsForDate(dStr);
-        let pillsHtml = '';
-        classes.forEach(c => {
-            const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
-            pillsHtml += `<div class="cal-event-pill" style="background:${sub.color};" onclick="openClassModal('${c.id}')">${getIconForModality(c.modality)} ${sub.code}</div>`;
-        });
-        tasks.forEach(t => {
-            const sub = window.AcadState.subjects.find(s => s.id === t.subject_id);
-            pillsHtml += `<div class="cal-event-pill cal-event-task" style="color:${sub.color}; border-color:${sub.color};" onclick="openTaskSidebar('${t.id}')">Task: ${t.title}</div>`;
-        });
+    let currDate = new Date(year, month, 1);
+    currDate.setDate(currDate.getDate() - currDate.getDay());
 
+    for (let i = 0; i < 42; i++) {
+        if (i >= 35 && currDate.getMonth() !== month) break;
+
+        let dStr = `${currDate.getFullYear()}-${String(currDate.getMonth()+1).padStart(2,'0')}-${String(currDate.getDate()).padStart(2,'0')}`;
+        let isToday = dStr === todayStr;
+        let isCurrentMonth = currDate.getMonth() === month;
+        
         html += `
-        <div class="cal-day-cell ${isToday ? 'today' : ''}">
-            <div class="cal-date-label">${i}</div>
-            ${pillsHtml}
+        <div class="cal-day-cell ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'inactive' : ''}">
+            <div class="cal-date-label">${currDate.getDate()}</div>
+            ${renderEventPills(dStr)}
         </div>`;
+        
+        currDate.setDate(currDate.getDate() + 1);
     }
+    
     html += '</div>';
     return html;
 }
 
-// 24-Hour Absolute Layout (Used for Week & Day View)
 function buildAbsoluteGrid(startDate, dayCount) {
     let now = new Date();
     let todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     
-    // Top headers mapping
     let headersHtml = `<div style="display:flex; margin-left:50px; border-bottom:1px solid var(--border);">`;
     for(let i=0; i<dayCount; i++) {
         let d = new Date(startDate);
@@ -109,7 +155,6 @@ function buildAbsoluteGrid(startDate, dayCount) {
     }
     headersHtml += `</div>`;
 
-    // 1440px grid container (1px = 1 minute)
     let gridHtml = `<div class="time-grid-container" id="time-grid-scroll">`;
     gridHtml += `<div class="current-time-line" id="current-time-line" style="display:none;"></div>`;
 
@@ -120,7 +165,6 @@ function buildAbsoluteGrid(startDate, dayCount) {
         gridHtml += `<div class="time-grid-line" style="top: ${h*60}px"></div>`;
     }
 
-    // Event Columns
     gridHtml += `<div style="position:absolute; left:50px; right:0; top:0; bottom:0; display:flex;">`;
     for(let i=0; i<dayCount; i++) {
         let d = new Date(startDate);
@@ -131,7 +175,6 @@ function buildAbsoluteGrid(startDate, dayCount) {
 
         gridHtml += `<div class="time-column" style="flex:1; position:relative; ${isToday ? 'background:rgba(123,17,19,0.03);' : ''}">`;
 
-        // Render Classes
         classes.forEach(c => {
             const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
             const [sh, sm] = c.start_time.split(':').map(Number);
@@ -140,24 +183,31 @@ function buildAbsoluteGrid(startDate, dayCount) {
             const hPx = ((eh * 60) + em) - topPx;
             const isCancelled = c.modality === 'cancelled';
             
+            const baseColor = isCancelled ? 'var(--text-muted)' : sub.color;
+            const bgColor = isCancelled ? 'var(--input-bg)' : `${sub.color}22`;
+            const txtColor = 'var(--text-main)';
+            
             gridHtml += `
-            <div class="time-event" style="top:${topPx}px; height:${hPx}px; border-color:${sub.color}; opacity:${isCancelled?0.5:1};" onclick="openClassModal('${c.id}')">
-                <strong style="color:${sub.color}; ${isCancelled?'text-decoration:line-through;':''}">${getIconForModality(c.modality)} ${sub.code}</strong>
-                <span>${sub.name}</span>
-                <span style="opacity:0.7">${c.venue||''}</span>
+            <div class="time-event" style="top:${topPx}px; height:${hPx}px; background:${bgColor}; border-left: 4px solid ${baseColor}; color:${txtColor}; flex-direction:column;" onclick="openClassModal('${c.id}')">
+                <strong style="color:${baseColor}; ${isCancelled?'text-decoration:line-through;':''} margin-bottom:2px; display:flex; align-items:center; flex-shrink:0;">
+                    ${getIconForModality(c.modality)} <span style="margin-left:4px; font-size: 0.75rem;">${sub.code}</span>
+                </strong>
+                <span style="font-size:0.7rem; opacity:0.9; width:100%; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical;">[${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}] ${c.venue||''}</span>
             </div>`;
         });
 
-        // Render Tasks (Placed precisely at Due Time, 30px height)
         tasks.forEach(t => {
             const sub = window.AcadState.subjects.find(s => s.id === t.subject_id);
             let dTime = new Date(t.due_date);
-            let topPx = (dTime.getHours() * 60) + dTime.getMinutes() - 30; // block ends at deadline
+            let topPx = (dTime.getHours() * 60) + dTime.getMinutes() - 24; 
             if (topPx < 0) topPx = 0;
 
+            const txtColor = window.getContrastYIQ ? window.getContrastYIQ(sub.color) : '#fff';
+
             gridHtml += `
-            <div class="time-event" style="top:${topPx}px; height:30px; border-color:${sub.color}; background:${sub.color}1a; color:var(--text-main);" onclick="openTaskSidebar('${t.id}')">
-                <strong>🚨 ${dTime.toTimeString().slice(0,5)}</strong> ${t.title}
+            <div class="time-event" style="top:${topPx}px; height:24px; background:${sub.color}; color:${txtColor}; border:none; display:flex; flex-direction:row; align-items:center; padding:0 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" onclick="openTaskSidebar('${t.id}')">
+                <strong style="color:${txtColor}; margin-right:6px; font-size:0.75rem;">${dTime.toTimeString().slice(0,5)}</strong> 
+                <span style="overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:0.75rem; flex:1;">${t.title}</span>
             </div>`;
         });
 
@@ -170,14 +220,13 @@ function buildAbsoluteGrid(startDate, dayCount) {
 
 function startTimelineTracker() {
     updateTimeline();
-    timelineInterval = setInterval(updateTimeline, 60000); // Check every minute
+    timelineInterval = setInterval(updateTimeline, 60000); 
     
-    // Auto-scroll to current time on load
     setTimeout(() => {
         const scrollBox = document.getElementById('time-grid-scroll');
         if (scrollBox) {
             const now = new Date();
-            let targetScroll = (now.getHours() * 60) - 100; // Offset slightly
+            let targetScroll = (now.getHours() * 60) - 100;
             scrollBox.scrollTop = Math.max(0, targetScroll);
         }
     }, 100);
@@ -188,7 +237,6 @@ function updateTimeline() {
     if (!line) return;
     
     const now = new Date();
-    // Check if the current date is visible on the grid
     let v = document.getElementById('cal-view-selector').value;
     let isVisible = false;
     
@@ -214,7 +262,16 @@ function updateTimeline() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('cal-view-selector').addEventListener('change', renderCalendarView);
+    document.getElementById('cal-view-selector').addEventListener('change', (e) => {
+        localStorage.setItem('cal_view_pref', e.target.value);
+        renderCalendarView();
+    });
+    
+    document.getElementById('cal-filter-selector').addEventListener('change', (e) => {
+        localStorage.setItem('cal_filter_pref', e.target.value);
+        renderCalendarView();
+    });
+    
     document.getElementById('cal-today-btn').addEventListener('click', () => { calCurrentDate = new Date(); renderCalendarView(); });
     
     document.getElementById('cal-prev-btn').addEventListener('click', () => { 
@@ -232,43 +289,4 @@ document.addEventListener('DOMContentLoaded', () => {
         else calCurrentDate.setDate(calCurrentDate.getDate() + 1);
         renderCalendarView(); 
     });
-
-    // Modals
-    document.getElementById('save-inst-btn').addEventListener('click', async () => {
-        const id = document.getElementById('inst-id').value;
-        const payload = {
-            class_date: document.getElementById('inst-date').value,
-            modality: document.getElementById('inst-modality').value,
-            start_time: document.getElementById('inst-start').value,
-            end_time: document.getElementById('inst-end').value,
-            venue: document.getElementById('inst-venue').value
-        };
-        await supabaseClient.from('class_instances').update(payload).eq('id', id);
-        document.getElementById('class-instance-modal').classList.add('hidden');
-        if (window.AcadState.activeTerm) fetchTermData(window.AcadState.activeTerm.id);
-    });
-
-    document.getElementById('delete-inst-btn').addEventListener('click', async () => {
-        const id = document.getElementById('inst-id').value;
-        if(!confirm("Remove this specific class block from your calendar?")) return;
-        await supabaseClient.from('class_instances').delete().eq('id', id);
-        document.getElementById('class-instance-modal').classList.add('hidden');
-        if (window.AcadState.activeTerm) fetchTermData(window.AcadState.activeTerm.id);
-    });
 });
-
-window.openClassModal = (instId) => {
-    const c = window.AcadState.classes.find(x => x.id === instId);
-    if(!c) return;
-    const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
-    
-    document.getElementById('class-inst-course').innerText = `${sub.code} - ${sub.name}`;
-    document.getElementById('inst-id').value = c.id;
-    document.getElementById('inst-date').value = c.class_date;
-    document.getElementById('inst-modality').value = c.modality;
-    document.getElementById('inst-start').value = c.start_time.slice(0,5);
-    document.getElementById('inst-end').value = c.end_time.slice(0,5);
-    document.getElementById('inst-venue').value = c.venue || sub.venue || '';
-    
-    document.getElementById('class-instance-modal').classList.remove('hidden');
-};

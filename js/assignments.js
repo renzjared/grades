@@ -73,9 +73,13 @@ async function fetchTerms() {
     const selector = document.getElementById('sidebar-term-selector');
     
     if (terms && terms.length > 0) {
-        if(!window.AcadState.activeTerm) window.AcadState.activeTerm = terms[0];
+        // Restore active term preference
+        const savedTermId = localStorage.getItem('acad_active_term');
+        let targetTerm = window.AcadState.terms.find(t => t.id === savedTermId);
+        if (!targetTerm) targetTerm = terms[0];
+
+        window.AcadState.activeTerm = targetTerm;
         window.AcadState.termTags = window.AcadState.activeTerm.tags || [];
-        window.AcadState.selectedTags.clear();
 
         selector.innerHTML = terms.map(t => `<option value="${t.id}" ${window.AcadState.activeTerm.id === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
         selector.disabled = false;
@@ -90,7 +94,24 @@ async function fetchTerms() {
 async function fetchTermData(termId) {
     const { data: subjects } = await supabaseClient.from('subjects').select('*').eq('term_id', termId).order('name', { ascending: true });
     window.AcadState.subjects = subjects || [];
-    window.AcadState.visibleSubjects = new Set(window.AcadState.subjects.map(s => s.id));
+    
+    // Restore subject visibility preference
+    const savedVis = localStorage.getItem(`acad_visible_subjects_${termId}`);
+    if (savedVis) {
+        const parsed = JSON.parse(savedVis);
+        window.AcadState.visibleSubjects = new Set(parsed.filter(id => window.AcadState.subjects.some(s => s.id === id)));
+    } else {
+        window.AcadState.visibleSubjects = new Set(window.AcadState.subjects.map(s => s.id));
+    }
+
+    // Restore tag filter preference
+    const savedTags = localStorage.getItem(`acad_selected_tags_${termId}`);
+    if (savedTags) {
+        const parsed = JSON.parse(savedTags);
+        window.AcadState.selectedTags = new Set(parsed.filter(id => window.AcadState.termTags.some(t => t.id === id)));
+    } else {
+        window.AcadState.selectedTags.clear();
+    }
     
     if (subjects && subjects.length > 0) {
         const subIds = subjects.map(s => s.id);
@@ -150,6 +171,10 @@ function renderSidebar() {
 window.toggleSubjectVisible = (subId, isVisible) => {
     if (isVisible) window.AcadState.visibleSubjects.add(subId);
     else window.AcadState.visibleSubjects.delete(subId);
+    
+    // Save to local storage
+    localStorage.setItem(`acad_visible_subjects_${window.AcadState.activeTerm.id}`, JSON.stringify([...window.AcadState.visibleSubjects]));
+    
     renderBentoAndTable();
     if(typeof renderCalendarView === 'function') renderCalendarView();
 };
@@ -157,6 +182,10 @@ window.toggleSubjectVisible = (subId, isVisible) => {
 window.toggleTagFilter = (tagId, isVisible) => {
     if (isVisible) window.AcadState.selectedTags.add(tagId);
     else window.AcadState.selectedTags.delete(tagId);
+    
+    // Save to local storage
+    localStorage.setItem(`acad_selected_tags_${window.AcadState.activeTerm.id}`, JSON.stringify([...window.AcadState.selectedTags]));
+    
     renderBentoAndTable();
 };
 
@@ -175,7 +204,16 @@ function renderBentoAndTable() {
         return true;
     });
 
+    const bumpDone = document.getElementById('bump-done-tasks').checked;
+
     filteredTasks.sort((a, b) => {
+        if (bumpDone) {
+            const aDone = ['completed', 'dropped', 'cancelled'].includes(a.status);
+            const bDone = ['completed', 'dropped', 'cancelled'].includes(b.status);
+            if (aDone && !bDone) return 1;
+            if (!aDone && bDone) return -1;
+        }
+
         if (window.AcadState.sortOrder === 'date_added') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         if (window.AcadState.sortOrder === 'date_asc') return new Date(a.due_date) - new Date(b.due_date);
         if (window.AcadState.sortOrder === 'date_desc') return new Date(b.due_date) - new Date(a.due_date);
@@ -192,9 +230,25 @@ function renderBentoAndTable() {
         const diffHours = (due - now) / (1000 * 60 * 60);
 
         if (a.status === 'in_progress') inProgress++;
+        
+        let rowClass = `status-${a.status || 'not_started'}`;
+        let titleClass = '';
+        
+        if (a.status === 'completed') {
+            titleClass = 'task-completed-text';
+        }
+
         if (a.status === 'not_started' || a.status === 'in_progress' || !a.status) {
-            if (diffHours < 0) overdue++;
-            else if (diffHours <= 48) urgent++;
+            if (diffHours < 0) {
+                overdue++;
+                rowClass += ' row-overdue';
+            } else if (diffHours <= 24) {
+                urgent++;
+                rowClass += ' row-urgent-24';
+            } else if (diffHours <= 48) {
+                urgent++;
+                rowClass += ' row-urgent-48';
+            }
         }
 
         let taskTags = a.tags || [];
@@ -205,7 +259,7 @@ function renderBentoAndTable() {
         }).join('');
 
         html += `
-        <tr class="status-${a.status || 'not_started'}">
+        <tr class="${rowClass}">
             <td>
                 <select class="input-minimal status-select" onchange="updateTaskStatus('${a.id}', this.value)">
                     <option value="not_started" ${a.status==='not_started'?'selected':''}>Not Started</option>
@@ -221,7 +275,7 @@ function renderBentoAndTable() {
             </td>
             <td><span class="stat-pill" style="color:${sub.color}; background:${sub.color}1a;">${window.renderSubjectIcon(sub.icon)} ${sub.code}</span></td>
             <td>
-                <div style="font-weight:500; cursor:pointer; margin-bottom:4px;" onclick="openTaskSidebar('${a.id}')">${a.title}</div>
+                <div class="${titleClass}" style="font-weight:500; cursor:pointer; margin-bottom:4px;" onclick="openTaskSidebar('${a.id}')">${a.title}</div>
                 <div>${tagHtml}</div>
             </td>
             <td>
@@ -277,8 +331,6 @@ window.openTaskSidebar = (taskId = null) => {
         document.getElementById('task-name').value = t.title;
         
         const d = new Date(t.due_date);
-        
-        // Render robust local string
         const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         
         document.getElementById('task-date').value = localDateStr;
@@ -456,17 +508,44 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
+    // Restore saved preferences safely
+    const savedSort = localStorage.getItem('acad_sort_order');
+    if (savedSort) {
+        window.AcadState.sortOrder = savedSort;
+        document.getElementById('task-sort').value = savedSort;
+    }
+
+    const savedBump = localStorage.getItem('acad_bump_tasks');
+    if (savedBump !== null) {
+        document.getElementById('bump-done-tasks').checked = (savedBump === 'true');
+    }
+
     document.getElementById('sidebar-term-selector').addEventListener('change', (e) => {
         const t = window.AcadState.terms.find(x => x.id === e.target.value);
         if (t) { 
             window.AcadState.activeTerm = t; 
+            localStorage.setItem('acad_active_term', t.id);
             window.AcadState.termTags = t.tags || [];
             window.AcadState.selectedTags.clear();
             fetchTermData(t.id); 
         }
     });
-    document.getElementById('task-search').addEventListener('input', (e) => { window.AcadState.searchQuery = e.target.value; renderBentoAndTable(); });
-    document.getElementById('task-sort').addEventListener('change', (e) => { window.AcadState.sortOrder = e.target.value; renderBentoAndTable(); });
+    
+    document.getElementById('task-search').addEventListener('input', (e) => { 
+        window.AcadState.searchQuery = e.target.value; 
+        renderBentoAndTable(); 
+    });
+    
+    document.getElementById('task-sort').addEventListener('change', (e) => { 
+        window.AcadState.sortOrder = e.target.value; 
+        localStorage.setItem('acad_sort_order', e.target.value);
+        renderBentoAndTable(); 
+    });
+    
+    document.getElementById('bump-done-tasks').addEventListener('change', (e) => { 
+        localStorage.setItem('acad_bump_tasks', e.target.checked);
+        renderBentoAndTable(); 
+    });
 
     document.getElementById('sidebar-new-term').addEventListener('click', () => {
         document.getElementById('term-name').value = '';
@@ -526,11 +605,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data: subData, error: subErr } = await supabaseClient.from('subjects').insert([subObj]).select();
             if(subErr) return alert("Error saving course.");
             const newSubId = subData[0].id;
+            
+            // Ensure new course is immediately visible
+            window.AcadState.visibleSubjects.add(newSubId);
+            localStorage.setItem(`acad_visible_subjects_${window.AcadState.activeTerm.id}`, JSON.stringify([...window.AcadState.visibleSubjects]));
 
             const blocks = document.querySelectorAll('#subj-blocks-container > div');
             const instances = [];
 
-            // SAFE SCHEDULE GENERATOR
             if (window.AcadState.activeTerm?.start_date && window.AcadState.activeTerm?.end_date) {
                 const tStart = new Date(window.AcadState.activeTerm.start_date + 'T00:00:00');
                 const tEnd = new Date(window.AcadState.activeTerm.end_date + 'T23:59:59');
