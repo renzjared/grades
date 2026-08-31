@@ -9,36 +9,28 @@ function setFullTheme(themeName) {
         chartInstance.update();
     }
 }
-
 setFullTheme(localStorage.getItem('app_full_theme') || 'light');
 
 async function switchView(viewName) {
-    // Hide all main wrappers
     document.getElementById('calculator-view').classList.add('hidden');
     document.getElementById('explore-view').classList.add('hidden');
     document.getElementById('assignments-view').classList.add('hidden');
     document.getElementById('calendar-view').classList.add('hidden');
     document.getElementById('notes-view').classList.add('hidden');
     document.getElementById('profile-view').classList.add('hidden');
+    document.getElementById('floating-calc-header').classList.add('hidden');
     
-    // Close mobile sidebars implicitly upon navigation
     document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('mobile-open'));
     document.getElementById('mobile-sidebar-backdrop')?.classList.remove('mobile-open');
     
-    // Manage Hamburger Menu Visibility
     const hamburger = document.getElementById('mobile-sidebar-toggle');
     if (hamburger) {
-        // Explore and Profile views do not have customization sidebars
-        if (viewName === 'explore' || viewName === 'profile') {
-            hamburger.style.visibility = 'hidden';
-        } else {
-            hamburger.style.visibility = 'visible';
-        }
+        if (viewName === 'explore' || viewName === 'profile') hamburger.style.visibility = 'hidden';
+        else hamburger.style.visibility = 'visible';
     }
     
     document.querySelectorAll('.sidebar-item, .nav-icon').forEach(el => el.classList.remove('active-nav'));
 
-    // Route logic
     if (viewName === 'calc') {
         document.getElementById('calculator-view').classList.remove('hidden');
         document.querySelectorAll('.route-calc').forEach(el => el.classList.add('active-nav'));
@@ -112,9 +104,7 @@ async function populateProfileStats() {
     if (typeof localNotes !== 'undefined') {
         activeNotes = localNotes;
     } else {
-        try {
-            activeNotes = JSON.parse(localStorage.getItem('rz_notes_data')) || []; 
-        } catch(e) {}
+        try { activeNotes = JSON.parse(localStorage.getItem('rz_notes_data')) || []; } catch(e) {}
     }
     
     document.getElementById('prof-stat-notes').innerText = activeNotes.length;
@@ -153,6 +143,14 @@ async function populateProfileStats() {
     }
 }
 
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installBtn = document.getElementById('install-pwa-btn');
+    if (installBtn) installBtn.classList.remove('hidden');
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.route-calc').forEach(el => el.addEventListener('click', () => switchView('explore')));
     document.querySelectorAll('.route-assignments').forEach(el => el.addEventListener('click', () => switchView('assignments')));
@@ -164,7 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theme-modal').classList.remove('hidden');
     }));
     
-    // Bind Mobile Hamburger Sidebar Triggers
     document.getElementById('mobile-sidebar-toggle')?.addEventListener('click', toggleMobileSidebar);
     document.getElementById('mobile-sidebar-backdrop')?.addEventListener('click', toggleMobileSidebar);
 
@@ -173,7 +170,20 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.reload();
     });
 
-    if (!new URLSearchParams(window.location.search).get('id')) {
-        switchView('assignments');
+    document.getElementById('install-pwa-btn')?.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                document.getElementById('install-pwa-btn').classList.add('hidden');
+            }
+            deferredPrompt = null;
+        }
+    });
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch(err => console.error("SW Registration failed: ", err));
+        });
     }
 });

@@ -4,9 +4,13 @@ async function checkUser() {
     const { data: authData } = await supabaseClient.auth.getUser();
     currentUser = authData?.user || null;
     
-    // Safely update the Profile UI if the user is logged in
     if (typeof populateProfileStats === 'function') {
         populateProfileStats();
+    }
+
+    // Delay default routing until we securely know the user's authentication status
+    if (!new URLSearchParams(window.location.search).get('id')) {
+        if (typeof switchView === 'function') switchView('assignments');
     }
 }
 
@@ -14,12 +18,13 @@ async function checkUser() {
 supabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         currentUser = session?.user || null;
-        
-        // Hide the modal instantly upon successful redirect
         document.getElementById('auth-modal')?.classList.add('hidden');
-        
-        // Refresh the profile stats and avatar
         if (typeof populateProfileStats === 'function') populateProfileStats();
+        
+        // If they just logged in and aren't viewing a specific calculator, send to assignments
+        if (!new URLSearchParams(window.location.search).get('id')) {
+            if (typeof switchView === 'function') switchView('assignments');
+        }
     } else if (event === 'SIGNED_OUT') {
         currentUser = null;
     }
@@ -27,7 +32,6 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
 document.addEventListener('DOMContentLoaded', () => {
     const getRedirectUrl = () => {
-        // Ensures Supabase redirects exactly to where you currently are (e.g. localhost:5500)
         return window.location.origin + window.location.pathname;
     };
 
@@ -46,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Optional Username setup logic
     document.getElementById('save-username-btn')?.addEventListener('click', async () => {
         const input = document.getElementById('username-input')?.value.trim();
         if (!input || input.length < 3) return alert('Username must be at least 3 characters.');
@@ -65,6 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Run initial auth check
+    // Start the auth lifecycle
     checkUser();
 });
