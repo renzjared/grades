@@ -1047,6 +1047,19 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
     });
 
+    // Bind Reset Scores Button
+    document.getElementById('reset-scores-btn')?.addEventListener('click', () => {
+        if (confirm("Are you sure you want to clear all your inputted scores? The template structure will remain intact.")) {
+            appState.categories.forEach(cat => {
+                cat.components.forEach(comp => {
+                    comp.score = null;
+                    comp.extraPoints = null;
+                });
+            });
+            render();
+        }
+    });
+    
     // GLOBAL SAVE HOTKEY (Ctrl + S)
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
