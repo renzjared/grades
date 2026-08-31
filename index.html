@@ -64,9 +64,6 @@
         <a class="nav-icon route-profile"><div id="mobile-avatar-wrapper" style="width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; overflow:hidden; margin:0 auto; flex-shrink: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div></a>
     </nav>
 
-    <!-- MOBILE SIDEBAR BACKDROP -->
-    <div id="mobile-sidebar-backdrop" class="sidebar-backdrop hide-on-desktop"></div>
-
     <!-- CORE MODALS -->
     <div id="auth-modal" class="modal hidden"><div class="modal-content card"><h2>Log In</h2><p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments.</p><button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button><button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button><button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button></div></div>
     <div id="username-modal" class="modal hidden"><div class="modal-content card"><h2>Choose Username</h2><input type="text" id="username-input" placeholder="student_123" style="margin-bottom: 1rem;"><button id="save-username-btn" class="btn primary" style="width:100%;">Save</button></div></div>
@@ -144,6 +141,12 @@
 
     <!-- MAIN APP WRAPPER -->
     <main class="app-main-wrapper">
+
+        
+        <!-- MOBILE SIDEBAR BACKDROP -->
+        <div id="mobile-sidebar-backdrop" class="sidebar-backdrop hide-on-desktop"></div>
+
+        
         <div class="container" style="max-width: 1400px; padding-top: 1rem;">
             
             <!-- ASSIGNMENTS DASHBOARD -->

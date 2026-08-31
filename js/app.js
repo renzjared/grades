@@ -58,8 +58,11 @@ async function switchView(viewName) {
 }
 
 function toggleMobileSidebar() {
-    const activeSidebar = document.querySelector('.layout:not(.hidden) .sidebar');
+    // Safely find the sidebar inside whichever view is currently NOT hidden
+    const activeView = document.querySelector('.container > div:not(.hidden)');
+    const activeSidebar = activeView ? activeView.querySelector('.sidebar') : null;
     const backdrop = document.getElementById('mobile-sidebar-backdrop');
+    
     if (activeSidebar) {
         activeSidebar.classList.toggle('mobile-open');
         backdrop?.classList.toggle('mobile-open');

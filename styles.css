@@ -92,8 +92,9 @@ body.app-body {
         margin: 0 !important; border-radius: 0;
         border-right: 1px solid var(--border); border-top: none; border-bottom: none;
         transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-        height: auto !important; max-height: none !important; background: var(--bg-color);
-        z-index: 9999 !important; /* Sidebar hovers OVER backdrop */
+        height: auto !important; max-height: none !important; 
+        background: var(--bg-color) !important; /* Force solid background to prevent transparency */
+        z-index: 9999 !important; /* Sidebar goes over everything */
         overflow-y: auto;
     }
     .sidebar.mobile-open { left: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
@@ -102,7 +103,7 @@ body.app-body {
     .sidebar-backdrop {
         display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 60px;
         background: rgba(0,0,0,0.5); 
-        z-index: 900 !important; /* Backdrop rests below Sidebar but over content */
+        z-index: 9998 !important; /* Dimmer sits strictly below Sidebar (9999) */
         opacity: 0; visibility: hidden; transition: all 0.3s;
     }
     .sidebar-backdrop.mobile-open { opacity: 1; visibility: visible; }
