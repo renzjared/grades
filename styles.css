@@ -23,24 +23,13 @@ body.app-body {
 /* =========================================
    RESPONSIVE APP SHELL
    ========================================= */
-
 .app-sidebar { 
-    position: relative; 
-    width: 68px; 
-    background: var(--bg-color); 
-    border-right: 1px solid var(--border); 
-    transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
-    z-index: 100; 
-    display: flex; 
-    flex-direction: column; 
-    justify-content: space-between; 
-    padding: 1.5rem 0; 
-    overflow: hidden; 
-    white-space: nowrap; 
-    flex-shrink: 0;
+    position: relative; width: 68px; background: var(--bg-color); 
+    border-right: 1px solid var(--border); transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
+    z-index: 100; display: flex; flex-direction: column; justify-content: space-between; 
+    padding: 1.5rem 0; overflow: hidden; white-space: nowrap; flex-shrink: 0;
 }
 .app-sidebar:hover { width: 220px; box-shadow: 4px 0 15px rgba(0,0,0,0.05); }
-
 .app-sidebar .label { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
 .app-sidebar:hover .label { opacity: 1; transition-delay: 0.1s; pointer-events: auto; }
 
@@ -55,7 +44,11 @@ body.app-body {
 .app-main-wrapper { flex: 1; height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; }
 .container { max-width: 1200px; margin: 0 auto; padding: 2rem; display: flex; flex-direction: column; min-height: calc(100vh - 70px); }
 
-.calc-top-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: -1rem; }
+/* EXPLICIT DESKTOP LAYOUTS (No clashing media queries) */
+.layout-left-sidebar { display: grid; grid-template-columns: 280px 1fr; gap: 3rem; flex-grow: 1; align-items: start; }
+.layout-right-sidebar { display: grid; grid-template-columns: 1fr 320px; gap: 3rem; flex-grow: 1; align-items: start; }
+
+.calc-top-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 1.5rem; }
 
 .mobile-header { display: none; }
 .mobile-bottom-nav { display: none; }
@@ -80,7 +73,6 @@ body.app-body {
     }
     .container { padding: 1rem; }
     
-    /* Strict anchoring to bottom */
     .mobile-bottom-nav { 
         position: fixed !important; bottom: 0 !important; top: auto !important; left: 0; right: 0;
         display: flex; justify-content: space-around; align-items: center; 
@@ -90,10 +82,10 @@ body.app-body {
     .nav-icon { color: var(--text-muted); padding: 0.5rem; border-radius: var(--radius); transition: all 0.2s; cursor: pointer;}
     .nav-icon.active-nav { color: var(--up-maroon); }
 
-    /* Layout overrides */
-    .layout { grid-template-columns: 1fr !important; gap: 1.5rem; }
+    /* Override grids to stack linearly on mobile */
+    .layout-left-sidebar, .layout-right-sidebar { display: block; }
 
-    /* Z-Index logic ensuring Backdrop dims ONLY background */
+    /* MOBILE SLIDING SIDEBAR */
     .sidebar {
         position: fixed !important; top: 60px !important; left: -100%; bottom: 60px;
         width: 280px; max-width: 85vw; 
@@ -101,23 +93,35 @@ body.app-body {
         border-right: 1px solid var(--border); border-top: none; border-bottom: none;
         transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
         height: auto !important; max-height: none !important; background: var(--bg-color);
-        z-index: 9999 !important; /* Sidebar goes over everything */
+        z-index: 9999 !important; /* Sidebar hovers OVER backdrop */
+        overflow-y: auto;
     }
     .sidebar.mobile-open { left: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
     
+    /* MOBILE DIMMER BACKDROP */
     .sidebar-backdrop {
         display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 60px;
         background: rgba(0,0,0,0.5); 
-        z-index: 900 !important; /* Dimmer sits below Sidebar (9999) but above content */
+        z-index: 900 !important; /* Backdrop rests below Sidebar but over content */
         opacity: 0; visibility: hidden; transition: all 0.3s;
     }
     .sidebar-backdrop.mobile-open { opacity: 1; visibility: visible; }
 
-    .calendar-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -1rem; padding: 0 1rem; }
-    .cal-month-header-row { min-width: 600px; }
-    .cal-grid-month { min-width: 600px; }
-    #time-grid-scroll { min-width: 600px; }
-    .calc-top-toolbar { flex-wrap: wrap; margin-bottom: 0; }
+    /* CALENDAR MOBILE TIGHT FIT */
+    .calendar-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0; padding: 0; }
+    .cal-month-header-row { min-width: 100%; }
+    .cal-grid-month { min-width: 100%; }
+    #time-grid-scroll { min-width: 600px; } /* Week/Day views retain scrolling */
+    
+    .cal-month-header-row div { font-size: 0.65rem; padding: 0.25rem 0; }
+    .cal-day-cell { padding: 1px; gap: 1px; }
+    .cal-date-label { font-size: 0.65rem; }
+    .cal-date-label span { width: 18px; height: 18px; line-height: 18px; }
+    .cal-event-pill { font-size: 0.55rem; padding: 1px 2px; margin-bottom: 1px; }
+    .cal-more-pill { font-size: 0.6rem; padding: 1px; }
+    .cal-icon { width: 10px; height: 10px; margin-right: 2px; }
+
+    .calc-top-toolbar { flex-wrap: wrap; margin-bottom: 1.5rem; }
 }
 
 @media (min-width: 769px) { .hide-on-desktop { display: none !important; } }
@@ -129,9 +133,6 @@ body.app-body {
 .subject-title.large-green { font-size: 2.5rem; font-weight: 800; color: var(--subject-color); padding: 0; margin-bottom: 2rem; letter-spacing: -1px; line-height: 1.1; }
 .subject-title.large-green::placeholder { color: var(--subject-color); opacity: 0.4; }
 .subject-title.large-green:focus { background: transparent; border: none; border-bottom: 2px solid var(--subject-color); border-radius: 0; box-shadow: none; padding-bottom: 4px; }
-
-/* Grid columns established natively here instead of inline HTML style */
-.layout { display: grid; grid-template-columns: 280px 1fr; gap: 3rem; flex-grow: 1; align-items: start; }
 
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border);}
 .section-header h2 { font-size: 1.15rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;}
@@ -260,7 +261,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 [data-theme="dark"] .editor-preview, [data-theme="dark"] .editor-preview-side { background: var(--card-bg); color: var(--text-main); border-color: var(--border); }
 [data-theme="dark"] .editor-statusbar { color: var(--text-muted); }
 
-/* NEW GOOGLE CALENDAR GRID COMPRESSION */
+/* GOOGLE CALENDAR GRID COMPRESSION */
 .cal-month-header-row { 
     display: grid; grid-template-columns: repeat(7, 1fr); background: var(--card-bg); 
     border-top: 1px solid var(--border); border-left: 1px solid var(--border); 
