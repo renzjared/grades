@@ -192,7 +192,7 @@ function buildAbsoluteGrid(startDate, dayCount) {
                 <strong style="color:${baseColor}; ${isCancelled?'text-decoration:line-through;':''} margin-bottom:2px; display:flex; align-items:center; flex-shrink:0;">
                     ${getIconForModality(c.modality)} <span style="margin-left:4px; font-size: 0.75rem;">${sub.code}</span>
                 </strong>
-                <span style="font-size:0.7rem; opacity:0.9; width:100%; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical;">[${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}] ${c.venue||''}</span>
+                <span style="font-size:0.7rem; opacity:0.9; width:100%; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical;">${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)} • ${c.venue||''}</span>
             </div>`;
         });
 
