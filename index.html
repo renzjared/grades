@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grades & Assignments Dashboard</title>
+    <title>Student Dashboard</title>
     
-    <!-- Rich Text & Math Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
     <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
@@ -19,75 +18,76 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-    <nav class="topbar">
-        <div class="topbar-left">
-            <div class="maroon-block"></div>
-            <h1 class="app-title" id="home-link" style="cursor: pointer;">Student Dashboard</h1>
-            
-            <div class="nav-links">
-                <button id="nav-assignments-btn" class="btn text-btn">Assignments</button>
-                <button id="nav-calendar-btn" class="btn text-btn">Calendar</button>
-                <button id="nav-notes-btn" class="btn text-btn">Notes</button>
-                <button id="nav-explore-btn" class="btn text-btn">Explore</button>
-                <button id="nav-calc-btn" class="btn text-btn active-nav">Calculator</button>
+<body class="app-body">
+
+    <!-- MOBILE HEADER -->
+    <header class="mobile-header hide-on-desktop">
+        <div style="width: 32px;"></div>
+        <h1 class="app-title" style="font-size: 1.1rem; text-align: center;">Student Dashboard</h1>
+        <button class="btn text-btn trigger-theme-modal" style="padding: 4px; border-radius: 50%;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
+    </header>
+
+    <!-- DESKTOP LEFT SIDEBAR -->
+    <aside class="app-sidebar hide-on-mobile">
+        <div class="sidebar-top">
+            <div class="sidebar-brand">
+                <div class="maroon-block"></div>
+                <span class="label app-title">Dashboard</span>
             </div>
+            <a class="sidebar-item route-assignments active-nav"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> <span class="label">Assignments</span></a>
+            <a class="sidebar-item route-calendar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> <span class="label">Calendar</span></a>
+            <a class="sidebar-item route-notes"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon></svg> <span class="label">Notes</span></a>
+            <a class="sidebar-item route-calc"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg> <span class="label">Calculators</span></a>
+            <a class="sidebar-item route-profile">
+                <div id="sidebar-avatar-wrapper" style="width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+                <span class="label">Profile</span>
+            </a>
         </div>
-        <div class="header-controls">
-            <div class="theme-dropdown">
-                <button class="btn text-btn dropdown-trigger">Themes</button>
-                <div class="theme-menu" style="min-width: 180px;">
-                    <div class="theme-section">
-                        <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Classic</h4>
-                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('light')">Light Mode</button>
-                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.75rem; text-align: left;" onclick="setFullTheme('dark')">Dark Mode</button>
-                    </div>
-                    <div class="theme-section">
-                        <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Custom</h4>
-                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('pastel')">Pastel Pink</button>
-                        <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('autumn')">Autumn</button>
-                        <button class="btn secondary" style="width: 100%; text-align: left;" onclick="setFullTheme('red-gray')">Red /Gray</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- NEW CLOUD SAVE HEADER CONTROLS -->
-            <span id="save-status-text" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; display: none; margin-right: 0.5rem;">All changes saved</span>
-            <button id="save-cloud-btn" class="btn primary" style="display: none; margin-right: 0.5rem;">Save to Cloud</button>
-            
-            <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
-            <button id="share-btn" class="btn primary">Share / Permissions</button>
-            <button id="auth-btn" class="btn secondary">Log In</button>
+        <div class="sidebar-bottom">
+            <a href="https://renzjared.github.io/budget" class="sidebar-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg> <span class="label">Budget</span></a>
+            <a href="https://renzjared.github.io/recipes" class="sidebar-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg> <span class="label">Recipes</span></a>
+            <a href="https://bit.ly/renz-bot" target="_blank" class="sidebar-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg> <span class="label">Discord Bot</span></a>
         </div>
+    </aside>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="mobile-bottom-nav hide-on-desktop">
+        <a class="nav-icon route-assignments active-nav"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></a>
+        <a class="nav-icon route-calendar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></a>
+        <a class="nav-icon route-notes"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon></svg></a>
+        <a class="nav-icon route-calc"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg></a>
+        <a class="nav-icon route-profile"><div id="mobile-avatar-wrapper" style="width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; overflow:hidden; margin:0 auto; flex-shrink: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div></a>
     </nav>
 
     <!-- CORE MODALS -->
     <div id="auth-modal" class="modal hidden"><div class="modal-content card"><h2>Log In</h2><p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments.</p><button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button><button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button><button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button></div></div>
     <div id="username-modal" class="modal hidden"><div class="modal-content card"><h2>Choose Username</h2><input type="text" id="username-input" placeholder="student_123" style="margin-bottom: 1rem;"><button id="save-username-btn" class="btn primary" style="width:100%;">Save</button></div></div>
-    <div id="profile-modal" class="modal hidden"><div class="modal-content card" style="text-align: center;"><h2 style="margin-bottom: 0.5rem;">Your Profile</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem; font-weight: 600;" id="profile-username-display">@username</p><button id="logout-btn" class="btn danger" style="width:100%; margin-bottom: 0.5rem; border: 1px solid #e53e3e;">Log Out</button><button class="btn secondary" style="width:100%;" onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button></div></div>
-    <div id="access-denied-modal" class="modal hidden"><div class="modal-content card" style="text-align: center;"><h2 style="color: var(--up-maroon);">Access Denied</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem;">This calculator is restricted and hasn't been shared with you.</p><button class="btn primary" style="width: 100%; margin-top: 1rem;" onclick="document.getElementById('access-denied-modal').classList.add('hidden'); switchView('explore'); fetchAndRenderCalculators();">Return to Explore</button></div></div>
-    <div id="delete-confirm-modal" class="modal hidden"><div class="modal-content card" style="text-align: center; max-width: 350px;"><h2 style="color: #e53e3e; margin-bottom: 0.5rem;">Delete Task?</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem;">This action cannot be undone. Are you sure you want to delete this assignment?</p><div style="display: flex; gap: 0.5rem;"><button class="btn secondary" style="flex:1;" onclick="document.getElementById('delete-confirm-modal').classList.add('hidden')">Cancel</button><button class="btn danger" style="flex:1; background: #e53e3e; color: white;" id="confirm-delete-btn">Delete</button></div></div></div>
-    <div id="sharing-modal" class="modal hidden"><div class="modal-content card" style="max-width: 500px;"><h2>Share Calculator</h2><div id="owner-sharing-controls"><div style="margin: 1.5rem 0;"><h4>Add people</h4><div style="display: flex; gap: 0.5rem;"><input type="text" id="share-add-username" placeholder="Add by username"><select id="share-add-role" style="width: 100px;"><option value="view">Viewer</option><option value="edit">Editor</option></select><button id="share-add-btn" class="btn primary">Add</button></div></div><div style="margin: 1.5rem 0;"><h4>People with access</h4><div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;"></div></div></div><div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);"><h4>General access / Link</h4><div id="owner-link-modes"><select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;"><option value="restricted">Restricted</option><option value="view">Anyone with the link (Viewer)</option><option value="edit">Anyone with the link (Editor)</option></select></div><div style="display: flex; gap: 0.5rem;"><input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);"><button id="modal-copy-btn" class="btn secondary">Copy</button></div></div><button class="btn primary" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('sharing-modal').classList.add('hidden')">Done</button></div></div>
-
-    <!-- CALCULATOR SPECIFIC MODALS -->
-    <div id="routes-modal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 500px;">
-            <h2>Manage Tabs (Routes)</h2>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Tabs allow you to create distinct grading routes (e.g. "Exempted" vs "With Finals") by choosing which categories are active.</p>
-            <div id="routes-list-container" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.5rem; max-height:300px; overflow-y:auto;">
-                <!-- JS Filled -->
-            </div>
-            <button class="btn secondary" id="add-route-btn" style="width:100%; margin-bottom:1rem;">+ Add New Tab</button>
-            <div style="display:flex; gap:0.5rem;">
-                <button class="btn primary" style="flex:1;" id="save-routes-btn">Save Changes</button>
-                <button class="btn secondary" onclick="document.getElementById('routes-modal').classList.add('hidden')">Cancel</button>
-            </div>
+    
+    <div id="theme-modal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 300px;">
+            <h2 style="margin-bottom: 1.5rem;">Appearance</h2>
+            <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Classic</h4>
+            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('light'); document.getElementById('theme-modal').classList.add('hidden');">Light Mode</button>
+            <button class="btn secondary" style="width: 100%; margin-bottom: 1rem; text-align: left;" onclick="setFullTheme('dark'); document.getElementById('theme-modal').classList.add('hidden');">Dark Mode</button>
+            <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Custom</h4>
+            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('pastel'); document.getElementById('theme-modal').classList.add('hidden');">Pastel Pink</button>
+            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('autumn'); document.getElementById('theme-modal').classList.add('hidden');">Autumn</button>
+            <button class="btn secondary" style="width: 100%; margin-bottom: 1.5rem; text-align: left;" onclick="setFullTheme('red-gray'); document.getElementById('theme-modal').classList.add('hidden');">Red / Gray</button>
+            <button class="btn text-btn" style="width:100%;" onclick="document.getElementById('theme-modal').classList.add('hidden')">Close</button>
         </div>
     </div>
+    
+    <div id="access-denied-modal" class="modal hidden"><div class="modal-content card" style="text-align: center;"><h2 style="color: var(--up-maroon);">Access Denied</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem;">This calculator is restricted and hasn't been shared with you.</p><button class="btn primary" style="width: 100%; margin-top: 1rem;" onclick="document.getElementById('access-denied-modal').classList.add('hidden'); switchView('explore'); fetchAndRenderCalculators();">Return to Explore</button></div></div>
+    <div id="delete-confirm-modal" class="modal hidden"><div class="modal-content card" style="text-align: center; max-width: 350px;"><h2 style="color: #e53e3e; margin-bottom: 0.5rem;">Delete Task?</h2><p style="color: var(--text-muted); margin-bottom: 1.5rem;">This action cannot be undone. Are you sure you want to delete this assignment?</p><div style="display: flex; gap: 0.5rem;"><button class="btn secondary" style="flex:1;" onclick="document.getElementById('delete-confirm-modal').classList.add('hidden')">Cancel</button><button class="btn danger" style="flex:1; background: #e53e3e; color: white;" id="confirm-delete-btn">Delete</button></div></div></div>
+    
+    <div id="sharing-modal" class="modal hidden"><div class="modal-content card" style="max-width: 500px;"><h2>Share Calculator</h2><div id="owner-sharing-controls"><div style="margin: 1.5rem 0;"><h4>Add people</h4><div style="display: flex; gap: 0.5rem;"><input type="text" id="share-add-username" placeholder="Add by username"><select id="share-add-role" style="width: 100px;"><option value="view">Viewer</option><option value="edit">Editor</option></select><button id="share-add-btn" class="btn primary">Add</button></div></div><div style="margin: 1.5rem 0;"><h4>People with access</h4><div id="people-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border-radius: var(--radius); padding: 0.5rem;"></div></div></div><div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border);"><h4>General access / Link</h4><div id="owner-link-modes"><select id="link-sharing-mode" style="width: 100%; margin-bottom: 0.5rem;"><option value="restricted">Restricted</option><option value="view">Anyone with the link (Viewer)</option><option value="edit">Anyone with the link (Editor)</option></select></div><div style="display: flex; gap: 0.5rem;"><input type="text" id="modal-share-url" readonly style="flex:1; background: var(--input-bg);"><button id="modal-copy-btn" class="btn secondary">Copy</button></div></div><button class="btn primary" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('sharing-modal').classList.add('hidden')">Done</button></div></div>
+
+    <div id="routes-modal" class="modal hidden"><div class="modal-content card" style="max-width: 500px;"><h2>Manage Tabs (Routes)</h2><p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Tabs allow you to create distinct grading routes (e.g. "Exempted" vs "With Finals") by choosing which categories are active.</p><div id="routes-list-container" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.5rem; max-height:300px; overflow-y:auto;"></div><button class="btn secondary" id="add-route-btn" style="width:100%; margin-bottom:1rem;">+ Add New Tab</button><div style="display:flex; gap:0.5rem;"><button class="btn primary" style="flex:1;" id="save-routes-btn">Save Changes</button><button class="btn secondary" onclick="document.getElementById('routes-modal').classList.add('hidden')">Cancel</button></div></div></div>
 
     <!-- ASSIGNMENTS MODALS -->
     <div id="term-modal" class="modal hidden"><div class="modal-content card"><h2>Term Setup</h2><label>Term Name</label><input type="text" id="term-name" placeholder="e.g., 1st Semester 2026" style="margin-bottom:1rem;"><div style="display:flex; gap:1rem; margin-bottom:1.5rem;"><div style="flex:1;"><label>Start Date</label><input type="date" id="term-start"></div><div style="flex:1;"><label>End Date</label><input type="date" id="term-end"></div></div><button class="btn primary" id="save-term-btn" style="width:100%; margin-bottom:0.5rem;">Save Term</button><button class="btn text-btn" style="width:100%;" onclick="document.getElementById('term-modal').classList.add('hidden')">Cancel</button></div></div>
     <div id="manage-tags-modal" class="modal hidden"><div class="modal-content card"><h2>Manage Tags</h2><p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Create tags to organize your assignments for this term.</p><div style="display:flex; gap:0.5rem; margin-bottom:1.5rem;"><input type="text" id="new-tag-name" placeholder="Tag name (e.g. Exam)"><input type="color" id="new-tag-color" value="#48bb78" style="width:50px; height:38px; padding:0;"><button class="btn primary" id="add-tag-btn">Add</button></div><div id="manage-tags-list" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; max-height:200px; overflow-y:auto;"></div><button class="btn secondary" style="width:100%;" onclick="document.getElementById('manage-tags-modal').classList.add('hidden')">Close</button></div></div>
+    
     <div id="subject-modal" class="modal hidden"><div class="modal-content card" style="max-width: 600px;"><h2 id="subject-modal-title">Course Setup</h2><div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;"><div><label>Course Code</label><input type="text" id="subj-code" placeholder="CS 12"></div><div><label>Section</label><input type="text" id="subj-sec" placeholder="THX"></div><div style="grid-column: 1/-1;"><label>Course Name</label><input type="text" id="subj-name" placeholder="Data Structures"></div><div><label>Color</label><input type="color" id="subj-color" value="#7b1113" style="height:38px; padding:0;"></div><div><label>Instructor(s)</label><input type="text" id="subj-inst"></div><div style="grid-column: 1/-1;"><label>Course Icon</label><div id="icon-picker" class="icon-picker"></div><input type="hidden" id="subj-icon" value="svg:0"></div><div style="grid-column: 1/-1;"><label>Venue</label><input type="text" id="subj-venue"></div></div><div id="subj-blocks-wrapper" style="margin-bottom: 1.5rem;"><label>Schedule Blocks (Will generate calendar classes)</label><div id="subj-blocks-container" style="background:var(--input-bg); padding:0.5rem; border-radius:var(--radius); margin-bottom:0.5rem; max-height: 150px; overflow-y:auto;"></div><button class="btn secondary" id="add-subj-block-btn" style="font-size:0.8rem;">+ Add Time Block</button></div><input type="hidden" id="subj-id"><div style="display:flex; gap:0.5rem;"><button class="btn primary" id="save-subject-btn" style="flex:1;">Save Course</button><button class="btn danger hidden" id="delete-subject-btn">Delete</button><button class="btn secondary" onclick="document.getElementById('subject-modal').classList.add('hidden')">Cancel</button></div></div></div>
     <div id="class-instance-modal" class="modal hidden"><div class="modal-content card"><h2>Edit Class Session</h2><p id="class-inst-course" style="color:var(--text-muted); font-weight:600; margin-bottom:1rem;"></p><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Date</label><input type="date" id="inst-date"></div><div style="flex:1;"><label>Modality</label><select id="inst-modality"><option value="f2f">Face to Face</option><option value="online">Online</option><option value="async">Asynchronous</option><option value="cancelled">Cancelled</option></select></div></div><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Start Time</label><input type="time" id="inst-start"></div><div style="flex:1;"><label>End Time</label><input type="time" id="inst-end"></div></div><div style="margin-bottom:1.5rem;"><label>Venue Override</label><input type="text" id="inst-venue"></div><input type="hidden" id="inst-id"><div style="display:flex; gap:0.5rem;"><button class="btn primary" id="save-inst-btn" style="flex:1;">Update Session</button><button class="btn danger" id="delete-inst-btn">Delete</button><button class="btn secondary" onclick="document.getElementById('class-instance-modal').classList.add('hidden')">Cancel</button></div></div></div>
 
@@ -133,230 +133,276 @@
         </div>
     </div>
 
-    <!-- MAIN APP CONTAINER -->
-    <div class="container">
-        
-        <!-- ASSIGNMENTS DASHBOARD -->
-        <div id="assignments-view" class="hidden layout" style="grid-template-columns: 280px 1fr;">
-            <div class="sidebar card" style="height: fit-content; position: sticky; top: 90px; padding: 1.25rem;">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">Current Term</div>
-                    <select id="sidebar-term-selector" style="margin-bottom:0.5rem; font-weight:600; font-size:1rem; border-color: var(--border-hover);"></select>
-                    <button class="btn text-btn" id="sidebar-new-term" style="width:100%; text-align:left; font-size:0.8rem; padding: 0.25rem 0.5rem;">+ Create New Term</button>
+
+    <!-- MAIN APP WRAPPER -->
+    <main class="app-main-wrapper">
+        <div class="container" style="max-width: 1400px; padding-top: 1rem;">
+            
+            <!-- ASSIGNMENTS DASHBOARD -->
+            <div id="assignments-view" class="layout" style="grid-template-columns: 280px 1fr;">
+                <div class="sidebar card" style="height: fit-content; position: sticky; top: 20px; padding: 1.25rem;">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-header">Current Term</div>
+                        <select id="sidebar-term-selector" style="margin-bottom:0.5rem; font-weight:600; font-size:1rem; border-color: var(--border-hover);"></select>
+                        <button class="btn text-btn" id="sidebar-new-term" style="width:100%; text-align:left; font-size:0.8rem; padding: 0.25rem 0.5rem;">+ Create New Term</button>
+                    </div>
+                    
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-header">Filters</div>
+                        <input type="text" id="task-search" placeholder="Search tasks..." style="margin-bottom: 0.5rem;">
+                        <select id="task-sort" style="margin-bottom: 0.5rem;">
+                            <option value="date_added">Date Added (Newest)</option>
+                            <option value="date_asc">Due Date (Nearest)</option>
+                            <option value="date_desc">Due Date (Furthest)</option>
+                            <option value="status">Status</option>
+                        </select>
+                        <label class="subj-toggle" style="margin-top: 0.25rem; font-size: 0.8rem; padding-left: 0;">
+                            <input type="checkbox" id="bump-done-tasks" checked>
+                            <span style="color: var(--text-muted);">Bump completed tasks down</span>
+                        </label>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                            <div class="sidebar-section-header" style="margin-bottom:0;">Courses</div>
+                            <button class="btn text-btn action-icon" id="sidebar-new-course" style="padding:0; font-size:1.2rem; color:var(--text-muted);">+</button>
+                        </div>
+                        <div id="sidebar-subjects-list" style="display:flex; flex-direction:column; gap:0.1rem;"></div>
+                    </div>
+                    <div class="sidebar-section" style="margin-bottom:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                            <div class="sidebar-section-header" style="margin-bottom:0;">Tags</div>
+                            <button class="btn text-btn action-icon" id="sidebar-manage-tags" style="padding:2px;" title="Manage Tags"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        </div>
+                        <div id="sidebar-tags-list" style="display:flex; flex-direction:column; gap:0.1rem;"></div>
+                    </div>
+                </div>
+
+                <div class="main-content">
+                    <div class="bento-grid" id="assignments-bento">
+                        <div class="bento-card urgent"><div class="bento-num" id="bento-urgent">0</div><div class="bento-label">Due ≤ 48h</div></div>
+                        <div class="bento-card overdue"><div class="bento-num" id="bento-overdue">0</div><div class="bento-label">Overdue</div></div>
+                        <div class="bento-card active"><div class="bento-num" id="bento-progress">0</div><div class="bento-label">In Progress</div></div>
+                        <div class="bento-card standard"><div class="bento-num" id="bento-total">0</div><div class="bento-label">Total Tasks</div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Tasks</h3>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn primary" id="main-add-task-btn">+ New Task</button>
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="components-table" id="assignments-table">
+                                <thead><tr><th style="width: 140px;">Status</th><th style="width: 140px;">Deadline</th><th style="width: 100px;">Course</th><th>Task Details</th><th style="width: 100px; text-align:right;">Actions</th></tr></thead>
+                                <tbody id="assignments-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROFILE VIEW -->
+            <div id="profile-view" class="hidden">
+                <div class="card" style="margin-bottom: 2rem; display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;">
+                    <div id="profile-avatar" style="width: 100px; height: 100px; border-radius: 50%; background: var(--up-maroon); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 800; overflow: hidden;">
+                        --
+                    </div>
+                    <div style="flex: 1;">
+                        <h2 id="profile-name" style="font-size: 2rem; margin-bottom: 0.25rem;">Guest User</h2>
+                        <p style="color: var(--text-muted); font-size: 1.1rem;">bio coming soon!!</p>
+                        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                            <button class="btn secondary trigger-theme-modal">Appearance Settings</button>
+                            <button class="btn danger hidden" id="logout-btn-profile">Log Out</button>
+                            <button class="btn primary" id="login-btn-profile" onclick="document.getElementById('auth-modal').classList.remove('hidden')">Log In</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-header"><h2>Your Activity</h2></div>
+                <div class="bento-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="bento-card active"><div class="bento-num" id="prof-stat-tasks-active">0</div><div class="bento-label">Active Tasks</div></div>
+                    <div class="bento-card standard"><div class="bento-num" id="prof-stat-tasks-total">0</div><div class="bento-label">Total Tasks</div></div>
+                    <div class="bento-card standard"><div class="bento-num" id="prof-stat-notes">0</div><div class="bento-label">Saved Notes</div></div>
+                    <div class="bento-card standard"><div class="bento-num" id="prof-stat-calcs">0</div><div class="bento-label">Calculators</div></div>
                 </div>
                 
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">Filters</div>
-                    <input type="text" id="task-search" placeholder="Search tasks..." style="margin-bottom: 0.5rem;">
-                    <select id="task-sort" style="margin-bottom: 0.5rem;">
-                        <option value="date_added">Date Added (Newest)</option>
-                        <option value="date_asc">Due Date (Nearest)</option>
-                        <option value="date_desc">Due Date (Furthest)</option>
-                        <option value="status">Status</option>
-                    </select>
-                    <label class="subj-toggle" style="margin-top: 0.25rem; font-size: 0.8rem; padding-left: 0;">
-                        <input type="checkbox" id="bump-done-tasks" checked>
-                        <span style="color: var(--text-muted);">Bump completed tasks down</span>
-                    </label>
+                <div class="section-header" style="margin-top: 2rem;"><h2>Recent Notes</h2></div>
+                <div id="profile-notes-grid" class="carousel-container"></div>
+
+                <div class="section-header" style="margin-top: 2rem;"><h2>Recent Templates</h2></div>
+                <div id="profile-calcs-grid" class="carousel-container"></div>
+            </div>
+
+            <!-- NOTES VIEW -->
+            <div id="notes-view" class="hidden layout" style="grid-template-columns: 280px 1fr;">
+                <div class="sidebar card" style="height: fit-content; position: sticky; top: 20px; padding: 1.25rem; max-height: calc(100vh - 40px); overflow-y: auto;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+                        <h3 style="margin:0;">Notebooks</h3>
+                        <span id="notes-sync-status" style="font-size:0.75rem; color:var(--text-muted);">Synced</span>
+                    </div>
+                    <div id="notes-tree" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
                 </div>
 
-                <div class="sidebar-section">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
-                        <div class="sidebar-section-header" style="margin-bottom:0;">Courses</div>
-                        <button class="btn text-btn action-icon" id="sidebar-new-course" style="padding:0; font-size:1.2rem; color:var(--text-muted);">+</button>
+                <div class="main-content card" style="display:flex; flex-direction:column; min-height: 600px; padding: 1rem;">
+                    <div id="notes-list-pane">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                            <h3 id="notes-context-title" style="margin:0;">All Notes</h3>
+                            <button class="btn primary" id="new-note-btn">+ New Note</button>
+                        </div>
+                        <div id="notes-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:1rem;"></div>
                     </div>
-                    <div id="sidebar-subjects-list" style="display:flex; flex-direction:column; gap:0.1rem;"></div>
-                </div>
-                <div class="sidebar-section" style="margin-bottom:0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
-                        <div class="sidebar-section-header" style="margin-bottom:0;">Tags</div>
-                        <button class="btn text-btn action-icon" id="sidebar-manage-tags" style="padding:2px;" title="Manage Tags"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+
+                    <div id="note-editor-pane" class="hidden" style="flex:1; display:flex; flex-direction:column; height: 100%;">
+                        <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
+                            <button class="btn secondary" id="back-to-notes-btn">← Back</button>
+                            <input type="text" id="note-title-input" class="input-minimal" style="flex:1; font-weight:700; font-size:1.1rem; background: transparent;" placeholder="Note Title">
+                            <div class="format-toggles" style="display:flex; background: var(--input-bg); border-radius: var(--radius); padding: 2px;">
+                                <button class="btn text-btn active-format" id="fmt-md" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Markdown</button>
+                                <button class="btn text-btn" id="fmt-latex" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">LaTeX</button>
+                                <button class="btn text-btn" id="fmt-typst" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Typst</button>
+                            </div>
+                            <button class="btn primary" id="save-note-content-btn">Save</button>
+                            <button class="btn danger" id="delete-note-btn">Delete</button>
+                        </div>
+                        <div class="note-split-view">
+                            <div style="flex:1; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:4px; overflow:hidden; min-width: 0;">
+                                <textarea id="note-mde-editor"></textarea>
+                            </div>
+                            <div id="custom-preview-pane" class="card" style="flex:1; margin-bottom:0; overflow-y:auto; padding: 1.5rem; background: var(--bg-color); border: 1px solid var(--border); min-width: 0;">
+                                <div class="text-muted" style="text-align: center; margin-top: 2rem;">Start typing to see preview...</div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="sidebar-tags-list" style="display:flex; flex-direction:column; gap:0.1rem;"></div>
                 </div>
             </div>
 
-            <div class="main-content">
-                <div class="bento-grid" id="assignments-bento">
-                    <div class="bento-card urgent"><div class="bento-num" id="bento-urgent">0</div><div class="bento-label">Due ≤ 48h</div></div>
-                    <div class="bento-card overdue"><div class="bento-num" id="bento-overdue">0</div><div class="bento-label">Overdue</div></div>
-                    <div class="bento-card active"><div class="bento-num" id="bento-progress">0</div><div class="bento-label">In Progress</div></div>
-                    <div class="bento-card standard"><div class="bento-num" id="bento-total">0</div><div class="bento-label">Total Tasks</div></div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Tasks</h3>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn primary" id="main-add-task-btn">+ New Task</button>
-                        </div>
+            <!-- CALENDAR VIEW -->
+            <div id="calendar-view" class="hidden layout" style="grid-template-columns: 280px 1fr; align-items: stretch; height: calc(100vh - 2rem);">
+                <div class="sidebar card" style="height: fit-content; position: sticky; top: 0; padding: 1.25rem;">
+                    
+                    <div id="cal-mini-calendar" style="margin-bottom: 1.5rem;">
+                        <!-- Mini Calendar rendered by JS -->
                     </div>
-                    <div style="overflow-x: auto;">
-                        <table class="components-table" id="assignments-table">
-                            <thead><tr><th style="width: 140px;">Status</th><th style="width: 140px;">Deadline</th><th style="width: 100px;">Course</th><th>Task Details</th><th style="width: 100px; text-align:right;">Actions</th></tr></thead>
-                            <tbody id="assignments-body"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- NOTES VIEW -->
-        <div id="notes-view" class="hidden layout" style="grid-template-columns: 280px 1fr;">
-            <!-- Notes Sidebar Tree -->
-            <div class="sidebar card" style="height: fit-content; position: sticky; top: 90px; padding: 1.25rem; max-height: calc(100vh - 120px); overflow-y: auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
-                    <h3 style="margin:0;">Notebooks</h3>
-                    <span id="notes-sync-status" style="font-size:0.75rem; color:var(--text-muted);">Synced</span>
-                </div>
-                <div id="notes-tree" style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-
-            <!-- Notes Main Area -->
-            <div class="main-content card" style="display:flex; flex-direction:column; min-height: 600px; padding: 1rem;">
-                <div id="notes-list-pane">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
-                        <h3 id="notes-context-title" style="margin:0;">All Notes</h3>
-                        <button class="btn primary" id="new-note-btn">+ New Note</button>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-header">View Options</div>
+                        <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; font-size:0.85rem;"><input type="checkbox" id="cal-toggle-classes" checked> Show Classes</label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; font-size:0.85rem;"><input type="checkbox" id="cal-toggle-tasks" checked> Show Tasks</label>
                     </div>
-                    <div id="notes-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:1rem;">
-                        <!-- Filled by JS -->
+
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-header">Term</div>
+                        <select id="cal-sidebar-term-selector" style="margin-bottom:0.5rem; font-weight:600; font-size:1rem; border-color: var(--border-hover);"></select>
+                    </div>
+
+                    <div class="sidebar-section" style="margin-bottom:0;">
+                        <div class="sidebar-section-header">My Calendars (Courses)</div>
+                        <div id="cal-sidebar-subjects-list" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
                     </div>
                 </div>
 
-                <div id="note-editor-pane" class="hidden" style="flex:1; display:flex; flex-direction:column; height: 100%;">
-                    <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
-                        <button class="btn secondary" id="back-to-notes-btn">← Back</button>
-                        <input type="text" id="note-title-input" class="input-minimal" style="flex:1; font-weight:700; font-size:1.1rem; background: transparent;" placeholder="Note Title">
-                        <div class="format-toggles" style="display:flex; background: var(--input-bg); border-radius: var(--radius); padding: 2px;">
-                            <button class="btn text-btn active-format" id="fmt-md" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Markdown</button>
-                            <button class="btn text-btn" id="fmt-latex" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">LaTeX</button>
-                            <button class="btn text-btn" id="fmt-typst" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Typst</button>
+                <div class="main-content card" style="padding: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; margin-bottom: 0;">
+                    <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                        <div style="display:flex; gap:1rem; align-items:center;">
+                            <button class="btn secondary" id="cal-today-btn">Today</button>
+                            <div style="display:flex; gap:0.25rem;">
+                                <button class="btn text-btn" id="cal-prev-btn" style="padding: 0.2rem 0.5rem; font-size: 1.2rem;">&lt;</button>
+                                <button class="btn text-btn" id="cal-next-btn" style="padding: 0.2rem 0.5rem; font-size: 1.2rem;">&gt;</button>
+                            </div>
+                            <h2 id="cal-date-display" style="margin:0 1rem; font-weight:400; font-size:1.4rem;">Month Year</h2>
                         </div>
-                        <button class="btn primary" id="save-note-content-btn">Save</button>
-                        <button class="btn danger" id="delete-note-btn">Delete</button>
-                    </div>
-                    <div style="flex:1; display:flex; gap:1rem; min-height: 500px;">
-                        <div style="flex:1; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:4px; overflow:hidden;">
-                            <textarea id="note-mde-editor"></textarea>
-                        </div>
-                        <div id="custom-preview-pane" class="card" style="flex:1; margin-bottom:0; overflow-y:auto; padding: 1.5rem; background: var(--bg-color); border: 1px solid var(--border);">
-                            <div class="text-muted" style="text-align: center; margin-top: 2rem;">Start typing to see preview...</div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- CALENDAR VIEW -->
-        <div id="calendar-view" class="hidden">
-            <div class="card">
-                <div class="card-header" style="margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-                    <div style="display:flex; gap:0.5rem; align-items:center;">
-                        <button class="btn secondary" id="cal-today-btn">Today</button>
-                        <div style="display:flex; gap:0.25rem;">
-                            <button class="btn secondary" id="cal-prev-btn">&lt;</button>
-                            <button class="btn secondary" id="cal-next-btn">&gt;</button>
-                        </div>
-                        <h2 id="cal-date-display" style="margin:0 1rem; font-weight:700; font-size:1.5rem;">Month Year</h2>
-                    </div>
-                    <div style="display:flex; gap: 0.5rem;">
-                        <select id="cal-filter-selector" class="input-minimal" style="width:160px; font-weight:600;">
-                            <option value="all">Schedules & Tasks</option>
-                            <option value="classes">Schedules Only</option>
-                            <option value="tasks">Tasks Only</option>
-                        </select>
-                        <select id="cal-view-selector" class="input-minimal" style="width:120px; font-weight:600;">
+                        <select id="cal-view-selector" class="input-minimal" style="width:120px; font-weight:500;">
                             <option value="month">Month</option>
                             <option value="week">Week</option>
                             <option value="day">Day</option>
                         </select>
                     </div>
+                    <div id="calendar-render-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-color);"></div>
                 </div>
-                <div id="calendar-render-area"></div>
-            </div>
-        </div>
-
-        <!-- EXPLORE VIEW -->
-        <div id="explore-view" class="hidden">
-            <div class="explore-header">
-                <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Explore Templates</h2>
-                <input type="text" id="search-input" placeholder="Search templates..." class="search-bar">
             </div>
 
-            <div id="section-my" class="explore-section"><div class="section-header-row"><h3>My Calculators</h3><button class="btn text-btn" id="view-all-my-btn">View All</button></div><div id="my-calcs-grid" class="calculators-grid"></div></div>
-            <div id="section-shared" class="explore-section"><div class="section-header-row"><h3>Shared With Me</h3><button class="btn text-btn" id="view-all-shared-btn">View All</button></div><div id="shared-calcs-grid" class="calculators-grid"></div></div>
-            <div id="section-public" class="explore-section"><div class="section-header-row"><h3>Public Calculators</h3><button class="btn text-btn" id="view-all-public-btn">View All</button></div><div id="public-calcs-grid" class="calculators-grid"></div></div>
-        </div>
+            <!-- EXPLORE VIEW -->
+            <div id="explore-view" class="hidden">
+                <div class="explore-header">
+                    <h2 style="font-size: 2rem; font-weight: 800; color: var(--subject-color);">Explore Templates</h2>
+                    <input type="text" id="search-input" placeholder="Search templates..." class="search-bar">
+                </div>
 
-        <!-- CALCULATOR VIEW -->
-        <div id="calculator-view" class="layout">
-            <div class="main-content">
-                <input type="text" id="subject-name" class="subject-title large-green" value="New Subject" placeholder="Subject Name">
-                <input type="text" id="calc-description" class="input-minimal" placeholder="Add an optional description..." style="margin-bottom: 1.5rem; font-size: 0.95rem; border: none !important; border-bottom: 1px solid var(--border) !important; padding: 0.5rem 0; border-radius: 0;">
+                <div id="section-my" class="explore-section"><div class="section-header-row"><h3>My Calculators</h3><button class="btn text-btn" id="view-all-my-btn">View All</button></div><div id="my-calcs-grid" class="calculators-grid"></div></div>
+                <div id="section-shared" class="explore-section"><div class="section-header-row"><h3>Shared With Me</h3><button class="btn text-btn" id="view-all-shared-btn">View All</button></div><div id="shared-calcs-grid" class="calculators-grid"></div></div>
+                <div id="section-public" class="explore-section"><div class="section-header-row"><h3>Public Calculators</h3><button class="btn text-btn" id="view-all-public-btn">View All</button></div><div id="public-calcs-grid" class="calculators-grid"></div></div>
+            </div>
+
+            <!-- CALCULATOR VIEW -->
+            <div id="calculator-view" class="hidden layout">
                 
-                <div id="calc-notices-container" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom: 1.5rem;"></div>
-
-                <div id="calc-tabs-container" class="calc-tabs hidden" style="align-items: center;"></div>
-
-                <div class="section-header">
-                    <h2>Grade Breakdown</h2>
-                    <div class="header-actions">
-                        <button id="reset-scores-btn" class="btn text-btn" style="color: var(--up-maroon);">↺ Reset Scores</button>
-                        <button id="breakdown-btn" class="btn text-btn">Show Details</button>
-                        <button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button>
+                <!-- TOP HEADER TOOLBAR -->
+                <div id="floating-calc-header" class="calc-top-toolbar" style="grid-column: 1 / -1;">
+                    <div style="display: flex; align-items: center; flex: 1;">
+                        <span id="save-status-text" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; display: none;">All changes saved</span>
+                        <button id="save-cloud-btn" class="btn primary" style="display: none; margin-right: 1rem;">Save to Cloud</button>
                     </div>
-                </div>
-                <div id="categories-container"></div>
-            </div>
-            <div class="sidebar">
-                <div class="card result-card"><h2 class="result-title">Final Grade</h2><div class="grade-display" id="final-grade">--</div><div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div><div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div><div id="range-display" class="hidden" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">Potential Range: <span id="grade-range-values" style="font-weight:600; color: var(--text-main);">--</span></div><div id="target-output" class="hidden" style="font-size: 0.85rem; margin-top: 0.25rem;">Target needed: <span id="target-needed-value" style="font-weight:600;">--</span></div><div style="margin-top: 1.25rem; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 1rem;"><div class="setting-row" style="justify-content: space-between; margin-bottom: 0.75rem;"><label for="toggle-ignore-blanks" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; text-align: left; line-height: 1.2;">Ignore Blanks<br><span style="font-size: 0.7rem; opacity: 0.7;">(Current Standing)</span></label><label class="switch"><input type="checkbox" id="toggle-ignore-blanks"><span class="slider round"></span></label></div><div class="setting-row" style="justify-content: space-between; margin-bottom: 0;"><label for="target-grade" style="font-size: 0.85rem; color: var(--text-muted); text-align: left;">Target Score (%)</label><input type="number" id="target-grade" placeholder="e.g. 90" class="input-minimal" style="width: 70px; text-align: center; padding: 0.2rem; font-size: 0.85rem;"></div></div><div id="passing-warnings" class="warnings"></div></div>
-                
-                <div class="card" id="advanced-output-card">
-                    <div class="card-header"><h3>Advanced Outputs</h3></div>
-                    <div id="advanced-output-container">
-                        <span class="text-muted" style="font-size: 0.85rem;">No advanced script variables detected.</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
+                        <button id="share-btn" class="btn secondary">Share / Permissions</button>
                     </div>
                 </div>
 
-                <div class="card chart-card hidden" id="class-stats-card"><div class="card-header"><h3>Class Distribution</h3></div><div id="stats-locked-view" class="stats-locked"><p style="font-size: 0.9rem; color: var(--text-muted); text-align: center;">🔒 Anonymously submit your grade to unlock the class distribution.</p></div><div id="stats-minimum-warning" class="hidden">Not enough submissions yet. Need <span id="stats-needed"></span> more.</div><div id="stats-content" class="hidden"><p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p><canvas id="gradeChart" width="100" height="70"></canvas></div><div class="submit-wrapper" id="submit-wrapper" style="margin-top: 1rem;"><button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button></div></div>
-                
-                <div class="card">
-                    <div class="card-header"><h3>Settings</h3></div>
-                    <div class="setting-row edit-only hidden"><label>Grading System</label><select id="preset-selector" style="width: auto;" class="input-minimal"><option value="1.0-5.0">1.0-5.0 (1.0 highest)</option><option value="4.0-0.0">4.0-0.0 (4.0 highest)</option><option value="letter">Letter Grades (A-F)</option><option value="percentage">Percentage (0-100%)</option></select></div>
-                    <div class="setting-row"><label>Passing Score (%)</label><input type="number" id="global-passing" value="60" class="input-minimal" style="width: 85px; text-align: right;"></div>
-                    <div class="setting-row edit-only hidden"><label>Enable Extra Points (❤️)</label><input type="checkbox" id="enable-heart-points" style="width: auto;"></div>
+                <div class="main-content">
+                    <input type="text" id="subject-name" class="subject-title large-green" value="New Subject" placeholder="Subject Name">
+                    <input type="text" id="calc-description" class="input-minimal" placeholder="Add an optional description..." style="margin-bottom: 1.5rem; font-size: 0.95rem; border: none !important; border-bottom: 1px solid var(--border) !important; padding: 0.5rem 0; border-radius: 0;">
                     
-                    <div class="setting-row edit-only hidden" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; justify-content: flex-end;">
-                        <input type="file" id="import-file" class="hidden" accept=".rzgrade">
-                        <button id="import-calc-btn" class="btn secondary" style="flex:1;">Import .rzgrade</button>
-                        <button id="export-calc-btn" class="btn secondary" style="flex:1;">Export .rzgrade</button>
+                    <div id="calc-notices-container" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom: 1.5rem;"></div>
+                    <div id="calc-tabs-container" class="calc-tabs hidden" style="align-items: center;"></div>
+
+                    <div class="section-header">
+                        <h2>Grade Breakdown</h2>
+                        <div class="header-actions">
+                            <button id="reset-scores-btn" class="btn text-btn" style="color: var(--up-maroon);">↺ Reset Scores</button>
+                            <button id="breakdown-btn" class="btn text-btn">Show Details</button>
+                            <button id="add-category-btn" class="btn secondary edit-only hidden">+ Add Category</button>
+                        </div>
+                    </div>
+                    <div id="categories-container"></div>
+                </div>
+                <div class="sidebar">
+                    <div class="card result-card"><h2 class="result-title">Final Grade</h2><div class="grade-display" id="final-grade">--</div><div class="raw-score-display">Raw Score: <span id="final-raw-score" style="font-weight:600;">0.00</span>%</div><div class="heart-text" id="final-heart-score" style="margin-top: 4px; font-size: 0.9rem;"></div><div id="range-display" class="hidden" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">Potential Range: <span id="grade-range-values" style="font-weight:600; color: var(--text-main);">--</span></div><div id="target-output" class="hidden" style="font-size: 0.85rem; margin-top: 0.25rem;">Target needed: <span id="target-needed-value" style="font-weight:600;">--</span></div><div style="margin-top: 1.25rem; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 1rem;"><div class="setting-row" style="justify-content: space-between; margin-bottom: 0.75rem;"><label for="toggle-ignore-blanks" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; text-align: left; line-height: 1.2;">Ignore Blanks<br><span style="font-size: 0.7rem; opacity: 0.7;">(Current Standing)</span></label><label class="switch"><input type="checkbox" id="toggle-ignore-blanks"><span class="slider round"></span></label></div><div class="setting-row" style="justify-content: space-between; margin-bottom: 0;"><label for="target-grade" style="font-size: 0.85rem; color: var(--text-muted); text-align: left;">Target Score (%)</label><input type="number" id="target-grade" placeholder="e.g. 90" class="input-minimal" style="width: 70px; text-align: center; padding: 0.2rem; font-size: 0.85rem;"></div></div><div id="passing-warnings" class="warnings"></div></div>
+                    
+                    <div class="card" id="advanced-output-card">
+                        <div class="card-header"><h3>Advanced Outputs</h3></div>
+                        <div id="advanced-output-container">
+                            <span class="text-muted" style="font-size: 0.85rem;">No advanced script variables detected.</span>
+                        </div>
                     </div>
 
-                    <div class="setting-row edit-only hidden" style="flex-direction: column; align-items: flex-start; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-                        <label style="margin-bottom: 0.5rem; width:100%;">Advanced Custom Script (JS)</label>
-                        <textarea id="advanced-script-input" class="input-minimal" style="width: 100%; min-height: 100px; font-family: monospace; font-size: 0.8rem; resize: vertical;" placeholder="function(appState, calcInsights, activeRouteId) { ... }"></textarea>
+                    <div class="card chart-card hidden" id="class-stats-card"><div class="card-header"><h3>Class Distribution</h3></div><div id="stats-locked-view" class="stats-locked"><p style="font-size: 0.9rem; color: var(--text-muted); text-align: center;">🔒 Anonymously submit your grade to unlock the class distribution.</p></div><div id="stats-minimum-warning" class="hidden">Not enough submissions yet. Need <span id="stats-needed"></span> more.</div><div id="stats-content" class="hidden"><p style="font-size: 0.9rem; margin-bottom: 0.5rem; text-align: center;">Your Percentile: <strong id="user-percentile" style="color: var(--up-maroon);">--</strong></p><canvas id="gradeChart" width="100" height="70"></canvas></div><div class="submit-wrapper" id="submit-wrapper" style="margin-top: 1rem;"><button id="submit-grade-btn" class="btn secondary" style="width: 100%; border-color: var(--up-green); color: var(--up-green);">Submit My Grade</button></div></div>
+                    
+                    <div class="card">
+                        <div class="card-header"><h3>Settings</h3></div>
+                        <div class="setting-row edit-only hidden"><label>Grading System</label><select id="preset-selector" style="width: auto;" class="input-minimal"><option value="1.0-5.0">1.0-5.0 (1.0 highest)</option><option value="4.0-0.0">4.0-0.0 (4.0 highest)</option><option value="letter">Letter Grades (A-F)</option><option value="percentage">Percentage (0-100%)</option></select></div>
+                        <div class="setting-row"><label>Passing Score (%)</label><input type="number" id="global-passing" value="60" class="input-minimal" style="width: 85px; text-align: right;"></div>
+                        <div class="setting-row edit-only hidden"><label>Enable Extra Points (❤️)</label><input type="checkbox" id="enable-heart-points" style="width: auto;"></div>
+                        
+                        <div class="setting-row edit-only hidden" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <input type="file" id="import-file" class="hidden" accept=".rzgrade">
+                            <button id="import-calc-btn" class="btn secondary" style="flex:1;">Import .rzgrade</button>
+                            <button id="export-calc-btn" class="btn secondary" style="flex:1;">Export .rzgrade</button>
+                        </div>
+
+                        <div class="setting-row edit-only hidden" style="flex-direction: column; align-items: flex-start; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                            <label style="margin-bottom: 0.5rem; width:100%;">Advanced Custom Script (JS)</label>
+                            <textarea id="advanced-script-input" class="input-minimal" style="width: 100%; min-height: 100px; font-family: monospace; font-size: 0.8rem; resize: vertical;" placeholder="function(appState, calcInsights, activeRouteId) { ... }"></textarea>
+                        </div>
                     </div>
+                    
+                    <div class="card grade-scale-card"><div class="card-header"><h3>Grade Scale</h3><button id="add-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><table id="grade-scale-table"><thead><tr><th>Min %</th><th>Grade</th><th class="edit-only hidden" style="width: 30px;"></th></tr></thead><tbody id="grade-scale-body"></tbody></table></div>
+                    <div class="card heart-scale-card"><div class="card-header"><h3>Extra Points ❤️</h3><button id="add-heart-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p><table id="heart-scale-table"><tbody id="heart-scale-body"></tbody></table></div>
                 </div>
-                
-                <div class="card grade-scale-card"><div class="card-header"><h3>Grade Scale</h3><button id="add-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><table id="grade-scale-table"><thead><tr><th>Min %</th><th>Grade</th><th class="edit-only hidden" style="width: 30px;"></th></tr></thead><tbody id="grade-scale-body"></tbody></table></div>
-                <div class="card heart-scale-card"><div class="card-header"><h3>Extra Points ❤️</h3><button id="add-heart-scale-btn" class="btn text-btn edit-only hidden" style="font-size: 0.8rem;">+ Add Row</button></div><p class="help-text edit-only hidden" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.3;">If scaling is disabled, extra points are added directly 1:1.</p><table id="heart-scale-table"><tbody id="heart-scale-body"></tbody></table></div>
             </div>
+            
         </div>
-        
-        <footer>
-            <div class="footer-content">
-                <p style="margin-bottom: 0.5rem;">Made with ❤️ by Renz Jared Rolle</p>
-                <div class="footer-links">
-                    <span>Play Games: <a href="https://renzjared.github.io/chainlink/" target="_blank">Chainlink</a> | <a href="https://renzjared.github.io/morph" target="_blank">Morph</a></span>
-                    <span class="footer-divider">•</span>
-                    <span><a href="https://bit.ly/renz-bot" target="_blank">Invite Discord Bot</a></span>
-                </div>
-            </div>
-        </footer>
-    </div>
+    </main>
     
     <script src="js/api.js" defer></script>
     <script src="js/app.js" defer></script>
