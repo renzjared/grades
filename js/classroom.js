@@ -13,12 +13,24 @@ class ClassroomSyncService {
 
     async fetchWithAuth(endpoint) {
         const token = await this.getAccessToken();
-        if (!token) throw new Error('No Google OAuth token found. Please link your Google Classroom account in your profile.');
+        if (!token) {
+            throw new Error('No active Google Classroom connection. Please go to your Profile and click "Link Account" to grant access.');
+        }
 
         const res = await fetch(`${this.baseUrl}${endpoint}`, {
             headers: { Authorization: `Bearer ${token}` }
         });
-        if (!res.ok) throw new Error(`Classroom API error: ${res.statusText}`);
+        
+        // Explicitly catch expired tokens (401 Unauthorized)
+        if (res.status === 401) {
+            throw new Error('Your Google Classroom access has expired (tokens only last 1 hour). Please go to your Profile and click "Link Account" again to refresh it.');
+        }
+        
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(`Classroom API error: ${res.statusText} ${errData.error?.message ? '- ' + errData.error.message : ''}`);
+        }
+        
         return await res.json();
     }
     
