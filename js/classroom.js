@@ -155,36 +155,41 @@ class ClassroomSyncService {
         this.pendingAskItems = [];
         const linkedSubjects = window.AcadState.subjects.filter(s => s.classroom_course_id);
         
+        const ignoredItems = JSON.parse(localStorage.getItem(`ignored_gc_items_${currentUser.id}`) || '[]');
+        
         for (const sub of linkedSubjects) {
             const courseId = sub.classroom_course_id;
 
             // Coursework
             const { courseWork = [] } = await this.fetchWithAuth(`/courses/${courseId}/courseWork`);
             for (const item of courseWork) {
+                if (ignoredItems.includes(item.id)) continue;
                 if (!window.AcadState.assignments.find(a => a.classroom_id === item.id)) {
                     const payload = this.createTaskPayload(sub.id, item);
                     if (prefs.coursework === 'auto') autoItems.push(payload);
-                    else this.pendingAskItems.push({ payload, localCourse: sub, isModified: false });
+                    else this.pendingAskItems.push({ type: 'Assignment', payload, localCourse: sub, isModified: false });
                 }
             }
 
             // Materials
             const { courseWorkMaterial = [] } = await this.fetchWithAuth(`/courses/${courseId}/courseWorkMaterials`);
             for (const item of courseWorkMaterial) {
+                if (ignoredItems.includes(item.id)) continue;
                 if (!window.AcadState.assignments.find(a => a.classroom_id === item.id)) {
                     const payload = this.createTaskPayload(sub.id, item);
                     if (prefs.materials === 'auto') autoItems.push(payload);
-                    else this.pendingAskItems.push({ payload, localCourse: sub, isModified: false });
+                    else this.pendingAskItems.push({ type: 'Material', payload, localCourse: sub, isModified: false });
                 }
             }
 
             // Announcements
             const { announcements = [] } = await this.fetchWithAuth(`/courses/${courseId}/announcements`);
             for (const item of announcements) {
+                if (ignoredItems.includes(item.id)) continue;
                 if (!window.AcadState.assignments.find(a => a.classroom_id === item.id)) {
                     const payload = this.createTaskPayload(sub.id, { title: item.text.substring(0, 40) + '...', alternateLink: item.alternateLink, id: item.id });
                     if (prefs.announcements === 'auto') autoItems.push(payload);
-                    else this.pendingAskItems.push({ payload, localCourse: sub, isModified: false });
+                    else this.pendingAskItems.push({ type: 'Announcement', payload, localCourse: sub, isModified: false });
                 }
             }
         }
@@ -223,7 +228,11 @@ class ClassroomSyncService {
                             ${item.localCourse.code} &bull; ${formattedDate} | ${formattedTime}
                         </span>
                         <span class="sync-modified-badge ${item.isModified ? '' : 'hidden'}" style="display:inline-block; background:rgba(237, 137, 54, 0.15); color:#dd6b20; padding:2px 6px; border-radius:4px; font-weight:600; font-size:0.7rem; margin-bottom:0.5rem; margin-left:0.25rem;">Modified</span>
-                        <div class="sync-title-text" style="font-weight:600; color:var(--text-main); font-size: 1rem; line-height: 1.2;">${item.payload.title}</div>
+                        
+                        <!-- TITLE NOW RENDERED AS A CLEAN HYPERLINK -->
+                        <a href="${item.payload.link || '#'}" target="_blank" onclick="event.stopPropagation()" class="sync-title-text" style="display:block; font-weight:600; color:var(--text-main); font-size: 1rem; line-height: 1.2; text-decoration: none;">${item.payload.title}</a>
+                        
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">${item.type}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem;">
                         <button class="btn text-btn action-icon" onclick="window.ClassroomSync.openTaskEdit(${idx})" style="padding:4px;" title="Edit details">
@@ -288,7 +297,6 @@ class ClassroomSyncService {
         
         document.getElementById('sync-task-edit-modal').classList.add('hidden');
         
-        // Update the DOM directly to preserve all select dropdowns and inputs
         const card = document.querySelector(`.sync-item-card[data-idx="${idx}"]`);
         if (card) {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -301,8 +309,8 @@ class ClassroomSyncService {
                 metaSpan.innerHTML = `${courseCode} &bull; ${formattedDate} | ${formattedTime}`;
             }
             
-            const titleDiv = card.querySelector('.sync-title-text');
-            if (titleDiv) titleDiv.innerText = title;
+            const titleLink = card.querySelector('.sync-title-text');
+            if (titleLink) titleLink.innerText = title;
 
             let modBadge = card.querySelector('.sync-modified-badge');
             if (modBadge) modBadge.classList.remove('hidden');
@@ -313,6 +321,7 @@ class ClassroomSyncService {
         const itemCards = document.querySelectorAll('.sync-item-card');
         let toInsert = [];
         let toUpdate = [];
+        let toDiscard = [];
 
         for (const card of itemCards) {
             const idx = card.getAttribute('data-idx');
@@ -326,7 +335,15 @@ class ClassroomSyncService {
                 if (targetId) {
                     toUpdate.push({ id: targetId, payload: item.payload });
                 }
+            } else if (action === 'discard') {
+                toDiscard.push(item.payload.classroom_id);
             }
+        }
+
+        if (toDiscard.length > 0) {
+            const ignoredItems = JSON.parse(localStorage.getItem(`ignored_gc_items_${currentUser.id}`) || '[]');
+            ignoredItems.push(...toDiscard);
+            localStorage.setItem(`ignored_gc_items_${currentUser.id}`, JSON.stringify(ignoredItems));
         }
 
         if (toInsert.length > 0) {
@@ -354,12 +371,35 @@ window.ClassroomSync = new ClassroomSyncService();
 
 document.addEventListener('DOMContentLoaded', () => {
     
+    const setSyncingState = (btn, isSyncing) => {
+        if (!btn) return;
+        if (isSyncing) {
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Syncing<span class="animated-dots"></span>`;
+            btn.disabled = true;
+        } else {
+            if (btn.dataset.originalHtml) {
+                btn.innerHTML = btn.dataset.originalHtml;
+            }
+            btn.disabled = false;
+        }
+    };
+
+// Global Listeners for anywhere the Sync button is placed
     document.querySelectorAll('.trigger-global-sync').forEach(btn => {
-        btn.addEventListener('click', () => window.ClassroomSync.syncAll(true));
+        btn.addEventListener('click', async (e) => {
+            const targetBtn = e.currentTarget; // Capture reference before await
+            setSyncingState(targetBtn, true);
+            await window.ClassroomSync.syncAll(true);
+            setSyncingState(targetBtn, false); // Restores button state when modal opens
+        });
     });
 
-    document.getElementById('manual-sync-btn')?.addEventListener('click', () => {
-        window.ClassroomSync.syncAll(true);
+    document.getElementById('manual-sync-btn')?.addEventListener('click', async (e) => {
+        const targetBtn = e.currentTarget; // Capture reference before await
+        setSyncingState(targetBtn, true);
+        await window.ClassroomSync.syncAll(true);
+        setSyncingState(targetBtn, false); // Restores button state when modal opens
     });
 
     document.getElementById('save-course-links-btn')?.addEventListener('click', () => {

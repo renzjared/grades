@@ -1,22 +1,24 @@
 {
-  "name": "TalaStudent Dashboard",
+  "name": "Tala: Student Dashboard",
   "short_name": "Tala",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/grades/",
+  "scope": "/grades/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7b1113",
   "description": "An all-in-one student tracking application.",
   "icons": [
     {
-      "src": "./icon-192.png",
+      "src": "/grades/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "./icon-512.png",
+      "src": "/grades/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

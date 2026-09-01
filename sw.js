@@ -1,17 +1,18 @@
-const CACHE_NAME = 'student-dashboard-v2';
+const CACHE_NAME = 'tala-dashboard-v3';
 const urlsToCache = [
-  './',
-  './index.html',
-  './styles.css',
-  './manifest.json',
-  './js/app.js',
-  './js/api.js',
-  './js/auth.js',
-  './js/assignments.js',
-  './js/calendar.js',
-  './js/calculator.js',
-  './js/notes.js',
-  './js/sharing.js'
+  '/grades/',
+  '/grades/index.html',
+  '/grades/styles.css',
+  '/grades/manifest.json',
+  '/grades/js/app.js',
+  '/grades/js/api.js',
+  '/grades/js/auth.js',
+  '/grades/js/assignments.js',
+  '/grades/js/calendar.js',
+  '/grades/js/calculator.js',
+  '/grades/js/notes.js',
+  '/grades/js/sharing.js',
+  '/grades/js/classroom.js'
 ];
 
 self.addEventListener('install', event => {

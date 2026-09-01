@@ -368,3 +368,20 @@ input:checked + .slider:before { transform: translateX(16px); }
 [data-theme="dark"] select { color-scheme: dark; background-color: var(--input-bg); color: var(--text-main); }
 [data-theme="dark"] select option { background-color: var(--card-bg); color: var(--text-main); }
 [data-theme="dark"] select optgroup { background-color: var(--card-bg); color: var(--text-muted); }
+
+/* Animated Syncing Dots */
+.animated-dots::after {
+    content: '';
+    display: inline-block;
+    animation: ellipsis 1.5s infinite steps(4);
+    width: 1em;
+    text-align: left;
+}
+
+@keyframes ellipsis {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
+}

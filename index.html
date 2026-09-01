@@ -360,7 +360,17 @@
                 <!-- CLASSROOM SYNC SETTINGS -->
                 <div class="section-header" style="margin-top: 2rem;"><h2>Classroom Sync Settings</h2></div>
                 <div class="card" style="margin-bottom: 2rem;">
-                    <button class="btn secondary" id="link-google-btn" style="margin-bottom: 1.5rem; width: 100%; border-color: #4285F4; color: #4285F4;">🔗 Link Google Classroom</button>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--input-bg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 1.5rem;">
+                        <div style="display:flex; flex-direction:column; line-height: 1.2;">
+                            <span style="font-weight: 600; font-size: 0.95rem; color: var(--text-main);">Google Classroom</span>
+                            <span id="classroom-linked-email" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Checking status...</span>
+                        </div>
+                        <div style="display:flex; gap: 0.5rem;">
+                            <button class="btn secondary" id="link-google-btn" style="border-color: #4285F4; color: #4285F4; font-size: 0.8rem;">Link Account</button>
+                            <button class="btn danger hidden" id="unlink-google-btn" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">Unlink</button>
+                        </div>
+                    </div>
                     
                     <div class="setting-row">
                         <label style="font-weight: 500;">Coursework (Assignments)</label>
@@ -384,7 +394,7 @@
                         </select>
                     </div>
                     
-                    <button class="btn primary" id="manual-sync-btn" style="width: 100%; margin-top: 1.5rem;">🔄 Manual Sync Now</button>
+                    <button class="btn primary" id="manual-sync-btn" style="width: 100%; margin-top: 1.5rem;">Manual Sync Now</button>
                 </div>
 
             </div>
