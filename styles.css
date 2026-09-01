@@ -364,3 +364,7 @@ input:checked + .slider { background-color: var(--up-green); }
 input:checked + .slider:before { transform: translateX(16px); }
 .slider.round { border-radius: 20px; }
 .slider.round:before { border-radius: 50%; }
+
+[data-theme="dark"] select { color-scheme: dark; background-color: var(--input-bg); color: var(--text-main); }
+[data-theme="dark"] select option { background-color: var(--card-bg); color: var(--text-main); }
+[data-theme="dark"] select optgroup { background-color: var(--card-bg); color: var(--text-muted); }

@@ -457,8 +457,15 @@ window.selectSubjectIcon = (idx) => {
     if(target) target.classList.add('selected');
 };
 
-window.openSubjectModal = (subId = null) => {
+// Add to openSubjectModal:
+window.openSubjectModal = async (subId = null) => {
     if(!window.AcadState.activeTerm) return alert("Create a term first.");
+    
+    // Auto-fetch courses if dropdown is currently empty
+    const classDrop = document.getElementById('subj-classroom-id');
+    if (classDrop.options.length <= 1 && window.ClassroomSync) {
+        await window.ClassroomSync.populateCourseDropdown();
+    }
     
     if (subId) {
         const s = window.AcadState.subjects.find(x => x.id === subId);
@@ -467,6 +474,7 @@ window.openSubjectModal = (subId = null) => {
         document.getElementById('subj-sec').value = s.section || '';
         document.getElementById('subj-name').value = s.name;
         document.getElementById('subj-color').value = s.color || '#7b1113';
+        document.getElementById('subj-classroom-id').value = s.classroom_course_id || '';
         
         if(s.icon && s.icon.startsWith('svg:')) {
             selectSubjectIcon(parseInt(s.icon.split(':')[1], 10));
@@ -493,6 +501,7 @@ window.openSubjectModal = (subId = null) => {
         
         document.getElementById('subj-blocks-wrapper').classList.remove('hidden');
         document.getElementById('delete-subject-btn').classList.add('hidden');
+        document.getElementById('subj-classroom-id').value = '';
         document.getElementById('subject-modal-title').innerText = "Course Setup";
     }
     document.getElementById('subject-modal').classList.remove('hidden');
@@ -595,7 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
             color: document.getElementById('subj-color').value,
             icon: document.getElementById('subj-icon').value.trim(),
             instructors: document.getElementById('subj-inst').value.trim(),
-            venue: document.getElementById('subj-venue').value.trim()
+            venue: document.getElementById('subj-venue').value.trim(),
+            classroom_course_id: document.getElementById('subj-classroom-id').value || null // Save the link
         };
 
         if (id) {

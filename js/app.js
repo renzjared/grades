@@ -184,6 +184,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    document.getElementById('sync-classroom-btn')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.innerText = 'Syncing...';
+        try {
+            const res = await window.ClassroomSync.syncAll(window.AcadState.activeTerm.id);
+            alert(`Sync complete: ${res.newTasksCount} new tasks, ${res.updatedDeadlinesCount} deadlines updated.`);
+        } catch (err) {
+            console.error(err);
+            alert(err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Sync Classroom`;
+        }
+    });
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW Registration failed: ", err));

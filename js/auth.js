@@ -25,6 +25,11 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
         if (!new URLSearchParams(window.location.search).get('id')) {
             if (typeof switchView === 'function') switchView('assignments');
         }
+
+        // Trigger silent background sync if Classroom is linked
+        if (window.AcadState?.activeTerm && window.ClassroomSync) {
+            window.ClassroomSync.syncAll(false);
+        }
     } else if (event === 'SIGNED_OUT') {
         currentUser = null;
     }
@@ -35,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.location.origin + window.location.pathname;
     };
 
-    // Safely bind OAuth buttons using Optional Chaining (?.) so missing IDs never crash the app
     document.getElementById('login-google')?.addEventListener('click', () => {
         supabaseClient.auth.signInWithOAuth({ 
             provider: 'google',
@@ -48,6 +52,33 @@ document.addEventListener('DOMContentLoaded', () => {
             provider: 'discord',
             options: { redirectTo: getRedirectUrl() }
         });
+    });
+
+    // Identity Linking: Attach Google Classroom to current session (e.g. Discord user)
+    document.getElementById('link-google-btn')?.addEventListener('click', async () => {
+        const { data, error } = await supabaseClient.auth.linkIdentity({
+            provider: 'google',
+            options: {
+                redirectTo: getRedirectUrl(),
+                scopes: [
+                    'https://www.googleapis.com/auth/classroom.courses.readonly',
+                    'https://www.googleapis.com/auth/classroom.course-work.readonly',
+                    'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly',
+                    'https://www.googleapis.com/auth/classroom.student-submissions.me.readonly',
+                    'https://www.googleapis.com/auth/classroom.coursework.me',
+                    'https://www.googleapis.com/auth/classroom.announcements.readonly',
+                    'https://www.googleapis.com/auth/classroom.courses.readonly',
+                    'https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly',
+                    'https://www.googleapis.com/auth/classroom.topics.readonly'
+                ].join(' '),
+                queryParams: {
+                    access_type: 'offline',
+                    prompt: 'consent'
+                }
+            }
+        });
+
+        if (error) alert("Error linking account: " + error.message);
     });
 
     document.getElementById('save-username-btn')?.addEventListener('click', async () => {
