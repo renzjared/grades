@@ -23,6 +23,24 @@ window.SVG_CATALOG = [
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
 ];
 
+let currentTaskView = localStorage.getItem('acad_task_view') || 'table';
+window.switchTaskView = (view) => {
+    currentTaskView = view;
+    localStorage.setItem('acad_task_view', view);
+    
+    if (view === 'table') {
+        document.getElementById('view-table-btn').classList.add('active-format');
+        document.getElementById('view-kanban-btn').classList.remove('active-format');
+        document.getElementById('assignments-table-view').classList.remove('hidden');
+        document.getElementById('assignments-kanban-view').classList.add('hidden');
+    } else {
+        document.getElementById('view-kanban-btn').classList.add('active-format');
+        document.getElementById('view-table-btn').classList.remove('active-format');
+        document.getElementById('assignments-kanban-view').classList.remove('hidden');
+        document.getElementById('assignments-table-view').classList.add('hidden');
+    }
+};
+
 window.renderSubjectIcon = function(iconVal) {
     if (!iconVal) return `<span class="subj-svg-icon">${window.SVG_CATALOG[0]}</span>`;
     if (iconVal.startsWith('svg:')) {
@@ -258,6 +276,23 @@ function renderBentoAndTable() {
             return `<span class="tag-pill" style="background:${tagConf.color}; color:${window.getContrastYIQ(tagConf.color)}; margin-right:4px;">${tagConf.name}</span>`;
         }).join('');
 
+        // 1. Calculate the time difference in milliseconds
+        const diffMs = due - now;
+        const isOverdue = diffMs < 0;
+        const absDiff = Math.abs(diffMs);
+
+        // 2. Convert to days, hours, and minutes
+        const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const mins = Math.floor((absDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+        // 3. Format the string (e.g., "1d 12:34")
+        let countdownStr = `${days}d ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        if (isOverdue) countdownStr = `Overdue: ${countdownStr}`;
+
+        // 4. Determine the countdown color (Red if overdue, else green/accent)
+        const countdownColor = isOverdue ? '#e53e3e' : '#48bb78';
+
         html += `
         <tr class="${rowClass}">
             <td>
@@ -271,7 +306,14 @@ function renderBentoAndTable() {
             </td>
             <td>
                 <div style="font-weight:600; font-size:0.85rem;">${due.toLocaleDateString(undefined, {month:'short', day:'numeric'})}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">${due.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</div>
+                
+                <!-- NEW: Flex container to put time and countdown side-by-side -->
+                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-top:2px;">
+                    <span style="font-size:0.75rem; color:var(--text-muted);">${due.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</span>
+                    <span style="font-size:0.7rem; font-weight:700; color:${countdownColor}; background:${countdownColor}15; padding:2px 6px; border-radius:4px; white-space:nowrap;">
+                        ${a.status === 'completed' ? 'Done' : countdownStr}
+                    </span>
+                </div>
             </td>
             <td><span class="stat-pill" style="color:${sub.color}; background:${sub.color}1a;">${window.renderSubjectIcon(sub.icon)} ${sub.code}</span></td>
             <td>
@@ -289,6 +331,81 @@ function renderBentoAndTable() {
     });
 
     tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;">No tasks found.</td></tr>';
+    const kanbanContainer = document.getElementById('assignments-kanban-view');
+    const columns = [
+        { id: 'not_started', title: 'Not Started', color: 'var(--text-muted)' },
+        { id: 'in_progress', title: 'In Progress', color: '#ecc94b' },
+        { id: 'completed', title: 'Completed', color: '#48bb78' }
+    ];
+
+    let kanbanHtml = '';
+    columns.forEach(col => {
+        const colTasks = filteredTasks.filter(a => (a.status || 'not_started') === col.id);
+        
+        kanbanHtml += `
+        <div style="flex: 1; min-width: 280px; background: var(--input-bg); border-radius: 6px; padding: 0.75rem; display: flex; flex-direction: column;">
+            <div style="margin-bottom: 1rem; border-bottom: 2px solid ${col.color}; padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin: 0; font-size: 0.95rem;">${col.title}</h4>
+                <span style="background: var(--bg-color); padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;">${colTasks.length}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
+        `;
+
+        colTasks.forEach(a => {
+            const sub = window.AcadState.subjects.find(s => s.id === a.subject_id);
+            const due = new Date(a.due_date);
+            const diffMs = due - now;
+            const isOverdue = diffMs < 0;
+            const absDiff = Math.abs(diffMs);
+
+            const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const mins = Math.floor((absDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+            let countdownStr = `${days}d ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+            if (isOverdue) countdownStr = `Overdue: ${countdownStr}`;
+            const countdownColor = isOverdue ? '#e53e3e' : '#48bb78'; 
+
+            let taskTags = a.tags || [];
+            let tagHtml = taskTags.map(tId => {
+                let tagConf = window.AcadState.termTags.find(x => x.id === tId);
+                return tagConf ? `<span class="tag-pill" style="background:${tagConf.color}; color:${window.getContrastYIQ(tagConf.color)}; padding: 2px 6px; font-size: 0.65rem;">${tagConf.name}</span>` : '';
+            }).join('');
+
+            kanbanHtml += `
+                <div class="card" style="padding: 0.75rem; margin: 0; cursor: pointer; border-left: 3px solid ${sub.color};" onclick="openTaskSidebar('${a.id}')">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; align-items: flex-start;">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: ${sub.color};">${window.renderSubjectIcon(sub.icon)} ${sub.code}</span>
+                        ${a.link ? `<a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>` : ''}
+                    </div>
+                    <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; line-height: 1.3;">${a.title}</div>
+                    ${tagHtml ? `<div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.75rem;">${tagHtml}</div>` : ''}
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem;">
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">${due.toLocaleDateString(undefined, {month:'short', day:'numeric'})} ${due.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</span>
+                            <span style="font-size: 0.7rem; font-weight: 700; color: ${countdownColor}; margin-top: 2px;">
+                                ${a.status === 'completed' ? 'Done' : countdownStr}
+                            </span>
+                        </div>
+                        <select class="input-minimal" style="font-size: 0.7rem; padding: 2px 4px; height: auto;" onclick="event.stopPropagation()" onchange="updateTaskStatus('${a.id}', this.value)">
+                            <option value="not_started" ${a.status==='not_started'?'selected':''}>Not Started</option>
+                            <option value="in_progress" ${a.status==='in_progress'?'selected':''}>In Progress</option>
+                            <option value="completed" ${a.status==='completed'?'selected':''}>Completed</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (colTasks.length === 0) {
+            kanbanHtml += `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem 0;">No tasks</div>`;
+        }
+        
+        kanbanHtml += `</div></div>`;
+    });
+    
+    kanbanContainer.innerHTML = kanbanHtml;
 
     document.getElementById('bento-urgent').innerText = urgent;
     document.getElementById('bento-overdue').innerText = overdue;
@@ -573,6 +690,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const { data, error } = await supabaseClient.from('terms').insert([{ user_id: currentUser.id, name, start_date: sd, end_date: ed }]).select();
         if(!error) { document.getElementById('term-modal').classList.add('hidden'); window.AcadState.activeTerm = data[0]; fetchTerms(); }
     });
+
+    document.getElementById('view-table-btn').addEventListener('click', () => switchTaskView('table'));
+    document.getElementById('view-kanban-btn').addEventListener('click', () => switchTaskView('kanban'));
+    // Set the initial view on load
+    switchTaskView(currentTaskView);
 
     document.getElementById('sidebar-new-course').addEventListener('click', () => openSubjectModal());
 

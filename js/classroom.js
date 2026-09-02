@@ -6,6 +6,25 @@ class ClassroomSyncService {
         this.isManualSync = false;
     }
 
+    async getCloudPreferences() {
+        if (!currentUser) return { courses: [], items: [] };
+        const { data } = await supabaseClient.from('user_preferences').select('*').eq('id', currentUser.id).single();
+        return {
+            courses: data?.ignored_courses || [],
+            items: data?.ignored_items || []
+        };
+    }
+
+    async updateCloudPreference(column, newArray) {
+        if (!currentUser) return;
+        await supabaseClient.from('user_preferences').upsert({
+            id: currentUser.id,
+            [column]: newArray,
+            updated_at: new Date().toISOString()
+        });
+    }
+    
+
     async getAccessToken() {
         const { data: { session } } = await supabaseClient.auth.getSession();
         return session?.provider_token || null;
@@ -31,7 +50,7 @@ class ClassroomSyncService {
 
         return await res.json();
     }
-    
+
     async populateCourseDropdown() {
         try {
             const dropdown = document.getElementById('subj-classroom-id');
@@ -68,8 +87,9 @@ class ClassroomSyncService {
 
         try {
             const { courses = [] } = await this.fetchWithAuth('/courses?courseStates=ACTIVE');
-            const ignoredList = JSON.parse(localStorage.getItem(`ignored_gc_courses_${currentUser.id}`) || '[]');
-            
+            const prefs = await this.getCloudPreferences();
+            const ignoredList = prefs.courses;
+                        
             this.unmatchedCourses = [];
 
             for (const gcCourse of courses) {
@@ -115,7 +135,8 @@ class ClassroomSyncService {
 
     async processCourseLinks() {
         const items = document.querySelectorAll('.gc-course-map-item');
-        const ignoredList = JSON.parse(localStorage.getItem(`ignored_gc_courses_${currentUser.id}`) || '[]');
+        const prefs = await this.getCloudPreferences();
+        const ignoredList = prefs.courses;
         let addedCount = 0;
         
         for (const item of items) {
@@ -144,7 +165,7 @@ class ClassroomSyncService {
             }
         }
         
-        localStorage.setItem(`ignored_gc_courses_${currentUser.id}`, JSON.stringify(ignoredList));
+        await this.updateCloudPreference('ignored_courses', ignoredList);
         document.getElementById('course-sync-modal').classList.add('hidden');
         
         if (addedCount > 0 && typeof fetchTermData === 'function') {
@@ -155,17 +176,12 @@ class ClassroomSyncService {
     }
 
     async fetchAndProcessItems() {
-        const prefs = {
-            coursework: document.getElementById('sync-pref-coursework')?.value || 'ask',
-            materials: document.getElementById('sync-pref-materials')?.value || 'ask',
-            announcements: document.getElementById('sync-pref-announcements')?.value || 'ask'
-        };
-        
         let autoItems = [];
         this.pendingAskItems = [];
         const linkedSubjects = window.AcadState.subjects.filter(s => s.classroom_course_id);
         
-        const ignoredItems = JSON.parse(localStorage.getItem(`ignored_gc_items_${currentUser.id}`) || '[]');
+        const prefs = await this.getCloudPreferences();
+        const ignoredItems = prefs.items;
         
         for (const sub of linkedSubjects) {
             const courseId = sub.classroom_course_id;
@@ -351,9 +367,10 @@ class ClassroomSyncService {
         }
 
         if (toDiscard.length > 0) {
-            const ignoredItems = JSON.parse(localStorage.getItem(`ignored_gc_items_${currentUser.id}`) || '[]');
+            const prefs = await this.getCloudPreferences();
+            const ignoredItems = prefs.items;
             ignoredItems.push(...toDiscard);
-            localStorage.setItem(`ignored_gc_items_${currentUser.id}`, JSON.stringify(ignoredItems));
+            await this.updateCloudPreference('ignored_items', ignoredItems);
         }
 
         if (toInsert.length > 0) {

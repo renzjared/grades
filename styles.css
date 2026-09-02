@@ -385,3 +385,7 @@ input:checked + .slider:before { transform: translateX(16px); }
     75% { content: '...'; }
     100% { content: ''; }
 }
+
+.components-table td {
+    vertical-align: middle;
+}
