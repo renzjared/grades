@@ -473,6 +473,26 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.innerText = "↻ Fetch Courses";
     });
 
+    // BULK ACTION: Add All
+    document.getElementById('bulk-add-btn')?.addEventListener('click', () => {
+        document.querySelectorAll('.sync-item-card').forEach(card => {
+            const select = card.querySelector('.sync-action-select');
+            const idx = card.getAttribute('data-idx');
+            select.value = 'add';
+            window.ClassroomSync.toggleLinkDropdown(select, idx); // Ensures link UI hides if open
+        });
+    });
+
+    // BULK ACTION: Discard All
+    document.getElementById('bulk-discard-btn')?.addEventListener('click', () => {
+        document.querySelectorAll('.sync-item-card').forEach(card => {
+            const select = card.querySelector('.sync-action-select');
+            const idx = card.getAttribute('data-idx');
+            select.value = 'discard';
+            window.ClassroomSync.toggleLinkDropdown(select, idx); // Ensures link UI hides if open
+        });
+    });
+
     ['coursework', 'materials', 'announcements'].forEach(type => {
         const select = document.getElementById(`sync-pref-${type}`);
         if (select) {

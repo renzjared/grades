@@ -166,7 +166,15 @@
     <div id="sync-confirm-modal" class="modal hidden">
         <div class="modal-content card" style="max-width: 600px;">
             <h2 style="color: var(--up-maroon);">New Items Found</h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Review the new additions and select how to handle them.</p>
+            
+            <!-- NEW: Flex container for description and bulk action buttons -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0; flex: 1; min-width: 250px;">Review the new additions and select how to handle them.</p>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn secondary" id="bulk-add-btn" style="font-size: 0.75rem; padding: 4px 8px;">Add All</button>
+                    <button class="btn secondary" id="bulk-discard-btn" style="font-size: 0.75rem; padding: 4px 8px; color: #e53e3e; border-color: #fc8181;">Discard All</button>
+                </div>
+            </div>
             
             <div id="sync-confirm-list" style="max-height: 400px; overflow-y: auto; padding-right: 0.5rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
                 <!-- Pending Items populated by JS -->
