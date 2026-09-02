@@ -12,25 +12,23 @@ class ClassroomSyncService {
     }
 
     async fetchWithAuth(endpoint) {
-        const token = await this.getAccessToken();
-        if (!token) {
-            throw new Error('No active Google Classroom connection. Please go to your Profile and click "Link Account" to grant access.');
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Not logged in.');
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/classroom-sync`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ endpoint })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Server error during sync.');
         }
 
-        const res = await fetch(`${this.baseUrl}${endpoint}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        // Explicitly catch expired tokens (401 Unauthorized)
-        if (res.status === 401) {
-            throw new Error('Your Google Classroom access has expired (tokens only last 1 hour). Please go to your Profile and click "Link Account" again to refresh it.');
-        }
-        
-        if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(`Classroom API error: ${res.statusText} ${errData.error?.message ? '- ' + errData.error.message : ''}`);
-        }
-        
         return await res.json();
     }
     

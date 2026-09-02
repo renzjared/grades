@@ -1,18 +1,20 @@
-const CACHE_NAME = 'tala-dashboard-v3';
+const CACHE_NAME = 'tala-dashboard-v4'; // Bumped version to force cache update
+
+// Use relative paths so it works at the root (local) or in a subdirectory (GitHub Pages)
 const urlsToCache = [
-  '/grades/',
-  '/grades/index.html',
-  '/grades/styles.css',
-  '/grades/manifest.json',
-  '/grades/js/app.js',
-  '/grades/js/api.js',
-  '/grades/js/auth.js',
-  '/grades/js/assignments.js',
-  '/grades/js/calendar.js',
-  '/grades/js/calculator.js',
-  '/grades/js/notes.js',
-  '/grades/js/sharing.js',
-  '/grades/js/classroom.js'
+  './',
+  './index.html',
+  './styles.css',
+  './manifest.json',
+  './js/app.js',
+  './js/api.js',
+  './js/auth.js',
+  './js/assignments.js',
+  './js/calendar.js',
+  './js/calculator.js',
+  './js/notes.js',
+  './js/sharing.js',
+  './js/classroom.js'
 ];
 
 self.addEventListener('install', event => {
@@ -23,6 +25,7 @@ self.addEventListener('install', event => {
     })
   );
 });
+
 
 self.addEventListener('activate', event => {
   event.waitUntil(
@@ -35,7 +38,23 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // Ignore API calls, Supabase traffic, Google traffic, and non-GET requests
+  if (
+      event.request.method !== 'GET' || 
+      event.request.url.includes('supabase.co') || 
+      event.request.url.includes('googleapis.com')
+  ) {
+      return; // Let the browser handle these normally without the Service Worker
+  }
+
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () => {
+      const cachedResponse = await caches.match(event.request);
+      if (cachedResponse) {
+          return cachedResponse;
+      }
+      // Return a proper 404 Response object instead of undefined to prevent crashes
+      return new Response('Offline resource not found', { status: 404 });
+    })
   );
 });
