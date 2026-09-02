@@ -8,7 +8,18 @@ class ClassroomSyncService {
 
     async getCloudPreferences() {
         if (!currentUser) return { courses: [], items: [] };
-        const { data } = await supabaseClient.from('user_preferences').select('*').eq('id', currentUser.id).single();
+        
+        const { data, error } = await supabaseClient
+            .from('user_preferences')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+            
+        // Log errors unless it's just PGRST116 (which safely means "no row exists yet")
+        if (error && error.code !== 'PGRST116') {
+            console.error("Fetch Prefs Error:", error);
+        }
+        
         return {
             courses: data?.ignored_courses || [],
             items: data?.ignored_items || []
@@ -17,11 +28,25 @@ class ClassroomSyncService {
 
     async updateCloudPreference(column, newArray) {
         if (!currentUser) return;
-        await supabaseClient.from('user_preferences').upsert({
+        
+        // 1. Fetch current preferences so we don't accidentally wipe out the other column
+        const currentPrefs = await this.getCloudPreferences();
+        
+        // 2. Build the full payload so the database doesn't complain about missing columns
+        const payload = {
             id: currentUser.id,
-            [column]: newArray,
+            ignored_courses: column === 'ignored_courses' ? newArray : currentPrefs.courses,
+            ignored_items: column === 'ignored_items' ? newArray : currentPrefs.items,
             updated_at: new Date().toISOString()
-        });
+        };
+
+        const { error } = await supabaseClient.from('user_preferences').upsert(payload);
+        
+        if (error) {
+            console.error("Cloud Save Error:", error);
+        } else {
+            console.log(`Successfully saved ${column} to cloud vault.`);
+        }
     }
     
 
