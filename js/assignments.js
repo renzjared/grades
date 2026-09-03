@@ -293,8 +293,9 @@ function renderBentoAndTable() {
         // 4. Determine the countdown color (Red if overdue, else green/accent)
         const countdownColor = isOverdue ? '#e53e3e' : '#48bb78';
 
-        // NEW: Authentic Google Classroom Pill
-        const isClassroom = a.classroom_id || (a.link && a.link.includes('classroom.google.com'));
+        // NEW: Check LMS Source
+        const isUvle = a.classroom_id?.startsWith('uvle_') || (a.link && a.link.includes('uvle.upd.edu.ph'));
+        const isGc = (a.classroom_id && !a.classroom_id.startsWith('uvle_')) || (a.link && a.link.includes('classroom.google.com'));
 
         const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
 
@@ -313,7 +314,18 @@ function renderBentoAndTable() {
             <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.25px; line-height: 1;">Classroom</span>
         </a>`;
 
-        const taskLinkHtml = a.link ? (isClassroom ? classroomLinkHtml : standardLinkHtml) : '<div style="width:20px;"></div>';
+        const uvleLinkHtml = `
+        <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 3px 8px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in UVLe" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+            <img src="https://uvle.upd.edu.ph/pluginfile.php/1/core_admin/logocompact/300x300/1788311437/logo-uvle-min-1024x1024.png" style="width:14px; height:14px; border-radius: 2px; flex-shrink:0;" alt="UVLe">
+            <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.25px; line-height: 1;">UVLe</span>
+        </a>`;
+
+        let taskLinkHtml = '<div style="width:20px;"></div>';
+        if (a.link) {
+            if (isUvle) taskLinkHtml = uvleLinkHtml;
+            else if (isGc) taskLinkHtml = classroomLinkHtml;
+            else taskLinkHtml = standardLinkHtml;
+        }
 
         html += `
         <tr class="${rowClass}">
@@ -394,27 +406,39 @@ function renderBentoAndTable() {
                 return tagConf ? `<span class="tag-pill" style="background:${tagConf.color}; color:${window.getContrastYIQ(tagConf.color)}; padding: 2px 6px; font-size: 0.65rem;">${tagConf.name}</span>` : '';
             }).join('');
 
-            // NEW: Kanban Authentic Google Classroom Pill
-            const isClassroom = a.classroom_id || (a.link && a.link.includes('classroom.google.com'));
+            // NEW: Kanban LMS Pill Routing
+            const isUvle = a.classroom_id?.startsWith('uvle_') || (a.link && a.link.includes('uvle.upd.edu.ph'));
+            const isGc = (a.classroom_id && !a.classroom_id.startsWith('uvle_')) || (a.link && a.link.includes('classroom.google.com'));
 
             const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
 
             const classroomLinkHtml = `
-                <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 3px 8px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in Google Classroom" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
-                    <svg width="14" height="14" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                        <path fill="#F2A600" d="M41 40H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3z"/>
-                        <path fill="#1E8E3E" d="M41 36H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3z"/>
-                        <circle fill="#FFF" cx="24" cy="19" r="4"/>
-                        <path fill="#FFF" d="M24 25c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/>
-                        <circle fill="#FFF" cx="14" cy="21" r="3"/>
-                        <path fill="#FFF" d="M14 26c-2.2 0-6.5 1.1-7 3.3v1.7h7v-5z"/>
-                        <circle fill="#FFF" cx="34" cy="21" r="3"/>
-                        <path fill="#FFF" d="M34 26c2.2 0 6.5 1.1 7 3.3v1.7h-7v-5z"/>
-                    </svg>
-                    <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.25px; line-height: 1;">Classroom</span>
-                </a>`;
+            <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 2px 6px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in Google Classroom" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+                <svg viewBox="0 0 48 48" width="12" height="12" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                    <path fill="#F2A600" d="M41 40H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3z"/>
+                    <path fill="#1E8E3E" d="M41 36H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3z"/>
+                    <circle fill="#FFF" cx="24" cy="19" r="4"/>
+                    <path fill="#FFF" d="M24 25c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/>
+                    <circle fill="#FFF" cx="14" cy="21" r="3"/>
+                    <path fill="#FFF" d="M14 26c-2.2 0-6.5 1.1-7 3.3v1.7h7v-5z"/>
+                    <circle fill="#FFF" cx="34" cy="21" r="3"/>
+                    <path fill="#FFF" d="M34 26c2.2 0 6.5 1.1 7 3.3v1.7h-7v-5z"/>
+                </svg>
+                <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.7rem; letter-spacing: -0.2px; line-height: 1;">Classroom</span>
+            </a>`;
 
-            const taskLinkHtml = a.link ? (isClassroom ? classroomLinkHtml : standardLinkHtml) : '';
+            const uvleLinkHtml = `
+            <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 2px 6px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in UVLe" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+                <img src="https://uvle.upd.edu.ph/pluginfile.php/1/core_admin/logocompact/300x300/1788311437/logo-uvle-min-1024x1024.png" style="width:12px; height:12px; border-radius: 2px; flex-shrink:0;" alt="UVLe">
+                <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.7rem; letter-spacing: -0.2px; line-height: 1;">UVLe</span>
+            </a>`;
+
+            let taskLinkHtml = '';
+            if (a.link) {
+                if (isUvle) taskLinkHtml = uvleLinkHtml;
+                else if (isGc) taskLinkHtml = classroomLinkHtml;
+                else taskLinkHtml = standardLinkHtml;
+            }
 
             kanbanHtml += `
                 <div class="card" style="padding: 0.75rem; margin: 0; cursor: pointer; border-left: 3px solid ${sub.color};" onclick="openTaskSidebar('${a.id}')">
@@ -622,14 +646,9 @@ window.selectSubjectIcon = (idx) => {
 window.openSubjectModal = async (subId = null) => {
     if(!window.AcadState.activeTerm) return alert("Create a term first.");
     
-    const classDrop = document.getElementById('subj-classroom-id');
-    if (classDrop.options.length <= 1 && window.ClassroomSync) {
-        await window.ClassroomSync.populateCourseDropdown();
-    }
-    
     const scopeWrapper = document.getElementById('subj-update-scope-wrapper');
     const scopeDate = document.getElementById('subj-update-date');
-    const todayStr = new Date('2026-09-03').toISOString().split('T')[0]; // Bound to current context
+    const todayStr = new Date().toISOString().split('T')[0];
 
     if (subId) {
         const s = window.AcadState.subjects.find(x => x.id === subId);
@@ -638,9 +657,19 @@ window.openSubjectModal = async (subId = null) => {
         document.getElementById('subj-sec').value = s.section || '';
         document.getElementById('subj-name').value = s.name;
         document.getElementById('subj-color').value = s.color || '#7b1113';
-        document.getElementById('subj-classroom-id').value = s.classroom_course_id || '';
         document.getElementById('subj-inst').value = s.instructors || '';
         document.getElementById('subj-venue').value = s.venue || '';
+        
+        // Handle the Split LMS Dropdowns
+        const lmsType = s.classroom_course_id ? (s.classroom_course_id.startsWith('uvle_') ? 'uvle' : 'gc') : 'none';
+        document.getElementById('subj-lms-type').value = lmsType;
+        
+        if (lmsType !== 'none' && window.ClassroomSync) {
+            await window.ClassroomSync.populateCourseDropdown(lmsType);
+        } else {
+            document.getElementById('subj-classroom-id').innerHTML = '<option value="">-- Unlinked --</option>';
+        }
+        document.getElementById('subj-classroom-id').value = s.classroom_course_id || '';
         
         if(s.icon && s.icon.startsWith('svg:')) selectSubjectIcon(parseInt(s.icon.split(':')[1], 10));
         else selectSubjectIcon(0);
@@ -649,7 +678,6 @@ window.openSubjectModal = async (subId = null) => {
         document.getElementById('delete-subject-btn').classList.remove('hidden');
         document.getElementById('subject-modal-title').innerText = "Edit Course";
         
-        // Show scope settings
         if (scopeWrapper) {
             scopeWrapper.classList.remove('hidden');
             document.getElementById('subj-update-scope').value = 'all';
@@ -667,9 +695,12 @@ window.openSubjectModal = async (subId = null) => {
         document.getElementById('subj-venue').value = '';
         document.getElementById('subj-blocks-container').innerHTML = '';
         
+        document.getElementById('subj-lms-type').value = 'none';
+        document.getElementById('subj-classroom-id').innerHTML = '<option value="">-- Unlinked --</option>';
+        document.getElementById('subj-classroom-id').value = '';
+        
         document.getElementById('subj-blocks-wrapper').classList.remove('hidden');
         document.getElementById('delete-subject-btn').classList.add('hidden');
-        document.getElementById('subj-classroom-id').value = '';
         document.getElementById('subject-modal-title').innerText = "Course Setup";
         if (scopeWrapper) scopeWrapper.classList.add('hidden');
     }
@@ -762,6 +793,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="btn danger" onclick="document.getElementById('block-${id}').remove()">×</button>
             </div>
         `);
+    });
+
+    // Listen for LMS Type Changes
+    document.getElementById('subj-lms-type')?.addEventListener('change', async (e) => {
+        if (window.ClassroomSync) {
+            await window.ClassroomSync.populateCourseDropdown(e.target.value);
+        }
     });
 
     document.getElementById('save-subject-btn').addEventListener('click', async () => {

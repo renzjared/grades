@@ -389,3 +389,21 @@ input:checked + .slider:before { transform: translateX(16px); }
 .components-table td {
     vertical-align: middle;
 }
+
+/* SETTINGS VIEW (Instagram Style) */
+#settings-view { height: 100%; overflow: hidden; padding-bottom: 2rem; }
+.set-tab-btn { 
+    width: 100%; border-radius: 8px; font-weight: 500; font-size: 1rem; color: var(--text-main); 
+    padding: 0.85rem 1rem !important; margin-bottom: 0.25rem; transition: background 0.2s, font-weight 0.2s;
+}
+.set-tab-btn:hover { background: var(--input-bg); }
+.set-tab-btn.active-format { background: var(--input-bg) !important; font-weight: 700; box-shadow: none; }
+.set-pane { animation: fadeIn 0.2s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Mobile fallback for Settings Layout */
+@media (max-width: 768px) {
+    #settings-view > div { flex-direction: column; overflow-y: auto; height: auto !important; }
+    #settings-view > div > div:first-child { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border); padding-right: 0 !important; height: auto !important; margin-bottom: 1.5rem; flex-shrink: 0; }
+    #settings-view > div > div:last-child { width: 100%; overflow-y: visible !important; }
+}

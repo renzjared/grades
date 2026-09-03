@@ -18,6 +18,7 @@ async function switchView(viewName) {
     document.getElementById('calendar-view').classList.add('hidden');
     document.getElementById('notes-view').classList.add('hidden');
     document.getElementById('profile-view').classList.add('hidden');
+    document.getElementById('settings-view').classList.add('hidden'); // NEW
     document.getElementById('floating-calc-header').classList.add('hidden');
     
     document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('mobile-open'));
@@ -54,6 +55,15 @@ async function switchView(viewName) {
         document.getElementById('profile-view').classList.remove('hidden');
         document.querySelectorAll('.route-profile').forEach(el => el.classList.add('active-nav'));
         if (typeof populateProfileStats === 'function') populateProfileStats();
+    } else if (viewName === 'settings') {
+        // NEW SETTINGS ROUTE
+        document.getElementById('settings-view').classList.remove('hidden');
+        document.querySelectorAll('.route-profile').forEach(el => el.classList.add('active-nav'));
+        
+        // Mirror profile data into the settings pane
+        const nameStr = currentUser ? (currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]) : 'Guest User';
+        document.getElementById('set-username-preview').innerText = nameStr;
+        document.getElementById('set-avatar-preview').innerHTML = document.getElementById('profile-avatar').innerHTML;
     }
 }
 
@@ -68,6 +78,18 @@ window.openNoteFromProfile = (noteId) => {
         }
     }, 50);
 };
+
+window.switchSettingsTab = function(tabId) {
+    document.querySelectorAll('.set-pane').forEach(p => p.classList.add('hidden'));
+    document.getElementById(tabId).classList.remove('hidden');
+    document.querySelectorAll('.set-tab-btn').forEach(b => b.classList.remove('active-format'));
+    event.currentTarget.classList.add('active-format');
+    
+    // NEW: Refresh integration statuses when the tab is opened
+    if (tabId === 'set-integrations' && window.ClassroomSync) {
+        window.ClassroomSync.refreshIntegrationUI();
+    }
+}
 
 function toggleMobileSidebar() {
     // Safely find the sidebar inside whichever view is currently NOT hidden
