@@ -293,9 +293,12 @@ function renderBentoAndTable() {
         // 4. Determine the countdown color (Red if overdue, else green/accent)
         const countdownColor = isOverdue ? '#e53e3e' : '#48bb78';
 
-        // NEW: Check LMS Source
-        const isUvle = a.classroom_id?.startsWith('uvle_') || (a.link && a.link.includes('uvle.upd.edu.ph'));
-        const isGc = (a.classroom_id && !a.classroom_id.startsWith('uvle_')) || (a.link && a.link.includes('classroom.google.com'));
+        // Securely parse strings to prevent TypeErrors on manual tasks
+        const safeClassId = String(a.classroom_id || '');
+        const safeLink = String(a.link || '');
+
+        const isUvle = safeClassId.startsWith('uvle_') || safeLink.includes('uvle.upd.edu.ph');
+        const isGc = (safeClassId && !safeClassId.startsWith('uvle_')) || safeLink.includes('classroom.google.com');
 
         const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
 
@@ -407,9 +410,11 @@ function renderBentoAndTable() {
             }).join('');
 
             // NEW: Kanban LMS Pill Routing
-            const isUvle = a.classroom_id?.startsWith('uvle_') || (a.link && a.link.includes('uvle.upd.edu.ph'));
-            const isGc = (a.classroom_id && !a.classroom_id.startsWith('uvle_')) || (a.link && a.link.includes('classroom.google.com'));
-
+            const safeClassId = String(a.classroom_id || '');
+            const safeLink = String(a.link || '');
+            
+            const isUvle = safeClassId.startsWith('uvle_') || safeLink.includes('uvle.upd.edu.ph');
+            const isGc = (safeClassId && !safeClassId.startsWith('uvle_')) || safeLink.includes('classroom.google.com');
             const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
 
             const classroomLinkHtml = `
