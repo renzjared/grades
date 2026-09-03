@@ -493,6 +493,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- UVLE BRIDGE LISTENER ---
+    window.addEventListener('message', (event) => {
+        if (event.data?.type === 'UVLE_SYNC_PAYLOAD') {
+            const events = event.data.data;
+            if (!events || events.length === 0) return;
+
+            let needsMapping = false;
+            
+            // Append rather than overwrite, in case Classroom sync ran at the exact same time
+            if (!window.ClassroomSync.unmatchedCourses) window.ClassroomSync.unmatchedCourses = [];
+            if (!window.ClassroomSync.pendingAskItems) window.ClassroomSync.pendingAskItems = [];
+
+            events.forEach(ev => {
+                const uvleCourseId = 'uvle_' + ev.course.id;
+                const localSub = window.AcadState.subjects.find(s => s.classroom_course_id === uvleCourseId);
+
+                // 1. If course isn't mapped to a Tala subject, push it to the Course Mapper
+                if (!localSub) {
+                    if (!window.ClassroomSync.unmatchedCourses.some(c => c.id === uvleCourseId)) {
+                        window.ClassroomSync.unmatchedCourses.push({
+                            id: uvleCourseId,
+                            name: ev.course.fullname,
+                            section: ev.course.shortname || 'UVLe'
+                        });
+                    }
+                    needsMapping = true;
+                } else {
+                    // 2. Format UVLe Unix timestamps into ISO strings for your database
+                    const d = new Date(ev.timestart * 1000).toISOString();
+                    
+                    const payload = {
+                        subject_id: localSub.id,
+                        title: ev.name,
+                        due_date: d,
+                        status: 'not_started',
+                        link: ev.url,
+                        notes: ev.description || '',
+                        classroom_id: 'uvle_task_' + ev.id,
+                        tags: []
+                    };
+                    
+                    // 3. Only push if it doesn't already exist in Tala
+                    if (!window.AcadState.assignments.find(a => a.classroom_id === payload.classroom_id)) {
+                        window.ClassroomSync.pendingAskItems.push({
+                            type: 'UVLe Task',
+                            payload: payload,
+                            localCourse: localSub,
+                            isModified: false
+                        });
+                    }
+                }
+            });
+
+            // Trigger the UI flow
+            if (needsMapping) {
+                window.ClassroomSync.renderCourseMapperModal();
+            } else if (window.ClassroomSync.pendingAskItems.length > 0) {
+                window.ClassroomSync.renderConfirmModal();
+            }
+
+            // Tell the extension we grabbed the data so it can clear its local queue
+            window.postMessage({ type: 'TALA_ACK_UVLE_DATA' }, '*');
+        }
+    });
+
+    // Automatically ask the extension if it has any UVLe data pending every time we load the dashboard or click Sync
+    window.postMessage({ type: 'TALA_REQUEST_UVLE_DATA' }, '*');
+    
+    document.querySelectorAll('.trigger-global-sync').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Also trigger UVLe check alongside Google Classroom
+            window.postMessage({ type: 'TALA_REQUEST_UVLE_DATA' }, '*');
+        });
+    });
+    
     ['coursework', 'materials', 'announcements'].forEach(type => {
         const select = document.getElementById(`sync-pref-${type}`);
         if (select) {
