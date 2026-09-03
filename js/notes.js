@@ -1,9 +1,12 @@
 // --- RICH NOTES & LOCAL SYNC ENGINE ---
 let localNotes = [];
 let activeNoteEditor = null;
-let currentNotesContext = { type: 'root', id: null }; 
 let isOnline = navigator.onLine;
 let currentFormat = 'md'; // md, latex, typst
+
+// Persistent State for Sidebar Tree and Context
+let currentNotesContext = JSON.parse(localStorage.getItem('acad_notes_active')) || { type: 'root', id: null };
+let expandedNoteFolders = new Set(JSON.parse(localStorage.getItem('acad_notes_expanded') || '[]'));
 
 // Typst WASM State
 let typstRenderer = null;
@@ -33,7 +36,6 @@ async function initNotes() {
             autosave: { enabled: true, uniqueId: "note-temp-autosave", delay: 5000 },
         });
 
-        // Custom Live Side-By-Side Preview Rendering
         activeNoteEditor.codemirror.on("change", updateLivePreview);
 
         document.getElementById('save-note-content-btn').addEventListener('click', saveActiveNote);
@@ -41,7 +43,6 @@ async function initNotes() {
         document.getElementById('new-note-btn').addEventListener('click', () => openEditor());
         document.getElementById('delete-note-btn').addEventListener('click', deleteActiveNote);
 
-        // Format Toggles
         document.getElementById('fmt-md').addEventListener('click', () => setFormat('md'));
         document.getElementById('fmt-latex').addEventListener('click', () => setFormat('latex'));
         document.getElementById('fmt-typst').addEventListener('click', () => setFormat('typst'));
@@ -78,8 +79,6 @@ function updateLivePreview() {
         });
     } else if (currentFormat === 'latex') {
         try {
-            // The LaTeX tab treats the entire box as a math environment.
-            // We automatically strip leading/trailing $ signs so KaTeX doesn't throw a red syntax error!
             let mathString = raw.trim().replace(/(^\$\$?)|(\$\$?$)/g, '');
             pane.innerHTML = katex.renderToString(mathString, { displayMode: true, throwOnError: false });
         } catch (e) {
@@ -122,50 +121,178 @@ async function renderTypstPreview(raw, pane) {
     }
 }
 
+window.toggleNoteFolder = function(folderKey, event) {
+    if (event) event.stopPropagation();
+    if (expandedNoteFolders.has(folderKey)) {
+        expandedNoteFolders.delete(folderKey);
+    } else {
+        expandedNoteFolders.add(folderKey);
+    }
+    localStorage.setItem('acad_notes_expanded', JSON.stringify([...expandedNoteFolders]));
+    window.updateNotesTree();
+};
+
+window.setNotesContext = function(type, id) {
+    currentNotesContext = { type, id };
+    localStorage.setItem('acad_notes_active', JSON.stringify(currentNotesContext));
+    
+    // Auto-expand the folder being navigated to
+    if (type === 'term') expandedNoteFolders.add(`term_${id}`);
+    if (type === 'subject') expandedNoteFolders.add(`sub_${id}`);
+    localStorage.setItem('acad_notes_expanded', JSON.stringify([...expandedNoteFolders]));
+    
+    window.updateNotesTree();
+};
+
 window.updateNotesTree = function() {
     if (!window.AcadState) return;
     const tree = document.getElementById('notes-tree');
     if (!tree) return;
     
-    let html = `<div class="tree-node ${currentNotesContext.type==='root'?'active':''}" onclick="setNotesContext('root', null)">📁 All Notes</div>`;
+    const sortAlpha = (arr, key) => [...arr].sort((a, b) => (a[key] || '').localeCompare(b[key] || ''));
     
-    window.AcadState.terms.forEach(term => {
-        html += `<div class="tree-node ${currentNotesContext.id===term.id?'active':''}" onclick="setNotesContext('term', '${term.id}')" style="margin-left:5px;">↳ 📅 ${term.name}</div>`;
+    let html = `
+    <div style="padding-left: 0px; margin-bottom: 2px;">
+        <div style="display: flex; align-items: center; padding: 4px; border-radius: 4px; background: ${currentNotesContext.type === 'root' ? 'var(--input-bg)' : 'transparent'}; cursor: pointer;">
+            <span style="width: 20px;"></span>
+            <span onclick="setNotesContext('root', null)" style="flex: 1; font-weight: ${currentNotesContext.type === 'root' ? '600' : '400'}; color: ${currentNotesContext.type === 'root' ? 'var(--text-main)' : 'var(--text-muted)'};">
+                📁 Root
+            </span>
+        </div>
+    </div>`;
+    
+    const terms = sortAlpha(window.AcadState.terms, 'name');
+    terms.forEach(term => {
+        const isExpandedTerm = expandedNoteFolders.has(`term_${term.id}`);
+        const caretTerm = isExpandedTerm ? '▼' : '▶';
+        const isActiveTerm = currentNotesContext.id === term.id;
         
-        window.AcadState.subjects.filter(s => s.term_id === term.id).forEach(sub => {
-            html += `<div class="tree-node ${currentNotesContext.id===sub.id?'active':''}" onclick="setNotesContext('subject', '${sub.id}')" style="margin-left:20px;">↳ ${window.renderSubjectIcon(sub.icon)} ${sub.code}</div>`;
+        html += `
+        <div style="padding-left: 10px; margin-bottom: 2px;">
+            <div style="display: flex; align-items: center; padding: 4px; border-radius: 4px; background: ${isActiveTerm ? 'var(--input-bg)' : 'transparent'}; cursor: pointer;">
+                <span onclick="toggleNoteFolder('term_${term.id}', event)" style="width: 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem;">${caretTerm}</span>
+                <span onclick="setNotesContext('term', '${term.id}')" style="flex: 1; font-weight: ${isActiveTerm ? '600' : '400'}; color: ${isActiveTerm ? 'var(--text-main)' : 'var(--text-muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    📅 ${term.name}
+                </span>
+            </div>
+            <div style="display: ${isExpandedTerm ? 'block' : 'none'};">`;
+        
+        const subjects = sortAlpha(window.AcadState.subjects.filter(s => s.term_id === term.id), 'code');
+        subjects.forEach(sub => {
+            const isExpandedSub = expandedNoteFolders.has(`sub_${sub.id}`);
+            const caretSub = isExpandedSub ? '▼' : '▶';
+            const isActiveSub = currentNotesContext.id === sub.id;
             
-            window.AcadState.assignments.filter(a => a.subject_id === sub.id).forEach(task => {
-                html += `<div class="tree-node ${currentNotesContext.id===task.id?'active':''}" onclick="setNotesContext('assignment', '${task.id}')" style="margin-left:40px; font-size:0.75rem;">↳ 📝 ${task.title}</div>`;
+            html += `
+                <div style="padding-left: 15px; margin-bottom: 2px;">
+                    <div style="display: flex; align-items: center; padding: 4px; border-radius: 4px; background: ${isActiveSub ? 'var(--input-bg)' : 'transparent'}; cursor: pointer;">
+                        <span onclick="toggleNoteFolder('sub_${sub.id}', event)" style="width: 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem;">${caretSub}</span>
+                        <span onclick="setNotesContext('subject', '${sub.id}')" style="flex: 1; font-weight: ${isActiveSub ? '600' : '400'}; color: ${isActiveSub ? 'var(--text-main)' : 'var(--text-muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${window.renderSubjectIcon(sub.icon)} ${sub.code}
+                        </span>
+                    </div>
+                    <div style="display: ${isExpandedSub ? 'block' : 'none'};">`;
+            
+            const tasks = sortAlpha(window.AcadState.assignments.filter(a => a.subject_id === sub.id), 'title');
+            tasks.forEach(task => {
+                const isActiveTask = currentNotesContext.id === task.id;
+                html += `
+                        <div style="padding-left: 25px; margin-bottom: 2px;">
+                            <div style="display: flex; align-items: center; padding: 4px; border-radius: 4px; background: ${isActiveTask ? 'var(--input-bg)' : 'transparent'}; cursor: pointer;">
+                                <span style="width: 20px;"></span>
+                                <span onclick="setNotesContext('assignment', '${task.id}')" style="flex: 1; font-size: 0.85rem; font-weight: ${isActiveTask ? '600' : '400'}; color: ${isActiveTask ? 'var(--text-main)' : 'var(--text-muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    📝 ${task.title}
+                                </span>
+                            </div>
+                        </div>`;
             });
+            
+            html += `</div></div>`;
         });
+        
+        html += `</div></div>`;
     });
     
     tree.innerHTML = html;
+    ensureAndRenderBreadcrumbs();
     renderNotesList();
 };
 
-window.setNotesContext = function(type, id) {
-    currentNotesContext = { type, id };
-    window.updateNotesTree();
-};
+function ensureAndRenderBreadcrumbs() {
+    const titleEl = document.getElementById('notes-context-title');
+    if (!titleEl) return;
+    
+    let breadcrumbContainer = document.getElementById('notes-breadcrumbs');
+    if (!breadcrumbContainer) {
+        breadcrumbContainer = document.createElement('div');
+        breadcrumbContainer.id = 'notes-breadcrumbs';
+        breadcrumbContainer.style.cssText = 'font-size: 0.8rem; display: flex; align-items: center; flex-wrap: wrap; margin-top: 0.25rem;';
+        
+        // Wrap title and breadcrumbs dynamically to match the structural intent
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'column';
+        
+        titleEl.parentNode.insertBefore(wrapper, titleEl);
+        wrapper.appendChild(titleEl);
+        wrapper.appendChild(breadcrumbContainer);
+        titleEl.style.margin = '0';
+    }
+
+    let path = [{ title: 'Root', type: 'root', id: null }];
+    let mainTitle = 'All Notes';
+
+    if (currentNotesContext.type !== 'root') {
+        if (currentNotesContext.type === 'term') {
+            const t = window.AcadState.terms.find(x => x.id === currentNotesContext.id);
+            if (t) {
+                path.push({ title: t.name, type: 'term', id: t.id });
+                mainTitle = `${t.name} Notes`;
+            }
+        } else if (currentNotesContext.type === 'subject') {
+            const s = window.AcadState.subjects.find(x => x.id === currentNotesContext.id);
+            if (s) {
+                const t = window.AcadState.terms.find(x => x.id === s.term_id);
+                if (t) path.push({ title: t.name, type: 'term', id: t.id });
+                path.push({ title: s.code, type: 'subject', id: s.id });
+                mainTitle = `${s.code} Notes`;
+            }
+        } else if (currentNotesContext.type === 'assignment') {
+            const a = window.AcadState.assignments.find(x => x.id === currentNotesContext.id);
+            if (a) {
+                const s = window.AcadState.subjects.find(x => x.id === a.subject_id);
+                if (s) {
+                    const t = window.AcadState.terms.find(x => x.id === s.term_id);
+                    if (t) path.push({ title: t.name, type: 'term', id: t.id });
+                    path.push({ title: s.code, type: 'subject', id: s.id });
+                }
+                path.push({ title: a.title, type: 'assignment', id: a.id });
+                mainTitle = `${a.title} Notes`;
+            }
+        }
+    }
+
+    titleEl.innerText = mainTitle;
+    breadcrumbContainer.innerHTML = path.map((p, idx) => {
+        const isLast = idx === path.length - 1;
+        if (isLast) return `<span style="color: var(--text-muted); font-weight: 500;">${p.title}</span>`;
+        return `<span style="cursor: pointer; color: var(--up-maroon); font-weight: 600;" onclick="setNotesContext('${p.type}', ${p.id ? `'${p.id}'` : null})">${p.title}</span>`;
+    }).join('<span style="margin: 0 6px; color: var(--text-muted); font-size: 0.65rem;">▶</span>');
+}
 
 function renderNotesList() {
     const container = document.getElementById('notes-list-container');
-    const title = document.getElementById('notes-context-title');
+    
+    // NEW: Safely exit if the DOM element isn't ready
+    if (!container) return;
     
     let filtered = localNotes;
     if (currentNotesContext.type === 'term') {
-        title.innerText = window.AcadState.terms.find(t=>t.id===currentNotesContext.id)?.name + " Notes";
         filtered = localNotes.filter(n => n.term_id === currentNotesContext.id && !n.subject_id && !n.assignment_id);
     } else if (currentNotesContext.type === 'subject') {
-        title.innerText = window.AcadState.subjects.find(s=>s.id===currentNotesContext.id)?.code + " Notes";
         filtered = localNotes.filter(n => n.subject_id === currentNotesContext.id && !n.assignment_id);
     } else if (currentNotesContext.type === 'assignment') {
-        title.innerText = window.AcadState.assignments.find(a=>a.id===currentNotesContext.id)?.title + " Notes";
         filtered = localNotes.filter(n => n.assignment_id === currentNotesContext.id);
-    } else {
-        title.innerText = "All Notes";
     }
 
     filtered.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));

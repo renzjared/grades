@@ -391,7 +391,7 @@
                     </div>
                     <div style="flex: 1;">
                         <h2 id="profile-name" style="font-size: 2rem; margin-bottom: 0.25rem;">Guest User</h2>
-                        <p style="color: var(--text-muted); font-size: 1.1rem;">Computer Science, University of the Philippines</p>
+                        <p style="color: var(--text-muted); font-size: 1.1rem;">bio coming soon!!</p>
                         <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                             <button class="btn secondary trigger-theme-modal">Appearance Settings</button>
                             <button class="btn primary hidden" id="install-pwa-btn">Install App</button>
@@ -467,15 +467,23 @@
                     <div id="notes-tree" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
                 </div>
 
-                <div class="main-content card" style="display:flex; flex-direction:column; min-height: 600px; padding: 1rem;">
+<div class="main-content card" style="display:flex; flex-direction:column; min-height: 600px; padding: 1rem;">
+                    
+                    <!-- THE LIST PANE (Restored) -->
                     <div id="notes-list-pane">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
-                            <h3 id="notes-context-title" style="margin:0;">All Notes</h3>
-                            <button class="btn primary" id="new-note-btn">+ New Note</button>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                            <div style="display: flex; flex-direction: column;">
+                                <h3 id="notes-context-title" style="margin:0 0 0.25rem 0;">Root</h3>
+                                <div id="notes-breadcrumbs" style="font-size: 0.8rem; display: flex; align-items: center; flex-wrap: wrap;"></div>
+                            </div>
+                            <button class="btn primary" id="new-note-btn" style="flex-shrink: 0;">+ New Note</button>
                         </div>
+                        
+                        <!-- MISSING CONTAINER RESTORED HERE -->
                         <div id="notes-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:1rem;"></div>
                     </div>
 
+                    <!-- THE EDITOR PANE -->
                     <div id="note-editor-pane" class="hidden" style="flex:1; display:flex; flex-direction:column; height: 100%;">
                         <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
                             <button class="btn secondary" id="back-to-notes-btn">← Back</button>

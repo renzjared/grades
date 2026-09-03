@@ -57,6 +57,18 @@ async function switchView(viewName) {
     }
 }
 
+window.openNoteFromProfile = (noteId) => {
+    // Switch to the notes view
+    switchView('notes');
+    
+    // Give the DOM a tiny fraction of a second to render the layout, then open the specific note
+    setTimeout(() => {
+        if (typeof openEditor === 'function') {
+            openEditor(noteId);
+        }
+    }, 50);
+};
+
 function toggleMobileSidebar() {
     // Safely find the sidebar inside whichever view is currently NOT hidden
     const activeView = document.querySelector('.container > div:not(.hidden)');
@@ -114,17 +126,17 @@ async function populateProfileStats() {
     const notesGrid = document.getElementById('profile-notes-grid');
     
     if (activeNotes.length > 0) {
-        let recentNotes = [...activeNotes].sort((a,b) => b.lastModified - a.lastModified).slice(0, 6);
+        let recentNotes = [...activeNotes].sort((a,b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)).slice(0, 6);
+        
         notesGrid.innerHTML = recentNotes.map(n => `
-            <div class="calc-card" onclick="switchView('notes');" style="min-width: 200px;">
+            <div class="calc-card" onclick="openNoteFromProfile('${n.id}')" style="min-width: 200px; cursor: pointer;">
                 <h3 style="color: var(--text-main); font-size: 1.1rem;">${n.title || 'Untitled Note'}</h3>
-                <div class="meta" style="margin-bottom: 0;">Modified: ${new Date(n.lastModified).toLocaleDateString()}</div>
+                <div class="meta" style="margin-bottom: 0;">Modified: ${new Date(n.updated_at).toLocaleDateString()}</div>
             </div>
         `).join('');
     } else {
         notesGrid.innerHTML = '<p class="text-muted">No notes found.</p>';
     }
-
     const calcsGrid = document.getElementById('profile-calcs-grid');
     if (currentUser) {
         const { data } = await supabaseClient.from('calculators').select('id, title, created_at').eq('owner_id', currentUser.id).order('created_at', { ascending: false }).limit(6);
