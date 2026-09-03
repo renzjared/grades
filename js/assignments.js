@@ -574,16 +574,19 @@ window.selectSubjectIcon = (idx) => {
     if(target) target.classList.add('selected');
 };
 
-// Add to openSubjectModal:
+// --- 1. COURSE UPDATE LOGIC ---
 window.openSubjectModal = async (subId = null) => {
     if(!window.AcadState.activeTerm) return alert("Create a term first.");
     
-    // Auto-fetch courses if dropdown is currently empty
     const classDrop = document.getElementById('subj-classroom-id');
     if (classDrop.options.length <= 1 && window.ClassroomSync) {
         await window.ClassroomSync.populateCourseDropdown();
     }
     
+    const scopeWrapper = document.getElementById('subj-update-scope-wrapper');
+    const scopeDate = document.getElementById('subj-update-date');
+    const todayStr = new Date('2026-09-03').toISOString().split('T')[0]; // Bound to current context
+
     if (subId) {
         const s = window.AcadState.subjects.find(x => x.id === subId);
         document.getElementById('subj-id').value = s.id;
@@ -592,19 +595,23 @@ window.openSubjectModal = async (subId = null) => {
         document.getElementById('subj-name').value = s.name;
         document.getElementById('subj-color').value = s.color || '#7b1113';
         document.getElementById('subj-classroom-id').value = s.classroom_course_id || '';
-        
-        if(s.icon && s.icon.startsWith('svg:')) {
-            selectSubjectIcon(parseInt(s.icon.split(':')[1], 10));
-        } else {
-            selectSubjectIcon(0);
-        }
-        
         document.getElementById('subj-inst').value = s.instructors || '';
         document.getElementById('subj-venue').value = s.venue || '';
+        
+        if(s.icon && s.icon.startsWith('svg:')) selectSubjectIcon(parseInt(s.icon.split(':')[1], 10));
+        else selectSubjectIcon(0);
         
         document.getElementById('subj-blocks-wrapper').classList.add('hidden');
         document.getElementById('delete-subject-btn').classList.remove('hidden');
         document.getElementById('subject-modal-title').innerText = "Edit Course";
+        
+        // Show scope settings
+        if (scopeWrapper) {
+            scopeWrapper.classList.remove('hidden');
+            document.getElementById('subj-update-scope').value = 'all';
+            scopeDate.value = todayStr;
+            scopeDate.classList.add('hidden');
+        }
     } else {
         document.getElementById('subj-id').value = '';
         document.getElementById('subj-code').value = '';
@@ -620,6 +627,7 @@ window.openSubjectModal = async (subId = null) => {
         document.getElementById('delete-subject-btn').classList.add('hidden');
         document.getElementById('subj-classroom-id').value = '';
         document.getElementById('subject-modal-title').innerText = "Course Setup";
+        if (scopeWrapper) scopeWrapper.classList.add('hidden');
     }
     document.getElementById('subject-modal').classList.remove('hidden');
 };
@@ -727,18 +735,31 @@ document.addEventListener('DOMContentLoaded', () => {
             icon: document.getElementById('subj-icon').value.trim(),
             instructors: document.getElementById('subj-inst').value.trim(),
             venue: document.getElementById('subj-venue').value.trim(),
-            classroom_course_id: document.getElementById('subj-classroom-id').value || null // Save the link
+            classroom_course_id: document.getElementById('subj-classroom-id').value || null
         };
 
         if (id) {
             const { error } = await supabaseClient.from('subjects').update(subObj).eq('id', id);
             if (error) return alert("Error updating course.");
+            
+            // Push Venue & Instructor changes to calendar instances
+            const scope = document.getElementById('subj-update-scope').value;
+            if (scope !== 'none') {
+                let query = supabaseClient.from('class_instances')
+                    .update({ venue: subObj.venue, instructor: subObj.instructors })
+                    .eq('subject_id', id);
+                    
+                if (scope === 'from_date') {
+                    const fromDate = document.getElementById('subj-update-date').value;
+                    query = query.gte('class_date', fromDate);
+                }
+                await query;
+            }
         } else {
             const { data: subData, error: subErr } = await supabaseClient.from('subjects').insert([subObj]).select();
             if(subErr) return alert("Error saving course.");
             const newSubId = subData[0].id;
             
-            // Ensure new course is immediately visible
             window.AcadState.visibleSubjects.add(newSubId);
             localStorage.setItem(`acad_visible_subjects_${window.AcadState.activeTerm.id}`, JSON.stringify([...window.AcadState.visibleSubjects]));
 
@@ -763,28 +784,110 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         while(curr <= tEnd) {
                             const localClassDate = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-                            instances.push({
-                                subject_id: newSubId,
-                                class_date: localClassDate,
-                                start_time: sTime,
-                                end_time: eTime,
-                                modality: mod,
-                                venue: subObj.venue,
-                                instructor: subObj.instructors
-                            });
+                            instances.push({ subject_id: newSubId, class_date: localClassDate, start_time: sTime, end_time: eTime, modality: mod, venue: subObj.venue, instructor: subObj.instructors });
                             curr.setDate(curr.getDate() + 7);
                         }
                     });
                 }
             }
-
-            if(instances.length > 0) {
-                await supabaseClient.from('class_instances').insert(instances);
-            }
+            if(instances.length > 0) await supabaseClient.from('class_instances').insert(instances);
         }
 
         document.getElementById('subject-modal').classList.add('hidden');
         fetchTermData(window.AcadState.activeTerm.id);
+    });
+
+    // Toggle date input visibility for Course Modal
+    document.getElementById('subj-update-scope')?.addEventListener('change', (e) => {
+        const dateInput = document.getElementById('subj-update-date');
+        if(e.target.value === 'from_date') dateInput.classList.remove('hidden');
+        else dateInput.classList.add('hidden');
+    });
+
+    // --- 2. CLASS INSTANCE UPDATE LOGIC ---
+
+    // Toggle date input visibility for Instance Modal
+    document.getElementById('inst-update-scope')?.addEventListener('change', (e) => {
+        const dateInput = document.getElementById('inst-update-date');
+        if(e.target.value === 'from_date') dateInput.classList.remove('hidden');
+        else dateInput.classList.add('hidden');
+    });
+
+    window.openClassModal = (instanceId) => {
+        const inst = window.AcadState.classes.find(c => c.id === instanceId);
+        if (!inst) return;
+        const sub = window.AcadState.subjects.find(s => s.id === inst.subject_id);
+        
+        document.getElementById('class-inst-course').innerText = `${sub.code} - ${sub.name}`;
+        document.getElementById('inst-id').value = inst.id;
+        
+        // Inject hidden subject tracking for bulk updating
+        let subIdInput = document.getElementById('inst-subj-id');
+        if(!subIdInput) {
+            subIdInput = document.createElement('input');
+            subIdInput.type = 'hidden';
+            subIdInput.id = 'inst-subj-id';
+            document.getElementById('class-instance-modal').appendChild(subIdInput);
+        }
+        subIdInput.value = inst.subject_id;
+        
+        document.getElementById('inst-date').value = inst.class_date;
+        document.getElementById('inst-modality').value = inst.modality;
+        document.getElementById('inst-start').value = inst.start_time;
+        document.getElementById('inst-end').value = inst.end_time;
+        document.getElementById('inst-venue').value = inst.venue || '';
+        
+        // Reset scope settings
+        const scopeSel = document.getElementById('inst-update-scope');
+        if (scopeSel) {
+            scopeSel.value = 'only';
+            const dateInput = document.getElementById('inst-update-date');
+            dateInput.classList.add('hidden');
+            dateInput.value = new Date('2026-09-03').toISOString().split('T')[0]; 
+        }
+        
+        document.getElementById('class-instance-modal').classList.remove('hidden');
+    };
+
+    document.getElementById('save-inst-btn')?.addEventListener('click', async () => {
+        const id = document.getElementById('inst-id').value;
+        const subId = document.getElementById('inst-subj-id').value;
+        if(!id || !subId) return;
+        
+        const scope = document.getElementById('inst-update-scope').value;
+        const payload = {
+            modality: document.getElementById('inst-modality').value,
+            start_time: document.getElementById('inst-start').value,
+            end_time: document.getElementById('inst-end').value,
+            venue: document.getElementById('inst-venue').value.trim()
+        };
+        
+        let query = supabaseClient.from('class_instances').update(payload);
+        
+        if (scope === 'only') {
+            // Date changes only apply if editing a single entry
+            payload.class_date = document.getElementById('inst-date').value;
+            query = query.eq('id', id);
+        } else if (scope === 'all') {
+            query = query.eq('subject_id', subId);
+        } else if (scope === 'from_date') {
+            const fromDate = document.getElementById('inst-update-date').value;
+            query = query.eq('subject_id', subId).gte('class_date', fromDate);
+        }
+        
+        await query;
+        document.getElementById('class-instance-modal').classList.add('hidden');
+        fetchTermData(window.AcadState.activeTerm.id);
+    });
+
+    document.getElementById('delete-inst-btn')?.addEventListener('click', async () => {
+        const id = document.getElementById('inst-id').value;
+        if(!id) return;
+        if(confirm("Delete this session?")) {
+            await supabaseClient.from('class_instances').delete().eq('id', id);
+            document.getElementById('class-instance-modal').classList.add('hidden');
+            fetchTermData(window.AcadState.activeTerm.id);
+        }
     });
 
     document.getElementById('delete-subject-btn').addEventListener('click', async () => {

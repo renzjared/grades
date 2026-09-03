@@ -115,8 +115,7 @@
                 <div><label>Course Code</label><input type="text" id="subj-code" placeholder="CS 12"></div>
                 <div><label>Section</label><input type="text" id="subj-sec" placeholder="THX"></div>
                 <div style="grid-column: 1/-1;"><label>Course Name</label><input type="text" id="subj-name" placeholder="Data Structures"></div>
-                
-                <!-- NEW: CLASSROOM LINK DROPDOWN -->
+
                 <div style="grid-column: 1/-1;">
                     <label style="display:flex; justify-content:space-between; align-items:center;">
                         Google Classroom Link
@@ -132,6 +131,19 @@
                 <div><label>Instructor(s)</label><input type="text" id="subj-inst"></div>
                 <div style="grid-column: 1/-1;"><label>Course Icon</label><div id="icon-picker" class="icon-picker"></div><input type="hidden" id="subj-icon" value="svg:0"></div>
                 <div style="grid-column: 1/-1;"><label>Venue</label><input type="text" id="subj-venue"></div>
+
+                <!-- NEW: Course Update Scope -->
+                <div id="subj-update-scope-wrapper" class="hidden" style="grid-column: 1/-1; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border);">
+                    <label>Apply changes to calendar sessions?</label>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <select id="subj-update-scope" class="input-minimal" style="flex:1;">
+                            <option value="all">Update All Entries</option>
+                            <option value="from_date">Update All from Date...</option>
+                            <option value="none">Do not Update</option>
+                        </select>
+                        <input type="date" id="subj-update-date" class="input-minimal hidden" style="width:150px;">
+                    </div>
+                </div>
             </div>
             
             <div id="subj-blocks-wrapper" style="margin-bottom: 1.5rem;"><label>Schedule Blocks (Will generate calendar classes)</label><div id="subj-blocks-container" style="background:var(--input-bg); padding:0.5rem; border-radius:var(--radius); margin-bottom:0.5rem; max-height: 150px; overflow-y:auto;"></div><button class="btn secondary" id="add-subj-block-btn" style="font-size:0.8rem;">+ Add Time Block</button></div>
@@ -139,7 +151,31 @@
             <div style="display:flex; gap:0.5rem;"><button class="btn primary" id="save-subject-btn" style="flex:1;">Save Course</button><button class="btn danger hidden" id="delete-subject-btn">Delete</button><button class="btn secondary" onclick="document.getElementById('subject-modal').classList.add('hidden')">Cancel</button></div>
         </div>
     </div>
-    <div id="class-instance-modal" class="modal hidden"><div class="modal-content card"><h2>Edit Class Session</h2><p id="class-inst-course" style="color:var(--text-muted); font-weight:600; margin-bottom:1rem;"></p><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Date</label><input type="date" id="inst-date"></div><div style="flex:1;"><label>Modality</label><select id="inst-modality"><option value="f2f">Face to Face</option><option value="online">Online</option><option value="async">Asynchronous</option><option value="cancelled">Cancelled</option></select></div></div><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Start Time</label><input type="time" id="inst-start"></div><div style="flex:1;"><label>End Time</label><input type="time" id="inst-end"></div></div><div style="margin-bottom:1.5rem;"><label>Venue Override</label><input type="text" id="inst-venue"></div><input type="hidden" id="inst-id"><div style="display:flex; gap:0.5rem;"><button class="btn primary" id="save-inst-btn" style="flex:1;">Update Session</button><button class="btn danger" id="delete-inst-btn">Delete</button><button class="btn secondary" onclick="document.getElementById('class-instance-modal').classList.add('hidden')">Cancel</button></div></div></div>
+    <div id="class-instance-modal" class="modal hidden">
+        <div class="modal-content card"><h2>Edit Class Session</h2><p id="class-inst-course" style="color:var(--text-muted); font-weight:600; margin-bottom:1rem;"></p><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Date</label><input type="date" id="inst-date"></div><div style="flex:1;"><label>Modality</label><select id="inst-modality"><option value="f2f">Face to Face</option><option value="online">Online</option><option value="async">Asynchronous</option><option value="cancelled">Cancelled</option></select></div></div><div style="display:flex; gap:1rem; margin-bottom:1rem;"><div style="flex:1;"><label>Start Time</label><input type="time" id="inst-start"></div><div style="flex:1;"><label>End Time</label><input type="time" id="inst-end"></div></div>
+            <!-- Inside #class-instance-modal, right after the inst-venue div -->
+            <div style="margin-bottom:1rem;"><label>Venue Override</label><input type="text" id="inst-venue"></div>
+
+            <!-- NEW: Instance Update Scope -->
+            <div style="margin-bottom:1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                <label>Apply Changes To</label>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <select id="inst-update-scope" class="input-minimal" style="flex:1;">
+                        <option value="only">This Entry Only</option>
+                        <option value="all">All Entries in Course</option>
+                        <option value="from_date">All from Date...</option>
+                    </select>
+                    <input type="date" id="inst-update-date" class="input-minimal hidden" style="width:150px;">
+                </div>
+            </div>
+            <input type="hidden" id="inst-id">
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn primary" id="save-inst-btn" style="flex:1;">Update Session</button>
+                <button class="btn danger" id="delete-inst-btn">Delete</button>
+                <button class="btn secondary" onclick="document.getElementById('class-instance-modal').classList.add('hidden')">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <!-- CLASSROOM SYNC CONFIRMATION MODAL -->
 <!-- COURSE MAPPING MODAL -->
