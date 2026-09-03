@@ -293,6 +293,28 @@ function renderBentoAndTable() {
         // 4. Determine the countdown color (Red if overdue, else green/accent)
         const countdownColor = isOverdue ? '#e53e3e' : '#48bb78';
 
+        // NEW: Authentic Google Classroom Pill
+        const isClassroom = a.classroom_id || (a.link && a.link.includes('classroom.google.com'));
+
+        const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
+
+        const classroomLinkHtml = `
+        <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 3px 8px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in Google Classroom" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+            <svg width="14" height="14" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                <path fill="#F2A600" d="M41 40H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3z"/>
+                <path fill="#1E8E3E" d="M41 36H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3z"/>
+                <circle fill="#FFF" cx="24" cy="19" r="4"/>
+                <path fill="#FFF" d="M24 25c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/>
+                <circle fill="#FFF" cx="14" cy="21" r="3"/>
+                <path fill="#FFF" d="M14 26c-2.2 0-6.5 1.1-7 3.3v1.7h7v-5z"/>
+                <circle fill="#FFF" cx="34" cy="21" r="3"/>
+                <path fill="#FFF" d="M34 26c2.2 0 6.5 1.1 7 3.3v1.7h-7v-5z"/>
+            </svg>
+            <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.25px; line-height: 1;">Classroom</span>
+        </a>`;
+
+        const taskLinkHtml = a.link ? (isClassroom ? classroomLinkHtml : standardLinkHtml) : '<div style="width:20px;"></div>';
+
         html += `
         <tr class="${rowClass}">
             <td>
@@ -321,8 +343,8 @@ function renderBentoAndTable() {
                 <div>${tagHtml}</div>
             </td>
             <td>
-                <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
-                    ${a.link ? `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>` : '<div style="width:20px;"></div>'}
+                <div style="display:flex; gap:0.5rem; justify-content:flex-end; align-items: center;">
+                    ${taskLinkHtml}
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-icon edit-icon" onclick="openTaskSidebar('${a.id}')" title="Edit Task"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="2" class="action-icon delete-icon" onclick="openDeleteConfirm('${a.id}')" title="Delete Task"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </div>
@@ -372,11 +394,33 @@ function renderBentoAndTable() {
                 return tagConf ? `<span class="tag-pill" style="background:${tagConf.color}; color:${window.getContrastYIQ(tagConf.color)}; padding: 2px 6px; font-size: 0.65rem;">${tagConf.name}</span>` : '';
             }).join('');
 
+            // NEW: Kanban Authentic Google Classroom Pill
+            const isClassroom = a.classroom_id || (a.link && a.link.includes('classroom.google.com'));
+
+            const standardLinkHtml = `<a href="${a.link}" target="_blank" class="action-icon" style="color:var(--text-main); text-decoration:none;" title="Open Link" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`;
+
+            const classroomLinkHtml = `
+                <a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding: 3px 8px; border-radius: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: background 0.2s;" title="Open in Google Classroom" onmouseover="this.style.backgroundColor='var(--input-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+                    <svg width="14" height="14" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                        <path fill="#F2A600" d="M41 40H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3z"/>
+                        <path fill="#1E8E3E" d="M41 36H7a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3h34a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3z"/>
+                        <circle fill="#FFF" cx="24" cy="19" r="4"/>
+                        <path fill="#FFF" d="M24 25c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/>
+                        <circle fill="#FFF" cx="14" cy="21" r="3"/>
+                        <path fill="#FFF" d="M14 26c-2.2 0-6.5 1.1-7 3.3v1.7h7v-5z"/>
+                        <circle fill="#FFF" cx="34" cy="21" r="3"/>
+                        <path fill="#FFF" d="M34 26c2.2 0 6.5 1.1 7 3.3v1.7h-7v-5z"/>
+                    </svg>
+                    <span class="hide-on-mobile" style="font-family: 'Google Sans', 'Product Sans', sans-serif; font-weight: 600; font-size: 0.75rem; letter-spacing: 0.25px; line-height: 1;">Classroom</span>
+                </a>`;
+
+            const taskLinkHtml = a.link ? (isClassroom ? classroomLinkHtml : standardLinkHtml) : '';
+
             kanbanHtml += `
                 <div class="card" style="padding: 0.75rem; margin: 0; cursor: pointer; border-left: 3px solid ${sub.color};" onclick="openTaskSidebar('${a.id}')">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; align-items: flex-start;">
                         <span style="font-size: 0.75rem; font-weight: 600; color: ${sub.color};">${window.renderSubjectIcon(sub.icon)} ${sub.code}</span>
-                        ${a.link ? `<a href="${a.link}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>` : ''}
+                        ${taskLinkHtml}
                     </div>
                     <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; line-height: 1.3;">${a.title}</div>
                     ${tagHtml ? `<div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.75rem;">${tagHtml}</div>` : ''}
