@@ -94,7 +94,7 @@ const editor = () => document.getElementById('note-source-editor');
 const visualEditor = () => document.getElementById('visual-note-editor');
 const sourceValue = () => currentFormat === 'visual' ? visualEditor().innerHTML : editor().value;
 
-window.addEventListener('online', () => { isOnline = true; setSyncStatus('Syncing...'); syncNotesWithServer(); });
+window.addEventListener('online', async () => { isOnline = true; setSyncStatus('Syncing...'); const synced = await syncNotesWithServer(); if (activeNoteId) setSaveState(synced ? 'Saved online' : 'Saved locally'); });
 window.addEventListener('offline', () => { isOnline = false; setSyncStatus('Offline (Local mode)'); });
 function setSyncStatus(text) { const element = document.getElementById('notes-sync-status'); if (element) element.textContent = text; }
 function setSaveState(text) { const element = document.getElementById('notes-save-state'); if (element) element.textContent = text; }
@@ -700,4 +700,31 @@ window.updateNotesTree = function() {
 };
 function contextNotes() { return localNotes.filter(note => currentNotesContext.type === 'root' || (currentNotesContext.type === 'term' && note.term_id === currentNotesContext.id && !note.subject_id) || (currentNotesContext.type === 'subject' && note.subject_id === currentNotesContext.id && !note.assignment_id) || (currentNotesContext.type === 'assignment' && note.assignment_id === currentNotesContext.id)); }
 function renderNotesList() { const container = document.getElementById('notes-list-container'); if (!container) return; const notes = contextNotes().sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)); container.innerHTML = notes.length ? notes.map(note => `<button class="note-card" onclick="openEditor('${note.id}')"><span class="note-card-format">${NOTE_FORMATS[note.format || 'visual'].label}</span><h3>${escapeHtml(note.title || 'Untitled Note')}</h3><small>${new Date(note.updated_at || Date.now()).toLocaleDateString()}</small><p>${escapeHtml((note.content || '').replace(/[#*_\[\]]/g, '').slice(0, 130) || 'Empty note')}</p></button>`).join('') : '<p class="text-muted">No notes in this folder. Create one to get started.</p>'; }
-async function syncNotesWithServer() { if (!isOnline || !currentUser) return false; const dirty = localNotes.filter(note => note._isDirty); let uploadError = null; if (dirty.length) { const payload = dirty.map(note => { const clean = { ...note }; delete clean._isDirty; if (clean.id.length < 15) delete clean.id; return clean; }); const result = await supabaseClient.from('notes').upsert(payload); uploadError = result.error; } if (!uploadError) { const { data, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id); uploadError = error; if (!error && data) localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false })); } localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); setSyncStatus(uploadError ? 'Local changes' : 'Synced'); renderNotesList(); return !uploadError; }
+async function syncNotesWithServer() {
+    if (!isOnline || !currentUser) return false;
+    let uploadError = null;
+    try {
+        const dirty = localNotes.filter(note => note._isDirty);
+        if (dirty.length) {
+            const payload = dirty.map(note => {
+                const clean = { ...note };
+                delete clean._isDirty;
+                if (clean.id.length < 15) delete clean.id;
+                return clean;
+            });
+            const result = await supabaseClient.from('notes').upsert(payload);
+            uploadError = result.error;
+        }
+        if (!uploadError) {
+            const { data, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id);
+            uploadError = error;
+            if (!error && data) localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false }));
+        }
+    } catch (error) {
+        uploadError = error;
+    }
+    localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
+    setSyncStatus(uploadError ? 'Local changes' : 'Synced');
+    renderNotesList();
+    return !uploadError;
+}
