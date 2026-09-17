@@ -229,7 +229,7 @@ function resizeNotePanes(event) {
 }
 function stopNotePaneResize() { if (!notePaneResizeState) return; notePaneResizeState = null; document.body.classList.remove('resizing-note-panes'); }
 
-function createNewNote(format = 'visual') { openEditor(null, 'Untitled Note', NOTE_FORMATS[format] ? format : 'visual'); }
+function createNewNote(format = 'visual') { guardNoteNavigation(() => openEditor(null, 'Untitled Note', NOTE_FORMATS[format] ? format : 'visual')); }
 function toggleNewNoteMenu() { const menu = document.getElementById('new-note-type-menu'); const toggle = document.getElementById('new-note-type-toggle'); const open = menu.classList.toggle('open'); toggle.setAttribute('aria-expanded', String(open)); }
 function closeNewNoteMenu() { const menu = document.getElementById('new-note-type-menu'); const toggle = document.getElementById('new-note-type-toggle'); if (!menu) return; menu.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); }
 
@@ -652,7 +652,7 @@ function runFileAction(action) {
     if (['undo', 'redo', 'cut', 'copy', 'paste', 'paste-plain'].includes(action)) return runEditAction(action);
 }
 function runEditAction(action) { if (action === 'paste-plain') navigator.clipboard?.readText().then(text => document.execCommand('insertText', false, text)); else document.execCommand(action === 'paste-plain' ? 'paste' : action); }
-function duplicateNote() { const note = activeNote(); if (!note) return; openEditor(); document.getElementById('note-title-input').value = `${note.title} Copy`; visualEditor().innerHTML = note.visual_content || ''; editor().value = note.content || ''; setFormat(note.format || 'visual'); }
+function duplicateNote() { const note = activeNote(); if (!note) return; guardNoteNavigation(() => { openEditor(); document.getElementById('note-title-input').value = `${note.title} Copy`; visualEditor().innerHTML = note.visual_content || ''; editor().value = note.content || ''; setFormat(note.format || 'visual'); }); }
 function printNote() {
     const preview = document.getElementById('custom-preview-pane');
     const printWindow = window.open('', '_blank', 'noopener,noreferrer');
@@ -676,8 +676,11 @@ async function saveActiveNote() {
     let note = activeNote();
     if (!note) { note = { id: Math.random().toString(36).slice(2, 11), user_id: currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
     note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? visualEditor().innerHTML : note.visual_content || ''; note.updated_at = now; note._isDirty = true;
-    localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); setSaveState('Saved locally');
-    if (isOnline) await syncNotesWithServer();
+    localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
+    if (isOnline) {
+        const synced = await syncNotesWithServer();
+        setSaveState(synced ? 'Saved online' : 'Saved locally');
+    } else setSaveState('Saved locally');
 }
 async function deleteActiveNote() { if (!activeNoteId) return; const note = activeNote(); openNotesModal('Delete note?', `<p class="notes-modal-copy">This will permanently remove <strong>${escapeHtml(note?.title || 'Untitled Note')}</strong>. This action cannot be undone.</p>`, 'Delete note', async () => { const deletedId = activeNoteId; localNotes = localNotes.filter(item => item.id !== deletedId); localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); if (isOnline && deletedId.length > 15) await supabaseClient.from('notes').delete().eq('id', deletedId); closeEditor(); }, 'danger'); }
 
@@ -697,4 +700,4 @@ window.updateNotesTree = function() {
 };
 function contextNotes() { return localNotes.filter(note => currentNotesContext.type === 'root' || (currentNotesContext.type === 'term' && note.term_id === currentNotesContext.id && !note.subject_id) || (currentNotesContext.type === 'subject' && note.subject_id === currentNotesContext.id && !note.assignment_id) || (currentNotesContext.type === 'assignment' && note.assignment_id === currentNotesContext.id)); }
 function renderNotesList() { const container = document.getElementById('notes-list-container'); if (!container) return; const notes = contextNotes().sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)); container.innerHTML = notes.length ? notes.map(note => `<button class="note-card" onclick="openEditor('${note.id}')"><span class="note-card-format">${NOTE_FORMATS[note.format || 'visual'].label}</span><h3>${escapeHtml(note.title || 'Untitled Note')}</h3><small>${new Date(note.updated_at || Date.now()).toLocaleDateString()}</small><p>${escapeHtml((note.content || '').replace(/[#*_\[\]]/g, '').slice(0, 130) || 'Empty note')}</p></button>`).join('') : '<p class="text-muted">No notes in this folder. Create one to get started.</p>'; }
-async function syncNotesWithServer() { if (!isOnline || !currentUser) return; const dirty = localNotes.filter(note => note._isDirty); let uploadError = null; if (dirty.length) { const payload = dirty.map(note => { const clean = { ...note }; delete clean._isDirty; if (clean.id.length < 15) delete clean.id; return clean; }); const result = await supabaseClient.from('notes').upsert(payload); uploadError = result.error; } if (!uploadError) { const { data, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id); if (!error && data) localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false })); } localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); setSyncStatus(uploadError ? 'Local changes' : 'Synced'); renderNotesList(); }
+async function syncNotesWithServer() { if (!isOnline || !currentUser) return false; const dirty = localNotes.filter(note => note._isDirty); let uploadError = null; if (dirty.length) { const payload = dirty.map(note => { const clean = { ...note }; delete clean._isDirty; if (clean.id.length < 15) delete clean.id; return clean; }); const result = await supabaseClient.from('notes').upsert(payload); uploadError = result.error; } if (!uploadError) { const { data, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id); uploadError = error; if (!error && data) localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false })); } localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); setSyncStatus(uploadError ? 'Local changes' : 'Synced'); renderNotesList(); return !uploadError; }
