@@ -12,6 +12,31 @@ let autosaveTimer = null;
 let tableResizeState = null;
 let savedVisualRange = null;
 let notePaneResizeState = null;
+let selectedEquation = null;
+let emojiDatasetPromise = null;
+const EMOJI_CATEGORY_ICONS = { 'Smileys & Emotion': 'face', 'People & Body': 'person', 'Animals & Nature': 'leaf', 'Food & Drink': 'food', 'Travel & Places': 'travel', Activities: 'activity', Objects: 'object', Symbols: 'symbol', Flags: 'flag', Other: 'other' };
+const EMOJI_CATEGORY_ORDER = ['Smileys & Emotion', 'People & Body', 'Animals & Nature', 'Food & Drink', 'Travel & Places', 'Activities', 'Objects', 'Symbols', 'Flags', 'Other'];
+const SPECIAL_CHARACTER_FOLDERS = {
+    Math: ['+', '−', '±', '×', '÷', '=', '≠', '<', '>', '≤', '≥', '≈', '≡', '∼', '∞', '√', '∑', '∏', '∫', '∂', '∇', '∆', '∝', '∴', '∵', '∈', '∉', '⊂', '⊆', '⊃', '⊇', '∪', '∩', '∅', '∀', '∃', '¬', '∧', '∨', '⊕', '⊗', 'ℝ', 'ℤ', 'ℚ', 'ℕ', 'ℂ'],
+    Greek: ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω', 'Α', 'Β', 'Γ', 'Δ', 'Ε', 'Ζ', 'Η', 'Θ', 'Ι', 'Κ', 'Λ', 'Μ', 'Ν', 'Ξ', 'Ο', 'Π', 'Ρ', 'Σ', 'Τ', 'Υ', 'Φ', 'Χ', 'Ψ', 'Ω'],
+    Arrows: ['←', '→', '↑', '↓', '↔', '↕', '↗', '↘', '↙', '↖', '⇐', '⇒', '⇑', '⇓', '⇔', '⟵', '⟶', '⟷', '➜', '➝', '➞', '➤'],
+    Sets: ['∅', '∈', '∉', '∋', '⊂', '⊃', '⊆', '⊇', '∪', '∩', '\u2206', 'ℝ', 'ℤ', 'ℚ', 'ℕ', 'ℂ', '𝒫', '𝔽'],
+    Punctuation: ['©', '®', '™', '§', '¶', '†', '‡', '•', '…', '′', '″', '‰', '‱', '※', '⁂', '¡', '¿', '«', '»', '‹', '›', '—', '–', '·'],
+    Currency: ['$','€','£','¥','₱','₩','₹','₽','₺','₴','₦','₫','₲','₡','₵','₸','₼','₾']
+};
+const EQUATION_TEMPLATES = {
+    fraction: { label: 'Fraction', source: String.raw`\frac{a}{b}`, html: '<span class="equation-fraction"><span class="equation-slot">a</span><span class="equation-slot">b</span></span>' },
+    mixed: { label: 'Mixed fraction', source: String.raw`2\frac{a}{b}`, html: '<span class="equation-mixed-whole equation-slot">2</span><span class="equation-fraction"><span class="equation-slot">a</span><span class="equation-slot">b</span></span>' },
+    root: { label: 'Square root', source: String.raw`\sqrt{x}`, html: '<span class="equation-root"><span class="equation-slot">x</span></span>' },
+    integral: { label: 'Integral', source: String.raw`\int_a^b f(x)\,dx`, html: '<span class="equation-integral"><span class="equation-slot equation-lower">a</span><span class="equation-slot equation-upper">b</span><span class="equation-slot equation-wide">f(x) dx</span></span>' },
+    derivative: { label: 'Derivative', source: String.raw`\left[\frac{d}{dx}f(x)\right]`, html: '<span class="equation-bracket">[</span><span class="equation-derivative"><span class="equation-slot">d</span><span class="equation-slot">dx</span></span><span class="equation-slot equation-wide">f(x)</span><span class="equation-bracket">]</span>' },
+    exponent: { label: 'Exponent', source: String.raw`x^{n}`, html: '<span class="equation-slot">x</span><sup class="equation-slot">n</sup>' },
+    bar: { label: 'Bar', source: String.raw`\overline{x}`, html: '<span class="equation-bar equation-slot">x</span>' },
+    underline: { label: 'Underline', source: String.raw`\underline{x}`, html: '<span class="equation-underline equation-slot">x</span>' },
+    real: { label: 'Real numbers', source: String.raw`x\in\mathbb{R}`, html: '<span class="equation-slot">x</span> ∈ ℝ' },
+    integers: { label: 'Integers', source: String.raw`z\in\mathbb{Z}`, html: '<span class="equation-slot">z</span> ∈ ℤ' },
+    set: { label: 'Set notation', source: String.raw`\{x\mid x\in\mathbb{R}\}`, html: '{ <span class="equation-slot">x</span> | <span class="equation-slot equation-wide">x ∈ ℝ</span> }' }
+};
 let currentNotesContext = JSON.parse(localStorage.getItem('acad_notes_active') || '{"type":"root","id":null}');
 let expandedNoteFolders = new Set(JSON.parse(localStorage.getItem('acad_notes_expanded') || '[]'));
 
@@ -27,7 +52,7 @@ const NOTE_TEMPLATES = {
 \usepackage{amsmath}
 \usepackage[margin=2.5cm]{geometry}
 
-	itle{Untitled Note}
+${'\\'}title{Untitled Note}
 \author{}
 \date{\today}
 
@@ -134,16 +159,21 @@ function bindNotesControls() {
     document.querySelectorAll('[data-command]').forEach(control => control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'click', () => runVisualCommand(control.dataset.command, control.dataset.value || control.value)));
     document.querySelectorAll('.notes-menu-button').forEach(button => button.addEventListener('click', () => toggleMenu(button.dataset.menu)));
     document.querySelectorAll('.notes-dropdown [data-action]').forEach(button => button.addEventListener('click', () => { runFileAction(button.dataset.action); closeMenus(); }));
+    document.querySelectorAll('#insert-menu [data-insert-action]').forEach(button => button.addEventListener('click', () => { runInsertAction(button.dataset.insertAction); closeMenus(); }));
     document.addEventListener('click', event => { if (!event.target.closest('.notes-menu-group')) closeMenus(); if (!event.target.closest('.notes-new-group')) closeNewNoteMenu(); });
     document.addEventListener('keydown', handleNotesShortcut);
+    document.addEventListener('mousedown', event => { if (!event.target.closest('.note-equation.is-editing, .note-equation.is-raw-editing')) finalizeEditingEquations(); });
     document.getElementById('notes-modal-close').addEventListener('click', closeNotesModal);
     document.getElementById('notes-modal').addEventListener('click', event => { if (event.target.id === 'notes-modal') closeNotesModal(); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !document.getElementById('notes-modal').classList.contains('hidden')) closeNotesModal(); });
     document.querySelectorAll('[data-table-action]').forEach(control => control.addEventListener('click', () => runTableAction(control.dataset.tableAction, control.dataset.borderStyle || control.value)));
     document.querySelectorAll('.color-tool').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.colorTarget)?.click()));
     document.querySelectorAll('.color-picker-input').forEach(input => input.addEventListener('input', () => { if (input.id === 'font-color-picker') runVisualCommand('foreColor', input.value); else runTableAction(input.id === 'cell-color-picker' ? 'cell-color' : 'border-color', input.value); }));
+    document.querySelectorAll('[data-equation-action]').forEach(control => control.addEventListener('click', () => control.dataset.equationAction === 'color' ? document.getElementById(control.dataset.colorTarget)?.click() : runEquationAction(control.dataset.equationAction, control.dataset.equation)));
+    document.getElementById('equation-color-picker').addEventListener('input', event => runEquationAction('color', event.target.value));
     visualEditor().addEventListener('contextmenu', openTableContextMenu);
     visualEditor().addEventListener('click', selectTableAtEvent);
+    visualEditor().addEventListener('click', selectEquationAtEvent);
     visualEditor().addEventListener('mouseup', selectTableAtEvent);
     visualEditor().addEventListener('dragstart', handleTableDragStart);
     visualEditor().addEventListener('dragover', handleTableDragOver);
@@ -157,6 +187,7 @@ function bindNotesControls() {
 
 function handleNotesShortcut(event) {
     if (document.getElementById('note-editor-pane').classList.contains('hidden')) return;
+    if (currentFormat === 'visual' && event.altKey && (event.key === '=' || event.code === 'Equal')) { event.preventDefault(); runVisualCommand('insertEquation', null, true); return; }
     if (!(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
     if (key === 'b') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('bold'); else document.execCommand('bold'); }
@@ -171,6 +202,7 @@ function setFormat(format, shouldConvert = false) {
     document.getElementById('visual-toolbar').classList.toggle('hidden', format !== 'visual');
     document.getElementById('note-editor-pane').classList.toggle('visual-mode', format === 'visual');
     document.getElementById('note-format-description').textContent = NOTE_FORMATS[format].description;
+    document.getElementById('note-editor-pane').classList.toggle('computer-modern-mode', format === 'latex');
     const isVisual = format === 'visual';
     document.getElementById('note-preview-toggle-label').classList.toggle('hidden', isVisual);
     document.getElementById('note-editor-only').checked = isVisual;
@@ -235,18 +267,39 @@ function openNotesModal(title, body, confirmLabel = '', onConfirm = null, tone =
     setTimeout(() => footer.querySelector('[data-modal-confirm]')?.focus(), 0);
 }
 function closeNotesModal() { document.getElementById('notes-modal').classList.add('hidden'); notesModalConfirm = null; }
-function runVisualCommand(command, value) {
+function runVisualCommand(command, value, editEquation = false) {
     restoreVisualSelection();
     visualEditor().focus();
     if (command === 'insertTable') { document.execCommand('insertHTML', false, '<table class="note-table" draggable="true" data-border-style="solid"><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table><p></p>'); makeTablesInteractive(); }
     else if (command === 'insertCode') document.execCommand('insertHTML', false, '<pre class="note-code-block"><code>code</code></pre><p></p>');
-    else if (command === 'insertEquation') document.execCommand('insertHTML', false, '<span class="note-equation" contenteditable="false">\\(x^2 + y^2 = z^2\\)</span>&nbsp;');
+    else if (command === 'insertEquation') insertEquation(editEquation ? '' : EQUATION_TEMPLATES.exponent.source, editEquation);
     else if (command === 'indent' || command === 'outdent') runListIndentCommand(command);
     else if (command === 'insertUnorderedList' || command === 'insertOrderedList') { document.execCommand(command, false, null); indentCurrentListItem(); }
     else document.execCommand(command, false, value || null);
     saveVisualSelection();
     updateLivePreview();
 }
+
+function runInsertAction(action) {
+    if (action === 'image') return openNotesModal('Insert image', '<label class="notes-modal-label" for="insert-image-url">Image URL</label><input id="insert-image-url" class="notes-modal-select" type="url" placeholder="https://example.com/image.png"><label class="notes-modal-label" for="insert-image-alt">Alt text</label><input id="insert-image-alt" class="notes-modal-select" type="text" placeholder="Describe the image">', 'Insert image', () => insertImage(document.getElementById('insert-image-url')?.value, document.getElementById('insert-image-alt')?.value));
+    if (action === 'table') return runVisualCommand('insertTable');
+    if (action === 'link') return openNotesModal('Insert link', '<label class="notes-modal-label" for="insert-link-url">URL</label><input id="insert-link-url" class="notes-modal-select" type="url" placeholder="https://example.com"><label class="notes-modal-label" for="insert-link-text">Link text</label><input id="insert-link-text" class="notes-modal-select" type="text" placeholder="Optional text">', 'Insert link', () => insertLink(document.getElementById('insert-link-url')?.value, document.getElementById('insert-link-text')?.value));
+    if (action === 'emoji') return openCharacterSelector('Choose emoji', 'emoji');
+    if (action === 'special') return openCharacterSelector('Special characters', 'special');
+    if (action === 'equation') return runVisualCommand('insertEquation');
+}
+function insertSourceText(value) { const source = editor(); const start = source.selectionStart; const end = source.selectionEnd; source.setRangeText(value, start, end, 'end'); source.focus(); }
+function insertImage(url, alt = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, `<img class="note-image" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" draggable="false">&nbsp;`); } else if (currentFormat === 'md') insertSourceText(`![${alt || 'Image'}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\includegraphics[width=\\linewidth]{${url}}`); else insertSourceText(`#image("${url}", width: 100%)`); setSaveState('Unsaved changes'); updateLivePreview(); }
+function insertLink(url, text = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); if (text) document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`); else document.execCommand('createLink', false, url); } else if (currentFormat === 'md') insertSourceText(`[${text || url}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\href{${url}}{${text || url}}`); else insertSourceText(`#link("${url}")[${text || url}]`); setSaveState('Unsaved changes'); updateLivePreview(); }
+function unicodeEmoji(value) { if (!value) return ''; const normalized = (Array.isArray(value) ? value.join(' ') : String(value)).replace(/U\+/gi, '').trim(); const codes = normalized.split(/[\s_-]+/).filter(Boolean); if (codes.length && codes.every(code => /^[0-9A-F]+$/i.test(code))) return String.fromCodePoint(...codes.map(code => parseInt(code, 16))); return value; }
+function fallbackEmojiFolders() { return { 'Smileys & Emotion': '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😋 😛 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🫡 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 ☠️ 👽 👾 🤖 🎃'.split(' '), 'People & Body': '👋 🤚 🖐️ ✋ 🖖 👌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✍️ 👏 🙌 👐 🤝 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 💕 💞 💓 💗 💖 💘 💝 💟'.split(' '), 'Animals & Nature': '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐙 🦋 🐝 🐞 🐢 🐍 🦎 🐳 🐬 🐟 🦈 🐊 🦓 🦒 🐘 🦏 🦛 🐪 🐫 🌸 🌹 🌻 🌞 🌝 🌈 ⭐ 🌟 ⚡ 🔥 ❄️'.split(' '), 'Food & Drink': '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥕 🌽 🌶️ 🍔 🍕 🌭 🌮 🍿 🍜 🍣 🍪 🎂 🍰 🍫 🍭 ☕ 🧃 🍺 🍻 🍷'.split(' '), Activities: '⚽ 🏀 🏈 ⚾ 🎾 🏐 🏉 🎱 🪀 🏆 🥇 🎮 🎲 🎭 🎨 🎼 🎸 🚗 🚕 🚌 🚓 🚑 ✈️ 🚀 🚲 🏠 🏫 🏥 🗺️ 🌍 🏖️ 🏔️'.split(' '), Objects: '⌚ 📱 💻 ⌨️ 🖨️ 📷 🔋 💡 📚 📖 ✏️ 📝 📌 📎 🔒 🔑 🔨 🔬 🔭 💰 🎁 🎈 🎉 ✅ ❌ ❗ ❓ ⚠️ 💯 🔗'.split(' ') }; }
+function emojiCategoryIcon(category) { const paths = { face: '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r=".7" fill="currentColor"/><circle cx="15" cy="10" r=".7" fill="currentColor"/><path d="M8.5 14.2c1 1.7 6 1.7 7 0"/>', person: '<circle cx="12" cy="6.5" r="3"/><path d="M6.5 21c.4-4.4 2.2-7 5.5-7s5.1 2.6 5.5 7M4 12h4m12 0h-4"/>', leaf: '<path d="M20 4C10 4 5 8 5 15c0 2.8 2 5 5 5 7 0 10-6 10-16Z"/><path d="M4 21c3-5 7-8 13-11"/>', food: '<path d="M6 3v7M9 3v7M6 7h3M7.5 10v11M17 3v18M17 3c3 2 3 6 0 8"/>', travel: '<path d="M3 17h18M5 17l1.5-6h11L20 17M8 11V8h8v3M7 20h2m6 0h2"/>', activity: '<circle cx="12" cy="12" r="8.5"/><path d="m12 7 1.5 3h3l-2.4 1.8.9 3.2-3-1.8-3 1.8.9-3.2L7.5 10h3z"/>', object: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 8h8M8 12h5M8 16h8"/>', symbol: '<circle cx="12" cy="12" r="8.5"/><path d="M8 12h8M12 8v8"/>', flag: '<path d="M6 21V4m0 0c4-3 6 3 12 0v9c-6 3-8-3-12 0"/>', other: '<circle cx="12" cy="12" r="8.5"/><circle cx="8.5" cy="12" r=".7" fill="currentColor"/><circle cx="12" cy="12" r=".7" fill="currentColor"/><circle cx="15.5" cy="12" r=".7" fill="currentColor"/>' }; return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[EMOJI_CATEGORY_ICONS[category]] || paths.other}</svg>`; }
+function characterEntry(value) { return typeof value === 'string' ? { character: value, name: '' } : value; }
+function characterSelectorMarkup(folders, emojiMode = false) { const entries = Object.entries(folders); if (emojiMode) return `<div class="character-folders emoji-selector"><input id="emoji-search" class="emoji-search" type="search" placeholder="Search emoji" aria-label="Search emoji"><div class="emoji-category-bar">${entries.map(([folder], index) => `<button type="button" class="emoji-category-button" data-folder-jump="emoji-category-${index}" title="${escapeHtml(folder)}" aria-label="Jump to ${escapeHtml(folder)}">${emojiCategoryIcon(folder)}</button>`).join('')}</div><div class="emoji-scroll" id="emoji-scroll">${entries.map(([folder, characters], index) => `<section class="emoji-category-section" id="emoji-category-${index}" data-emoji-section><h4>${emojiCategoryIcon(folder)}<span>${escapeHtml(folder)}</span></h4><div class="character-grid">${characters.map(value => { const entry = characterEntry(value); return `<button type="button" class="character-option" data-character="${escapeHtml(entry.character)}" data-search="${escapeHtml(`${entry.name} ${entry.character}`.toLowerCase())}" title="${escapeHtml(entry.name || folder)}">${entry.character}</button>`; }).join('')}</div></section>`).join('')}</div></div>`; return `<div class="character-folders"><div class="character-folder-tabs">${entries.map(([folder], index) => `<button type="button" class="character-folder-tab${index === 0 ? ' active' : ''}" data-folder-tab="${index}" title="${escapeHtml(folder)}" aria-label="${escapeHtml(folder)}">${escapeHtml(folder)}</button>`).join('')}</div>${entries.map(([folder, characters], index) => `<div class="character-folder${index === 0 ? ' active' : ''}" data-folder-panel="${index}"><div class="character-grid">${characters.map(value => { const entry = characterEntry(value); return `<button type="button" class="character-option" data-character="${escapeHtml(entry.character)}" title="${escapeHtml(folder)}">${entry.character}</button>`; }).join('')}</div></div>`).join('')}</div>`; }
+function bindCharacterSelector() { document.querySelectorAll('[data-folder-tab]').forEach(tab => tab.addEventListener('click', () => { document.querySelectorAll('.character-folder-tab, .character-folder').forEach(item => item.classList.remove('active')); tab.classList.add('active'); document.querySelector(`[data-folder-panel="${tab.dataset.folderTab}"]`)?.classList.add('active'); })); document.querySelectorAll('[data-folder-jump]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.folderJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))); document.getElementById('emoji-search')?.addEventListener('input', event => { const query = event.target.value.trim().toLowerCase(); document.querySelectorAll('[data-emoji-section]').forEach(section => { let visible = 0; section.querySelectorAll('[data-character]').forEach(button => { const match = !query || button.dataset.search.includes(query); button.classList.toggle('hidden', !match); if (match) visible += 1; }); section.classList.toggle('hidden', Boolean(query) && visible === 0); }); }); document.querySelectorAll('[data-character]').forEach(button => button.addEventListener('click', () => { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertText', false, button.dataset.character); closeNotesModal(); setSaveState('Unsaved changes'); updateLivePreview(); })); }
+function emojiCategory(category = '') { const normalized = category.toLowerCase(); if (normalized.includes('smile') || normalized.includes('emotion')) return 'Smileys & Emotion'; if (normalized.includes('people') || normalized.includes('body')) return 'People & Body'; if (normalized.includes('animal') || normalized.includes('nature')) return 'Animals & Nature'; if (normalized.includes('food') || normalized.includes('drink')) return 'Food & Drink'; if (normalized.includes('travel') || normalized.includes('place')) return 'Travel & Places'; if (normalized.includes('activit')) return 'Activities'; if (normalized.includes('object')) return 'Objects'; if (normalized.includes('symbol')) return 'Symbols'; if (normalized.includes('flag')) return 'Flags'; return 'Other'; }
+function orderedEmojiFolders(folders) { return Object.fromEntries(EMOJI_CATEGORY_ORDER.filter(category => folders[category]?.length).map(category => [category, folders[category]])); }
+async function openCharacterSelector(title, type) { openNotesModal(title, '<div class="text-muted">Loading characters...</div>'); let folders = type === 'special' ? SPECIAL_CHARACTER_FOLDERS : null; if (!folders) { try { if (!emojiDatasetPromise) emojiDatasetPromise = fetch('https://cdn.jsdelivr.net/npm/emoji.json@13.1.0/emoji.json').then(response => response.ok ? response.json() : Promise.reject(new Error('Emoji data unavailable'))); const data = await emojiDatasetPromise; const entries = Array.isArray(data) ? data : Object.entries(data).map(([name, value]) => ({ name, emoji: value })); folders = entries.reduce((groups, item) => { const folder = emojiCategory(item.category || item.group || item.name || ''); const character = item.emoji || item.character || unicodeEmoji(item.unicode || item.codes); if (character) (groups[folder] ||= []).push({ character, name: item.name || '' }); return groups; }, {}); folders = orderedEmojiFolders(folders); if (!Object.keys(folders).length) throw new Error('Emoji data was empty'); } catch (error) { folders = fallbackEmojiFolders(); } } const body = document.querySelector('#notes-modal-body'); if (body && !document.getElementById('notes-modal').classList.contains('hidden')) { body.innerHTML = characterSelectorMarkup(folders, type === 'emoji'); bindCharacterSelector(); } }
 
 function saveVisualSelection() {
     const selection = window.getSelection();
@@ -275,7 +328,52 @@ function runListIndentCommand(command) {
 }
 
 function hasUnsavedChanges() { const pane = document.getElementById('note-editor-pane'); return Boolean(pane && !pane.classList.contains('hidden') && document.getElementById('notes-save-state')?.textContent === 'Unsaved changes'); }
-function selectTableAtEvent(event) { const table = event.target.closest('table'); if (!table || !visualEditor().contains(table)) return; selectedTable = table; wholeTableSelected = !event.target.closest('td,th'); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); document.getElementById('table-toolbar').classList.remove('hidden'); table.classList.add('table-selected'); makeTableInteractive(table); }
+function selectTableAtEvent(event) { const table = event.target.closest('table'); if (!table || !visualEditor().contains(table)) return; selectedEquation = null; document.getElementById('equation-toolbar').classList.add('hidden'); selectedTable = table; wholeTableSelected = !event.target.closest('td,th'); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); document.getElementById('table-toolbar').classList.remove('hidden'); table.classList.add('table-selected'); makeTableInteractive(table); }
+function insertEquation(source, edit = false) { document.execCommand('insertHTML', false, `<span class="note-equation" contenteditable="false" data-new-equation="true" data-source="${escapeHtml(source)}">${renderKatex(source, false)}</span>&nbsp;`); const equation = visualEditor().querySelector('.note-equation[data-new-equation="true"]'); if (!equation) return; equation.removeAttribute('data-new-equation'); if (edit) openRawEquationEditor(equation); }
+function equationSource(equation) { return equation.dataset.source || equation.textContent.replace(/^\\\(|\\\)$/g, '').trim(); }
+function equationVisualMarkup(source) {
+    const template = Object.values(EQUATION_TEMPLATES).find(item => item.source === source);
+    return template?.html || `<span class="equation-slot equation-wide">${escapeHtml(source)}</span>`;
+}
+function enterEquationVisualEdit(equation) {
+    finalizeEditingEquations(equation);
+    equation.dataset.source = equationSource(equation);
+    equation.innerHTML = equationVisualMarkup(equation.dataset.source);
+    equation.contentEditable = 'true';
+    equation.classList.add('is-editing');
+    const firstSlot = equation.querySelector('.equation-slot');
+    const range = document.createRange();
+    range.selectNodeContents(firstSlot || equation);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    equation.focus();
+}
+function latexFromVisual(equation) {
+    const source = equationSource(equation);
+    const template = Object.values(EQUATION_TEMPLATES).find(item => item.source === source);
+    if (!template) return equation.textContent.trim();
+    const values = [...equation.querySelectorAll('.equation-slot')].map(slot => slot.textContent.trim() || '?');
+    if (source === EQUATION_TEMPLATES.fraction.source) return String.raw`\frac{${values[0]}}{${values[1]}}`;
+    if (source === EQUATION_TEMPLATES.mixed.source) return String.raw`${values[0]}\frac{${values[1]}}{${values[2]}}`;
+    if (source === EQUATION_TEMPLATES.root.source) return String.raw`\sqrt{${values[0]}}`;
+    if (source === EQUATION_TEMPLATES.integral.source) return String.raw`\int_${values[0]}^${values[1]} ${values[2].replace(/\s+/, String.raw`\,`)}`;
+    if (source === EQUATION_TEMPLATES.derivative.source) return String.raw`\left[\frac{${values[0]}}{${values[1]}}${values[2]}\right]`;
+    if (source === EQUATION_TEMPLATES.exponent.source) return String.raw`${values[0]}^{${values[1]}}`;
+    if (source === EQUATION_TEMPLATES.bar.source) return String.raw`\overline{${values[0]}}`;
+    if (source === EQUATION_TEMPLATES.underline.source) return String.raw`\underline{${values[0]}}`;
+    if (source === EQUATION_TEMPLATES.real.source) return String.raw`${values[0]}\in\mathbb{R}`;
+    if (source === EQUATION_TEMPLATES.integers.source) return String.raw`${values[0]}\in\mathbb{Z}`;
+    if (source === EQUATION_TEMPLATES.set.source) return String.raw`\{${values[0]}\mid ${values[1]}\}`;
+    return source;
+}
+function finalizeEditingEquations(except = null) { let finalized = false; visualEditor().querySelectorAll('.note-equation.is-editing').forEach(equation => { if (equation === except) return; const source = latexFromVisual(equation); equation.dataset.source = source; equation.contentEditable = 'false'; equation.classList.remove('is-editing', 'equation-selected'); equation.innerHTML = renderKatex(source, false); finalized = true; }); if (finalized) updateLivePreview(); }
+function finishRawEquationEditor(equation, source) { equation.dataset.source = source.trim() || 'x'; equation.contentEditable = 'false'; equation.classList.remove('is-raw-editing', 'equation-selected'); equation.innerHTML = renderKatex(equation.dataset.source, false); setSaveState('Unsaved changes'); updateLivePreview(); }
+function resizeRawEquationInput(input) { input.style.width = `${Math.max(2, input.value.length + 1)}ch`; }
+function openRawEquationEditor(equation) { if (equation.classList.contains('is-editing')) equation.dataset.source = latexFromVisual(equation); const source = equationSource(equation); equation.contentEditable = 'false'; equation.classList.remove('is-editing'); equation.classList.add('is-raw-editing'); equation.innerHTML = `<input class="equation-latex-inline" type="text" aria-label="Equation LaTeX" value="${escapeHtml(source)}">`; const input = equation.querySelector('.equation-latex-inline'); resizeRawEquationInput(input); input.focus(); input.setSelectionRange(input.value.length, input.value.length); input.addEventListener('input', () => { resizeRawEquationInput(input); setSaveState('Unsaved changes'); }); input.addEventListener('blur', () => finishRawEquationEditor(equation, input.value), { once: true }); input.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); finishRawEquationEditor(equation, source); } }); }
+function selectEquationAtEvent(event) { const equation = event.target.closest('.note-equation'); if (!equation || !visualEditor().contains(equation) || equation.classList.contains('is-raw-editing')) return; selectedTable = null; document.getElementById('table-toolbar').classList.add('hidden'); selectedEquation = equation; document.querySelectorAll('.equation-selected').forEach(item => item.classList.remove('equation-selected')); document.getElementById('equation-toolbar').classList.remove('hidden'); equation.classList.add('equation-selected'); if (event.detail > 1) { finalizeEditingEquations(); openRawEquationEditor(equation); } else if (!equation.classList.contains('is-editing')) enterEquationVisualEdit(equation); }
+function runEquationAction(action, value) { if (!selectedEquation) return; finalizeEditingEquations(selectedEquation); if (action === 'template') { selectedEquation.dataset.source = value; openRawEquationEditor(selectedEquation); } if (action === 'size-up') selectedEquation.classList.add('equation-large'); if (action === 'size-down') selectedEquation.classList.remove('equation-large'); if (action === 'color') selectedEquation.style.color = value; setSaveState('Unsaved changes'); updateLivePreview(); }
 function makeTableInteractive(table) { if (!table) return; table.draggable = true; table.classList.add('note-table'); table.dataset.borderStyle = table.dataset.borderStyle || 'solid'; document.querySelectorAll('.border-style-button').forEach(button => button.classList.toggle('active', button.dataset.borderStyle === table.dataset.borderStyle)); }
 function makeTablesInteractive() { visualEditor().querySelectorAll('table').forEach(makeTableInteractive); }
 function handleTableDragStart(event) { const table = event.target.closest('table'); if (!table) return; selectedTable = table; wholeTableSelected = true; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'note-table'); table.classList.add('table-dragging'); }
@@ -304,8 +402,53 @@ function runTableAction(action, value) {
     setSaveState('Unsaved changes'); updateLivePreview(); closeTableContextMenu();
 }
 
+function equationRawInput(equation) { return equation?.querySelector('.equation-latex-inline'); }
+function placeCaretAroundEquation(equation, direction) { const selection = window.getSelection(); const range = document.createRange(); if (direction === 'before') range.setStartBefore(equation); else range.setStartAfter(equation); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); visualEditor().focus(); saveVisualSelection(); }
+function enterAdjacentEquation(equation, direction) { if (!equation) return false; openRawEquationEditor(equation); const input = equationRawInput(equation); if (!input) return false; const position = direction === 'start' ? 0 : input.value.length; input.focus(); input.setSelectionRange(position, position); return true; }
+function handleEquationNavigation(event) {
+    const rawEquation = event.target.closest?.('.note-equation.is-raw-editing');
+    if (rawEquation) {
+        const input = equationRawInput(rawEquation);
+        if (!input || !event.shiftKey && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return false;
+        if (event.key === 'ArrowLeft' && input.selectionStart === 0 && input.selectionEnd === 0) { event.preventDefault(); finishRawEquationEditor(rawEquation, input.value); placeCaretAroundEquation(rawEquation, 'before'); return true; }
+        if (event.key === 'ArrowRight' && input.selectionStart === input.value.length && input.selectionEnd === input.value.length) { event.preventDefault(); finishRawEquationEditor(rawEquation, input.value); placeCaretAroundEquation(rawEquation, 'after'); return true; }
+        return false;
+    }
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed) return false;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return false;
+    const adjacent = adjacentNode(selection.anchorNode, selection.anchorOffset, event.key === 'ArrowLeft' ? 'previous' : 'next');
+    const equation = adjacent?.closest?.('.note-equation');
+    if (!equation || !visualEditor().contains(equation)) return false;
+    event.preventDefault();
+    return enterAdjacentEquation(equation, event.key === 'ArrowLeft' ? 'end' : 'start');
+}
+function adjacentNode(node, offset, direction) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) {
+        const before = node.textContent.slice(0, offset).replace(/\u00a0/g, '').trim();
+        const after = node.textContent.slice(offset).replace(/\u00a0/g, '').trim();
+        if ((direction === 'previous' && before) || (direction === 'next' && after)) return null;
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const child = node.childNodes[direction === 'previous' ? offset - 1 : offset];
+        if (child) return child.nodeType === Node.TEXT_NODE && !child.textContent.replace(/\u00a0/g, '').trim() ? adjacentNode(node, direction === 'previous' ? offset - 1 : offset + 1, direction) : child;
+    }
+    let current = node;
+    while (current && current !== visualEditor()) {
+        let sibling = direction === 'previous' ? current.previousSibling : current.nextSibling;
+        while (sibling) {
+            if (sibling.nodeType === Node.TEXT_NODE && !sibling.textContent.replace(/\u00a0/g, '').trim()) sibling = direction === 'previous' ? sibling.previousSibling : sibling.nextSibling;
+            else return sibling.nodeType === Node.TEXT_NODE ? sibling.parentElement : sibling;
+        }
+        current = current.parentNode;
+    }
+    return null;
+}
+
 function handleVisualKeydown(event) {
+    if (handleEquationNavigation(event)) return;
     if (handleTableKeydown(event)) return;
+    if (event.key === 'Tab' && currentListItem()) { event.preventDefault(); runListIndentCommand(event.shiftKey ? 'outdent' : 'indent'); saveVisualSelection(); setSaveState('Unsaved changes'); updateLivePreview(); return; }
     if (handleListBackspace(event)) return;
     if (autoStartList(event)) return;
     if (event.key !== ' ') return;
@@ -358,15 +501,42 @@ function handleListBackspace(event) {
     if (event.key !== 'Backspace') return false;
     const selection = window.getSelection();
     const item = currentListItem();
-    if (!selection?.isCollapsed || !item || selection.anchorOffset !== 0) return false;
-    const beforeCaret = selection.anchorNode?.textContent?.slice(0, selection.anchorOffset) || '';
-    if (beforeCaret || !item.parentElement?.matches('ul,ol') || !item.parentElement.parentElement?.closest('li')) return false;
+    const anchorElement = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
+    const continuation = anchorElement?.closest?.('.list-continuation');
+    if (!selection?.isCollapsed || (!item && !continuation) || !isCaretAtStart(selection, item || continuation)) return false;
     event.preventDefault();
-    document.execCommand('outdent', false, null);
+    if (continuation) {
+        if (continuation.dataset.listIndent !== '0') { continuation.dataset.listIndent = '0'; continuation.style.removeProperty('--list-depth'); }
+        else { continuation.classList.remove('list-continuation'); continuation.removeAttribute('data-list-indent'); }
+    } else if (!item.textContent.trim()) {
+        removeEmptyListItemMarker(item);
+    } else if (item.parentElement?.parentElement?.closest('li')) {
+        document.execCommand('outdent', false, null);
+    } else return false;
     saveVisualSelection();
     setSaveState('Unsaved changes');
     updateLivePreview();
     return true;
+}
+
+function isCaretAtStart(selection, item) {
+    if (selection.anchorNode?.nodeType === Node.TEXT_NODE) return !selection.anchorNode.textContent.slice(0, selection.anchorOffset).trim();
+    return selection.anchorOffset === 0 || !item.textContent.trim();
+}
+function placeCaretAtStart(element) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
+function removeEmptyListItemMarker(item) {
+    const list = item.parentElement;
+    const lists = [...visualEditor().querySelectorAll('ol,ul')];
+    const depth = Math.max(1, lists.filter(candidate => candidate.contains(item)).length);
+    const continuation = document.createElement('div');
+    continuation.className = 'list-continuation';
+    continuation.dataset.listIndent = String(depth);
+    continuation.style.setProperty('--list-depth', depth);
+    continuation.innerHTML = '<br>';
+    list.parentElement.insertBefore(continuation, list.nextSibling);
+    item.remove();
+    if (!list.children.length) list.remove();
+    placeCaretAtStart(continuation);
 }
 
 function selectedTableCells() {
@@ -483,7 +653,21 @@ function runFileAction(action) {
 }
 function runEditAction(action) { if (action === 'paste-plain') navigator.clipboard?.readText().then(text => document.execCommand('insertText', false, text)); else document.execCommand(action === 'paste-plain' ? 'paste' : action); }
 function duplicateNote() { const note = activeNote(); if (!note) return; openEditor(); document.getElementById('note-title-input').value = `${note.title} Copy`; visualEditor().innerHTML = note.visual_content || ''; editor().value = note.content || ''; setFormat(note.format || 'visual'); }
-function printNote() { const preview = document.getElementById('custom-preview-pane'); const printWindow = window.open('', '_blank'); if (!printWindow) return; printWindow.document.write(`<html><head><title>${escapeHtml(document.getElementById('note-title-input').value)}</title><link rel="stylesheet" href="styles.css"></head><body class="note-print">${preview.innerHTML}</body></html>`); printWindow.document.close(); printWindow.focus(); printWindow.print(); }
+function printNote() {
+    const preview = document.getElementById('custom-preview-pane');
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) return;
+    const title = escapeHtml(document.getElementById('note-title-input').value || 'Untitled Note');
+    printWindow.document.write(`<html><head><title>${title}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>html,body{background:#fff;color:#37352f}body{font-family:'Inter',sans-serif;line-height:1.5}.note-print{max-width:800px;margin:0 auto;padding:24px}.note-print pre{font-family:Consolas,monospace}.note-print img,.note-print svg{max-width:100%;height:auto}@media print{.note-print{padding:0}}</style></head><body class="note-print">${preview.innerHTML}</body></html>`);
+    const closeAfterPrint = () => { printWindow.close(); };
+    printWindow.addEventListener('afterprint', closeAfterPrint, { once: true });
+    printWindow.onload = async () => {
+        await printWindow.document.fonts?.ready;
+        printWindow.focus();
+        printWindow.print();
+    };
+    printWindow.document.close();
+}
 function exportNote() { const extension = currentFormat === 'visual' ? 'html' : currentFormat === 'md' ? 'md' : currentFormat === 'latex' ? 'tex' : 'typ'; const content = currentFormat === 'visual' ? `<!doctype html><meta charset="utf-8"><title>${escapeHtml(document.getElementById('note-title-input').value)}</title>${visualEditor().innerHTML}` : editor().value; const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' })); link.download = `${document.getElementById('note-title-input').value || 'note'}.${extension}`; link.click(); URL.revokeObjectURL(link.href); }
 
 async function saveActiveNote() {
