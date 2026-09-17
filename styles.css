@@ -284,6 +284,17 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .notes-modal-hint { color: var(--text-muted); font-size: 0.8rem; margin: 0.8rem 0 0; }
 .notes-modal-label { display: block; margin: 1rem 0 0.35rem; color: var(--text-muted); font-size: 0.78rem; font-weight: 700; }
 .notes-modal-select { width: 100%; padding: 0.65rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--input-bg); color: var(--text-main); font: inherit; }
+.reference-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.reference-manager { display: grid; gap: 0.65rem; max-height: 360px; overflow-y: auto; }
+.reference-manager-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem; border: 1px solid var(--border); border-radius: 5px; }
+.reference-manager-row strong, .reference-manager-row small { display: block; }
+.reference-manager-row small { margin-top: 0.25rem; color: var(--text-muted); line-height: 1.4; }
+.reference-manager-row .btn { padding: 0.3rem 0.5rem; font-size: 0.75rem; }
+.note-citation { white-space: nowrap; }
+.note-footnote-marker { cursor: pointer; }
+.note-bibliography { margin-top: 1.5rem; }
+.note-bibliography h3 { margin-bottom: 0.5rem; }
+.note-bibliography p { margin: 0.4rem 0; padding-left: 1.5rem; text-indent: -1.5rem; }
 .notes-details { display: grid; grid-template-columns: 90px 1fr; gap: 0.65rem 1rem; margin: 0; font-size: 0.86rem; }
 .notes-details dt { color: var(--text-muted); font-weight: 700; }
 .notes-details dd { margin: 0; overflow-wrap: anywhere; }
@@ -297,6 +308,16 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .notes-dropdown.open { display: grid; }
 .notes-dropdown button { display: flex; justify-content: space-between; border: 0; background: transparent; color: var(--text-main); padding: 0.45rem 0.55rem; text-align: left; cursor: pointer; font: inherit; font-size: 0.82rem; }
 .notes-dropdown button:hover { background: var(--input-bg); }
+.notes-dropdown button.disabled, .notes-dropdown button:disabled { opacity: 0.45; cursor: not-allowed; }
+.notes-dropdown-heading { padding: 0.35rem 0.55rem 0.15rem; color: var(--text-muted); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.format-dropdown { max-height: none; overflow: visible; }
+.format-submenu { position: relative; }
+.format-submenu::after { content: ''; position: absolute; top: -0.3rem; right: -0.85rem; width: 0.9rem; height: calc(100% + 0.6rem); }
+.format-submenu-trigger { width: 100%; }
+.format-submenu-trigger span { margin-left: auto; }
+.format-submenu-panel { display: none; position: absolute; z-index: 30; top: -0.3rem; left: 100%; min-width: 210px; padding: 0.3rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: var(--shadow); }
+.format-submenu.open .format-submenu-panel, .format-submenu:focus-within .format-submenu-panel { display: grid; }
+.format-submenu-panel button { display: flex; width: 100%; justify-content: space-between; }
 .notes-dropdown-divider { height: 1px; margin: 0.3rem 0.2rem; background: var(--border); }
 .notes-dropdown .menu-danger { color: #c53030; }
 .notes-dropdown span { color: var(--text-muted); margin-left: 1rem; }
@@ -363,6 +384,12 @@ body.resizing-note-panes { cursor: col-resize; user-select: none; }
 .visual-note-editor ol, .visual-note-editor ul { padding-left: 2.7rem; }
 .visual-note-editor ol ol, .visual-note-editor ol ul, .visual-note-editor ul ol, .visual-note-editor ul ul { padding-left: 2.35rem; }
 .visual-note-editor .list-continuation { padding-left: calc(var(--list-depth, 1) * 2.35rem); min-height: 1.7em; }
+.note-editor-pane:not(.note-pageless) .note-editor-column { background: var(--bg-color); padding: 0; }
+.note-editor-pane:not(.note-pageless) .visual-note-editor { background: var(--bg-color); max-width: 900px; margin: 0 auto; min-height: 100%; box-shadow: none; column-count: var(--note-columns, 1); column-gap: 2rem; }
+.note-editor-pane[data-page-size="letter"] .visual-note-editor { max-width: 816px; }
+.note-editor-pane[data-orientation="landscape"] .visual-note-editor { max-width: 1100px; }
+.note-divider { border: 0; border-top: 1px solid currentColor; margin: 1.25rem 0; }
+.note-page-number { margin-top: 2rem; padding-top: 0.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: 0.8rem; }
 .visual-note-editor table, .note-preview table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
 .visual-note-editor table { position: relative; resize: both; overflow: auto; min-width: 220px; max-width: 100%; cursor: move; }
 .visual-note-editor table[data-border-style="none"] td, .visual-note-editor table[data-border-style="none"] th { border-color: transparent; }

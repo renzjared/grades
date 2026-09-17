@@ -13,6 +13,8 @@ let tableResizeState = null;
 let savedVisualRange = null;
 let notePaneResizeState = null;
 let selectedEquation = null;
+let noteReferences = [];
+let noteFormatSettings = { pageless: true, columns: 1, pageSize: 'a4', orientation: 'portrait', pageNumbers: false };
 let emojiDatasetPromise = null;
 const EMOJI_CATEGORY_ICONS = { 'Smileys & Emotion': 'face', 'People & Body': 'person', 'Animals & Nature': 'leaf', 'Food & Drink': 'food', 'Travel & Places': 'travel', Activities: 'activity', Objects: 'object', Symbols: 'symbol', Flags: 'flag', Other: 'other' };
 const EMOJI_CATEGORY_ORDER = ['Smileys & Emotion', 'People & Body', 'Animals & Nature', 'Food & Drink', 'Travel & Places', 'Activities', 'Objects', 'Symbols', 'Flags', 'Other'];
@@ -160,6 +162,9 @@ function bindNotesControls() {
     document.querySelectorAll('.notes-menu-button').forEach(button => button.addEventListener('click', () => toggleMenu(button.dataset.menu)));
     document.querySelectorAll('.notes-dropdown [data-action]').forEach(button => button.addEventListener('click', () => { runFileAction(button.dataset.action); closeMenus(); }));
     document.querySelectorAll('#insert-menu [data-insert-action]').forEach(button => button.addEventListener('click', () => { runInsertAction(button.dataset.insertAction); closeMenus(); }));
+    document.querySelectorAll('[data-reference-action]').forEach(button => button.addEventListener('click', () => { openReferenceDialog(button.dataset.referenceAction); closeMenus(); }));
+    document.querySelectorAll('[data-format-action]').forEach(button => button.addEventListener('click', () => { runFormatAction(button.dataset.formatAction, button.dataset.formatValue); closeMenus(); }));
+    bindFormatSubmenus();
     document.addEventListener('click', event => { if (!event.target.closest('.notes-menu-group')) closeMenus(); if (!event.target.closest('.notes-new-group')) closeNewNoteMenu(); });
     document.addEventListener('keydown', handleNotesShortcut);
     document.addEventListener('mousedown', event => { if (!event.target.closest('.note-equation.is-editing, .note-equation.is-raw-editing')) finalizeEditingEquations(); });
@@ -191,6 +196,8 @@ function handleNotesShortcut(event) {
     if (!(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
     if (key === 'b') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('bold'); else document.execCommand('bold'); }
+    if (key === 'i') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('italic'); else document.execCommand('italic'); }
+    if (key === 'u') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('underline'); else document.execCommand('underline'); }
     if (key === 's') { event.preventDefault(); saveActiveNote(); }
 }
 
@@ -232,17 +239,33 @@ function stopNotePaneResize() { if (!notePaneResizeState) return; notePaneResize
 function createNewNote(format = 'visual') { guardNoteNavigation(() => openEditor(null, 'Untitled Note', NOTE_FORMATS[format] ? format : 'visual')); }
 function toggleNewNoteMenu() { const menu = document.getElementById('new-note-type-menu'); const toggle = document.getElementById('new-note-type-toggle'); const open = menu.classList.toggle('open'); toggle.setAttribute('aria-expanded', String(open)); }
 function closeNewNoteMenu() { const menu = document.getElementById('new-note-type-menu'); const toggle = document.getElementById('new-note-type-toggle'); if (!menu) return; menu.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); }
+function bindFormatSubmenus() {
+    let activeSubmenu = null;
+    let closeTimer = null;
+    const closeOthers = current => document.querySelectorAll('.format-submenu').forEach(item => { if (item !== current) item.classList.remove('open'); });
+    document.querySelectorAll('.format-submenu').forEach(submenu => {
+        const keepOpen = () => { clearTimeout(closeTimer); closeOthers(submenu); submenu.classList.add('open'); activeSubmenu = submenu; };
+        const scheduleClose = () => { clearTimeout(closeTimer); closeTimer = setTimeout(() => { if (!activeSubmenu || !activeSubmenu.matches(':hover')) { submenu.classList.remove('open'); if (activeSubmenu === submenu) activeSubmenu = null; } }, 450); };
+        submenu.addEventListener('mouseenter', keepOpen);
+        submenu.addEventListener('mouseleave', scheduleClose);
+        submenu.querySelector('.format-submenu-trigger')?.addEventListener('focus', keepOpen);
+        submenu.querySelector('.format-submenu-trigger')?.addEventListener('blur', scheduleClose);
+    });
+}
 
 function openEditor(noteId = null, newTitle = '', newFormat = 'visual') {
     document.getElementById('notes-list-pane').classList.add('hidden');
     document.getElementById('note-editor-pane').classList.remove('hidden');
     const note = noteId ? localNotes.find(item => item.id === noteId) : null;
     activeNoteId = note?.id || null;
+    noteReferences = Array.isArray(note?.references) ? note.references : [];
+    noteFormatSettings = { pageless: true, columns: 1, pageSize: 'a4', orientation: 'portrait', pageNumbers: false, ...(note?.format_settings || {}) };
     document.getElementById('note-title-input').value = note?.title || newTitle;
     currentFormat = note ? normalizeNote(note).format : newFormat;
     visualEditor().innerHTML = note?.visual_content || (currentFormat === 'visual' ? note?.content || '' : '');
     editor().value = note?.content || (!note && NOTE_TEMPLATES[currentFormat] ? NOTE_TEMPLATES[currentFormat] : '');
     setFormat(currentFormat);
+    applyNoteFormatClass();
     makeTablesInteractive();
     renderNoteLocationPath();
     setSaveState(note ? 'Saved' : 'New note');
@@ -267,6 +290,41 @@ function openNotesModal(title, body, confirmLabel = '', onConfirm = null, tone =
     setTimeout(() => footer.querySelector('[data-modal-confirm]')?.focus(), 0);
 }
 function closeNotesModal() { document.getElementById('notes-modal').classList.add('hidden'); notesModalConfirm = null; }
+function selectedFormatBlock() { const selection = window.getSelection(); const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement; let block = node?.closest?.('p,h1,h2,h3,h4,h5,h6,blockquote,li,div'); if (!block || block === visualEditor()) { document.execCommand('formatBlock', false, 'p'); const refreshed = window.getSelection()?.anchorNode; block = (refreshed?.nodeType === Node.ELEMENT_NODE ? refreshed : refreshed?.parentElement)?.closest?.('p') || visualEditor(); } return block; }
+function applyBlockStyle(property, value) { restoreVisualSelection(); const block = selectedFormatBlock(); if (block && block !== visualEditor()) block.style[property] = value; setSaveState('Unsaved changes'); updateLivePreview(); }
+function updateFormatMenuState() { const pageless = noteFormatSettings.pageless; document.querySelectorAll('[data-requires-pages]').forEach(item => { item.disabled = false; item.classList.remove('disabled'); }); document.querySelectorAll('[data-format-action="pageless"]').forEach(item => item.classList.toggle('active', pageless)); document.querySelectorAll('[data-columns-value]').forEach(item => item.classList.toggle('active', Number(item.dataset.columnsValue) === Number(noteFormatSettings.columns))); }
+function applyNoteFormatClass() { const pane = document.getElementById('note-editor-pane'); const columns = noteFormatSettings.pageless ? 1 : Number(noteFormatSettings.columns) || 1; pane.classList.toggle('note-pageless', noteFormatSettings.pageless); pane.dataset.noteColumns = String(columns); pane.style.setProperty('--note-columns', columns); pane.dataset.pageSize = noteFormatSettings.pageSize; pane.dataset.orientation = noteFormatSettings.orientation; updateFormatMenuState(); }
+function openCustomFormatDialog(title, fields, onApply) { openNotesModal(title, fields, 'Apply', onApply); }
+function runFormatAction(action, value) {
+    if (currentFormat !== 'visual') return;
+    restoreVisualSelection();
+    visualEditor().focus();
+    if (['bold', 'italic', 'underline', 'strikeThrough', 'superscript', 'subscript'].includes(action)) document.execCommand(action, false, null);
+    else if (action === 'smallCaps') applyBlockStyle('fontVariant', 'small-caps');
+    else if (action === 'capitalize') applyBlockStyle('textTransform', value || 'capitalize');
+    else if (action === 'paragraph') document.execCommand('formatBlock', false, value || 'p');
+    else if (action === 'align') document.execCommand(`justify${value[0].toUpperCase()}${value.slice(1)}`, false, null);
+    else if (action === 'indent') document.execCommand(value === 'outdent' ? 'outdent' : 'indent', false, null);
+    else if (action === 'customIndent') openCustomFormatDialog('Custom indent', `${referenceField('indent-left', 'Left indent', '', 'number')}${referenceField('indent-right', 'Right indent', '', 'number')}`, () => { applyBlockStyle('marginLeft', `${document.getElementById('reference-indent-left').value || 0}px`); applyBlockStyle('marginRight', `${document.getElementById('reference-indent-right').value || 0}px`); });
+    else if (action === 'spacing') applyBlockStyle('lineHeight', value || '1.5');
+    else if (action === 'customSpacing') openCustomFormatDialog('Custom spacing', `${referenceField('spacing-line', 'Line height', '1.5', 'number')}${referenceField('spacing-before', 'Space before (px)', '0', 'number')}${referenceField('spacing-after', 'Space after (px)', '0', 'number')}`, () => { applyBlockStyle('lineHeight', document.getElementById('reference-spacing-line').value || '1.5'); applyBlockStyle('marginTop', `${document.getElementById('reference-spacing-before').value || 0}px`); applyBlockStyle('marginBottom', `${document.getElementById('reference-spacing-after').value || 0}px`); });
+    else if (action === 'columns') { noteFormatSettings = { ...noteFormatSettings, columns: Number(value), pageless: false }; applyNoteFormatClass(); setSaveState('Unsaved changes'); }
+    else if (action === 'pageless') { noteFormatSettings = { ...noteFormatSettings, pageless: true, columns: 1 }; applyNoteFormatClass(); setSaveState('Unsaved changes'); }
+    else if (action === 'pageSize') { noteFormatSettings = { ...noteFormatSettings, pageSize: value, pageless: false }; applyNoteFormatClass(); setSaveState('Unsaved changes'); }
+    else if (action === 'orientation') { noteFormatSettings = { ...noteFormatSettings, orientation: value, pageless: false }; applyNoteFormatClass(); setSaveState('Unsaved changes'); }
+    else if (action === 'pageNumbers') { noteFormatSettings = { ...noteFormatSettings, pageNumbers: !noteFormatSettings.pageNumbers, pageless: false }; applyNoteFormatClass(); if (noteFormatSettings.pageNumbers && !visualEditor().querySelector('.note-page-number')) insertReferenceHtml('<footer class="note-page-number">Page <span class="page-number-field">1</span></footer>'); setSaveState('Unsaved changes'); }
+    updateLivePreview();
+}
+const CITATION_FORMATS = { apa: 'APA 7', mla: 'MLA 9', chicago: 'Chicago', harvard: 'Harvard', ieee: 'IEEE' };
+const REFERENCE_TYPES = { book: 'Book', article: 'Journal article', web: 'Website' };
+function referenceField(id, label, value = '', type = 'text') { return `<label class="notes-modal-label" for="reference-${id}">${label}</label><input id="reference-${id}" class="notes-modal-select" type="${type}" value="${escapeHtml(value)}">`; }
+function referenceForm(reference = {}) { return `<input id="reference-id" type="hidden" value="${escapeHtml(reference.id || '')}"><div class="reference-form"><div class="reference-form-grid"><div><label class="notes-modal-label" for="reference-format">Citation format</label><select id="reference-format" class="notes-modal-select">${Object.entries(CITATION_FORMATS).map(([key, label]) => `<option value="${key}"${(reference.format || 'apa') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div><label class="notes-modal-label" for="reference-type">Reference type</label><select id="reference-type" class="notes-modal-select">${Object.entries(REFERENCE_TYPES).map(([key, label]) => `<option value="${key}"${(reference.type || 'book') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div></div>${referenceField('author', 'Author(s)', reference.author)}${referenceField('title', 'Title', reference.title)}<div class="reference-form-grid">${referenceField('year', 'Year', reference.year, 'number')}${referenceField('publisher', 'Publisher / journal', reference.publisher)}</div>${referenceField('url', 'URL', reference.url, 'url')}${referenceField('accessed', 'Accessed date', reference.accessed, 'date')}</div>`; }
+function referenceFromForm() { return { id: document.getElementById('reference-id')?.value || Math.random().toString(36).slice(2, 11), format: document.getElementById('reference-format').value, type: document.getElementById('reference-type').value, author: document.getElementById('reference-author').value.trim(), title: document.getElementById('reference-title').value.trim(), year: document.getElementById('reference-year').value.trim(), publisher: document.getElementById('reference-publisher').value.trim(), url: document.getElementById('reference-url').value.trim(), accessed: document.getElementById('reference-accessed').value.trim() }; }
+function formatReference(reference, index = 0) { const author = reference.author || 'Author'; const title = reference.title || 'Untitled'; const year = reference.year || 'n.d.'; const publisher = reference.publisher || ''; const url = reference.url || ''; if (reference.format === 'mla') return `${author}. "${title}." ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (reference.format === 'chicago') return `${author}. ${title}. ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (reference.format === 'harvard') return `${author} (${year}) ${title}. ${publisher}.${url ? ` Available at: ${url}` : ''}`; if (reference.format === 'ieee') return `[${index + 1}] ${author}, "${title}," ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; return `${author}. (${year}). ${title}. ${publisher}${url ? `. ${url}` : ''}`; }
+function formatInlineCitation(reference, index = 0) { if (reference.format === 'ieee') return `[${index + 1}]`; if (reference.format === 'mla') return `(${reference.author || 'Author'} ${reference.year || 'n.d.'})`; return `(${reference.author || 'Author'}, ${reference.year || 'n.d.'})`; }
+function insertReferenceHtml(html) { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, html); setSaveState('Unsaved changes'); updateLivePreview(); }
+function openReferenceDialog(action, reference = null) { if (action === 'manage') return openReferenceManager(); openNotesModal(action === 'citation' ? 'Insert citation' : action === 'footnote' ? 'Insert footnote' : 'Insert bibliography', referenceForm(reference || {}), action === 'citation' ? 'Insert citation' : action === 'footnote' ? 'Insert footnote' : 'Insert bibliography', () => { const value = referenceFromForm(); const existingIndex = noteReferences.findIndex(item => item.id === value.id); if (existingIndex >= 0) noteReferences[existingIndex] = value; else noteReferences.push(value); const index = noteReferences.findIndex(item => item.id === value.id); if (action === 'citation') insertReferenceHtml(`<span class="note-citation" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${escapeHtml(formatInlineCitation(value, index))}</span>&nbsp;`); if (action === 'footnote') { const footnoteNumber = visualEditor().querySelectorAll('.note-footnote-marker').length + 1; insertReferenceHtml(`<sup class="note-footnote-marker" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${footnoteNumber}</sup>&nbsp;`); } if (action === 'bibliography') insertReferenceHtml(`<section class="note-bibliography"><h3>References</h3>${noteReferences.map((item, itemIndex) => `<p data-reference-id="${escapeHtml(item.id)}">${escapeHtml(formatReference(item, itemIndex))}</p>`).join('')}</section>`); }); }
+function openReferenceManager() { const body = noteReferences.length ? `<div class="reference-manager">${noteReferences.map((reference, index) => `<div class="reference-manager-row"><div><strong>${escapeHtml(reference.title || 'Untitled')}</strong><small>${escapeHtml(formatReference(reference, index))}</small></div><span><button type="button" class="btn secondary" data-reference-edit="${escapeHtml(reference.id)}">Edit</button><button type="button" class="btn danger" data-reference-delete="${escapeHtml(reference.id)}">Delete</button></span></div>`).join('')}</div>` : '<p class="notes-modal-copy">No references have been added to this note.</p>'; openNotesModal('Manage references', body, 'Add reference', () => openReferenceDialog('citation')); document.querySelectorAll('[data-reference-edit]').forEach(button => button.addEventListener('click', () => { const reference = noteReferences.find(item => item.id === button.dataset.referenceEdit); openReferenceDialog('citation', reference); })); document.querySelectorAll('[data-reference-delete]').forEach(button => button.addEventListener('click', () => { noteReferences = noteReferences.filter(item => item.id !== button.dataset.referenceDelete); setSaveState('Unsaved changes'); openReferenceManager(); })); }
 function runVisualCommand(command, value, editEquation = false) {
     restoreVisualSelection();
     visualEditor().focus();
@@ -287,6 +345,7 @@ function runInsertAction(action) {
     if (action === 'emoji') return openCharacterSelector('Choose emoji', 'emoji');
     if (action === 'special') return openCharacterSelector('Special characters', 'special');
     if (action === 'equation') return runVisualCommand('insertEquation');
+    if (action === 'divider') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, '<hr class="note-divider"><p></p>'); setSaveState('Unsaved changes'); updateLivePreview(); }
 }
 function insertSourceText(value) { const source = editor(); const start = source.selectionStart; const end = source.selectionEnd; source.setRangeText(value, start, end, 'end'); source.focus(); }
 function insertImage(url, alt = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, `<img class="note-image" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" draggable="false">&nbsp;`); } else if (currentFormat === 'md') insertSourceText(`![${alt || 'Image'}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\includegraphics[width=\\linewidth]{${url}}`); else insertSourceText(`#image("${url}", width: 100%)`); setSaveState('Unsaved changes'); updateLivePreview(); }
@@ -447,9 +506,9 @@ function adjacentNode(node, offset, direction) {
 
 function handleVisualKeydown(event) {
     if (handleEquationNavigation(event)) return;
-    if (handleTableKeydown(event)) return;
     if (event.key === 'Tab' && currentListItem()) { event.preventDefault(); runListIndentCommand(event.shiftKey ? 'outdent' : 'indent'); saveVisualSelection(); setSaveState('Unsaved changes'); updateLivePreview(); return; }
     if (handleListBackspace(event)) return;
+    if (handleTableKeydown(event)) return;
     if (autoStartList(event)) return;
     if (event.key !== ' ') return;
     const selection = window.getSelection();
@@ -508,7 +567,7 @@ function handleListBackspace(event) {
     if (continuation) {
         if (continuation.dataset.listIndent !== '0') { continuation.dataset.listIndent = '0'; continuation.style.removeProperty('--list-depth'); }
         else { continuation.classList.remove('list-continuation'); continuation.removeAttribute('data-list-indent'); }
-    } else if (!item.textContent.trim()) {
+    } else if (isEmptyListItem(item)) {
         removeEmptyListItemMarker(item);
     } else if (item.parentElement?.parentElement?.closest('li')) {
         document.execCommand('outdent', false, null);
@@ -520,22 +579,45 @@ function handleListBackspace(event) {
 }
 
 function isCaretAtStart(selection, item) {
-    if (selection.anchorNode?.nodeType === Node.TEXT_NODE) return !selection.anchorNode.textContent.slice(0, selection.anchorOffset).trim();
-    return selection.anchorOffset === 0 || !item.textContent.trim();
+    if (!selection?.anchorNode || !item) return false;
+    try {
+        const range = document.createRange();
+        range.selectNodeContents(item);
+        range.setEnd(selection.anchorNode, selection.anchorOffset);
+        return !range.toString().replace(/\u00a0/g, ' ').trim();
+    } catch (error) {
+        return selection.anchorOffset === 0;
+    }
 }
+function isEmptyListItem(item) { return !item.textContent.replace(/\u00a0/g, ' ').trim() && !item.querySelector('img,table,.note-equation,.note-citation,.note-footnote-marker'); }
 function placeCaretAtStart(element) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
 function removeEmptyListItemMarker(item) {
     const list = item.parentElement;
-    const lists = [...visualEditor().querySelectorAll('ol,ul')];
-    const depth = Math.max(1, lists.filter(candidate => candidate.contains(item)).length);
+    if (!list?.matches('ol,ul')) return;
+    const parent = list.parentElement;
+    if (!parent) return;
+    const itemIndex = [...list.children].indexOf(item);
+    const followingItems = [...list.children].slice(itemIndex + 1);
+    const depth = Math.max(1, [...visualEditor().querySelectorAll('ol,ul')].filter(candidate => candidate.contains(item)).length);
     const continuation = document.createElement('div');
     continuation.className = 'list-continuation';
     continuation.dataset.listIndent = String(depth);
     continuation.style.setProperty('--list-depth', depth);
     continuation.innerHTML = '<br>';
-    list.parentElement.insertBefore(continuation, list.nextSibling);
+    const followingList = followingItems.length ? list.cloneNode(false) : null;
+    if (followingList) {
+        followingItems.forEach(followingItem => followingList.appendChild(followingItem));
+        if (followingList.matches('ol')) followingList.start = 1;
+    }
     item.remove();
-    if (!list.children.length) list.remove();
+    if (list.children.length) {
+        parent.insertBefore(continuation, list.nextSibling);
+        if (followingList) parent.insertBefore(followingList, continuation.nextSibling);
+    } else {
+        parent.insertBefore(continuation, list);
+        if (followingList) parent.insertBefore(followingList, continuation.nextSibling);
+        list.remove();
+    }
     placeCaretAtStart(continuation);
 }
 
@@ -638,7 +720,7 @@ function htmlToTypst(root) { return htmlToMarkdown(root).replace(/^###\s+(.+)$/g
 function markdownToLatex(source) { return source.replace(/^###\s+(.+)$/gm, '\\subsection{$1}').replace(/^##\s+(.+)$/gm, '\\section{$1}').replace(/^#\s+(.+)$/gm, '\\section{$1}').replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}').replace(/\*(.*?)\*/g, '\\textit{$1}'); }
 function markdownToTypst(source) { return source.replace(/^###\s+(.+)$/gm, '=== $1').replace(/^##\s+(.+)$/gm, '== $1').replace(/^#\s+(.+)$/gm, '= $1').replace(/\*\*(.*?)\*\*/g, '*$1*').replace(/\*(.*?)\*/g, '_$1_'); }
 function toggleMenu(id) { closeMenus(); document.getElementById(id).classList.toggle('open'); }
-function closeMenus() { document.querySelectorAll('.notes-dropdown').forEach(menu => menu.classList.remove('open')); }
+function closeMenus() { document.querySelectorAll('.notes-dropdown').forEach(menu => menu.classList.remove('open')); document.querySelectorAll('.format-submenu.open').forEach(submenu => submenu.classList.remove('open')); }
 function runFileAction(action) {
     if (action === 'new') return createNewNote('visual');
     if (action === 'save') return saveActiveNote();
@@ -675,7 +757,7 @@ async function saveActiveNote() {
     const title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
     let note = activeNote();
     if (!note) { note = { id: Math.random().toString(36).slice(2, 11), user_id: currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
-    note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? visualEditor().innerHTML : note.visual_content || ''; note.updated_at = now; note._isDirty = true;
+    note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? visualEditor().innerHTML : note.visual_content || ''; note.references = noteReferences; note.format_settings = noteFormatSettings; note.updated_at = now; note._isDirty = true;
     localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
     if (isOnline) {
         const synced = await syncNotesWithServer();
