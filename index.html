@@ -11,8 +11,6 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
-    <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
@@ -545,53 +543,49 @@
             </div>
 
             <!-- NOTES VIEW -->
-            <div id="notes-view" class="hidden layout-left-sidebar">
-                <div class="sidebar card" style="height: fit-content; position: sticky; top: 20px; padding: 1.25rem; max-height: calc(100vh - 40px); overflow-y: auto;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
-                        <h3 style="margin:0;">Notebooks</h3>
-                        <span id="notes-sync-status" style="font-size:0.75rem; color:var(--text-muted);">Synced</span>
-                    </div>
-                    <div id="notes-tree" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
-                </div>
-
-                <div class="main-content card" style="display:flex; flex-direction:column; min-height: 600px; padding: 1rem;">
-                                    
-                    <!-- THE LIST PANE (Restored) -->
+            <div id="notes-view" class="hidden notes-layout">
+                <aside class="notes-tree-panel">
+                    <div class="notes-panel-heading"><div><h3>Notebooks</h3></div><span id="notes-sync-status">Synced</span></div>
+                    <div id="notes-tree"></div>
+                </aside>
+                <section class="notes-workspace">
                     <div id="notes-list-pane">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
-                            <div style="display: flex; flex-direction: column;">
-                                <h3 id="notes-context-title" style="margin:0 0 0.25rem 0;">Root</h3>
-                                <div id="notes-breadcrumbs" style="font-size: 0.8rem; display: flex; align-items: center; flex-wrap: wrap;"></div>
-                            </div>
-                            <button class="btn primary" id="new-note-btn" style="flex-shrink: 0;">+ New Note</button>
-                        </div>
-                        
-                        <!-- MISSING CONTAINER RESTORED HERE -->
-                        <div id="notes-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:1rem;"></div>
+                        <div class="notes-list-header"><div><h2 id="notes-context-title">All Notes</h2><div id="notes-breadcrumbs"></div></div><div class="new-note-split notes-new-group"><button class="btn primary" id="new-note-btn">+ New Note</button><button class="btn primary new-note-type-toggle" id="new-note-type-toggle" aria-label="Choose note type" aria-expanded="false">⌄</button><div id="new-note-type-menu" class="new-note-type-menu"><button data-new-format="md">Markdown</button><button data-new-format="latex">LaTeX</button><button data-new-format="typst">Typst</button><button data-new-format="visual">Visual</button></div></div></div>
+                        <div id="notes-list-container" class="notes-grid"></div>
                     </div>
+                    <div id="note-editor-pane" class="hidden note-editor-pane">
+                        <div class="notes-document-title"><input type="text" id="note-title-input" class="note-title-input" placeholder="Untitled Note"><span id="note-format-label" class="note-format-label">Visual</span></div>
+                        <nav id="note-location-path" class="note-location-path" aria-label="Note location"></nav>
+                        <div class="notes-menu-bar">
+                            <div class="notes-menu-group"><button class="notes-menu-button" data-menu="file-menu">File</button><div id="file-menu" class="notes-dropdown">
+                                <button data-action="new">New</button><button data-action="duplicate">Duplicate</button><button data-action="save">Save</button><button data-action="convert">Convert to...</button><button data-action="print">Print</button><button data-action="export-pdf">Export as PDF</button><button data-action="export-source">Export source</button><button data-action="page-setup">Page Setup</button><button data-action="details">Details</button><button data-action="delete" class="menu-danger">Delete note</button>
+                            </div></div>
+                            <div class="notes-menu-group"><button class="notes-menu-button" data-menu="edit-menu">Edit</button><div id="edit-menu" class="notes-dropdown">
+                                <button data-action="undo">Undo <span>Ctrl+Z</span></button><button data-action="redo">Redo <span>Ctrl+Y</span></button><button data-action="cut">Cut</button><button data-action="copy">Copy</button><button data-action="paste">Paste</button><button data-action="paste-plain">Paste without Formatting</button>
+                            </div></div>
+                            <span class="notes-save-state" id="notes-save-state">Saved</span>
+                        </div>
+                        <div id="visual-toolbar" class="visual-toolbar hidden">
+                            <div class="visual-tool-group"><select data-command="fontName" aria-label="Typeface"><option value="Inter">Typeface</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Courier New">Courier New</option></select><select data-command="fontSize" aria-label="Font size"><option value="3">Size</option><option value="1">Small</option><option value="3">Normal</option><option value="5">Large</option><option value="7">Huge</option></select></div>
+                            <div class="visual-tool-group"><button data-command="bold" aria-label="Bold" title="Bold"><i class="fa fa-bold"></i></button><button data-command="italic" aria-label="Italic" title="Italic"><i class="fa fa-italic"></i></button><button data-command="underline" aria-label="Underline" title="Underline"><i class="fa fa-underline"></i></button><button class="color-tool" data-color-target="font-color-picker" aria-label="Font color" title="Font color"><span class="color-letter">A</span><span class="color-bar font-color-bar"></span></button><input id="font-color-picker" class="color-picker-input" type="color" value="#7b1113"></div>
+                            <div class="visual-tool-group visual-heading-group"><button data-command="formatBlock" data-value="h1" aria-label="Heading 1" title="Heading 1">H1</button><button data-command="formatBlock" data-value="h2" aria-label="Heading 2" title="Heading 2">H2</button><button data-command="formatBlock" data-value="h3" aria-label="Heading 3" title="Heading 3">H3</button><button data-command="formatBlock" data-value="blockquote" aria-label="Quote" title="Quote"><i class="fa fa-quote-left"></i></button></div>
+                            <div class="visual-tool-group"><button data-command="insertUnorderedList" aria-label="Bulleted list" title="Bulleted list"><i class="fa fa-list-ul"></i></button><button data-command="insertOrderedList" aria-label="Numbered list" title="Numbered list"><i class="fa fa-list-ol"></i></button><button data-command="outdent" aria-label="Decrease indent" title="Decrease indent"><i class="fa fa-outdent"></i></button><button data-command="indent" aria-label="Increase indent" title="Increase indent"><i class="fa fa-indent"></i></button></div>
+                            <div class="visual-tool-group"><button data-command="insertTable" aria-label="Insert table" title="Insert table"><i class="fa fa-table"></i></button><button data-command="insertCode" aria-label="Code block" title="Code block"><i class="fa fa-code"></i></button><button data-command="insertEquation" aria-label="Equation" title="Equation"><i class="fa fa-superscript"></i></button><button data-command="removeFormat" aria-label="Clear formatting" title="Clear formatting"><i class="fa fa-eraser"></i></button></div>
+                        </div>
+                        <div id="table-toolbar" class="visual-toolbar table-toolbar hidden"><span class="table-toolbar-label">Table</span><button data-table-action="add-row" title="Add row"><i class="fa fa-plus-square-o"></i> Row</button><button data-table-action="add-column" title="Add column"><i class="fa fa-plus-square-o"></i> Column</button><button data-table-action="delete-row" title="Delete row"><i class="fa fa-minus-square-o"></i> Row</button><button data-table-action="delete-column" title="Delete column"><i class="fa fa-minus-square-o"></i> Column</button><button data-table-action="delete-table" title="Delete table"><i class="fa fa-trash-o"></i> Table</button><button class="color-tool" data-color-target="cell-color-picker" title="Cell shading"><i class="fa fa-tint"></i></button><input id="cell-color-picker" class="color-picker-input" type="color" value="#fbeeed"><button class="color-tool" data-color-target="border-color-picker" title="Border color"><i class="fa fa-paint-brush"></i></button><input id="border-color-picker" class="color-picker-input" type="color" value="#e9e9e7"><button class="border-style-button active" data-table-action="border-style" data-border-style="solid" title="Solid borders"><i class="fa fa-minus"></i></button><button class="border-style-button" data-table-action="border-style" data-border-style="dashed" title="Dashed borders"><i class="fa fa-ellipsis-h"></i></button><button class="border-style-button" data-table-action="border-style" data-border-style="none" title="No borders"><i class="fa fa-ban"></i></button></div>
+                        <div class="note-source-toggle"><span id="note-format-description"></span><label id="note-preview-toggle-label"><input type="checkbox" id="note-editor-only"> Hide preview</label></div>
+                        <div class="note-split-view"><div class="note-editor-column"><div id="visual-note-editor" class="visual-note-editor" contenteditable="true" spellcheck="true"></div><textarea id="note-source-editor" class="note-source-editor hidden" spellcheck="false"></textarea></div><div id="note-pane-divider" class="note-pane-divider" role="separator" aria-label="Resize editor and preview" tabindex="0"></div><div id="custom-preview-pane" class="note-preview"><div class="text-muted">Start typing to see preview...</div></div></div>
+                    </div>
+                </section>
+            </div>
 
-                    <!-- THE EDITOR PANE -->
-                    <div id="note-editor-pane" class="hidden" style="flex:1; display:flex; flex-direction:column; height: 100%;">
-                        <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
-                            <button class="btn secondary" id="back-to-notes-btn">← Back</button>
-                            <input type="text" id="note-title-input" class="input-minimal" style="flex:1; font-weight:700; font-size:1.1rem; background: transparent;" placeholder="Note Title">
-                            <div class="format-toggles" style="display:flex; background: var(--input-bg); border-radius: var(--radius); padding: 2px;">
-                                <button class="btn text-btn active-format" id="fmt-md" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Markdown</button>
-                                <button class="btn text-btn" id="fmt-latex" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">LaTeX</button>
-                                <button class="btn text-btn" id="fmt-typst" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Typst</button>
-                            </div>
-                            <button class="btn primary" id="save-note-content-btn">Save</button>
-                            <button class="btn danger" id="delete-note-btn">Delete</button>
-                        </div>
-                        <div class="note-split-view">
-                            <div style="flex:1; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:4px; overflow:hidden; min-width: 0;">
-                                <textarea id="note-mde-editor"></textarea>
-                            </div>
-                            <div id="custom-preview-pane" class="card" style="flex:1; margin-bottom:0; overflow-y:auto; padding: 1.5rem; background: var(--bg-color); border: 1px solid var(--border); min-width: 0;">
-                                <div class="text-muted" style="text-align: center; margin-top: 2rem;">Start typing to see preview...</div>
-                            </div>
-                        </div>
-                    </div>
+            <div id="table-context-menu" class="table-context-menu hidden"><button data-table-action="add-row">Add row below</button><button data-table-action="add-column">Add column right</button><button data-table-action="delete-row">Delete row</button><button data-table-action="delete-column">Delete column</button><button data-table-action="delete-table">Delete entire table</button><button data-table-action="toggle-borders">Toggle borders</button></div>
+
+            <div id="notes-modal" class="notes-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notes-modal-title">
+                <div class="notes-modal-card">
+                    <div class="notes-modal-header"><div><h3 id="notes-modal-title"></h3></div><button id="notes-modal-close" class="notes-modal-close" aria-label="Close dialog">&times;</button></div>
+                    <div id="notes-modal-body" class="notes-modal-body"></div>
+                    <div id="notes-modal-footer" class="notes-modal-footer"></div>
                 </div>
             </div>
 
@@ -655,21 +649,25 @@
             <!-- CALCULATOR VIEW -->
             <div id="calculator-view" class="hidden layout-right-sidebar">
                 
-                <div id="floating-calc-header" class="calc-top-toolbar" style="grid-column: 1 / -1;">
-                    <div style="display: flex; align-items: center; flex: 1;">
-                        <span id="save-status-text" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; display: none;">All changes saved</span>
-                        <button id="save-cloud-btn" class="btn primary" style="display: none; margin-right: 1rem;">Save to Cloud</button>
+                <!-- CONSOLIDATED HEADER -->
+                <div id="floating-calc-header" class="calc-top-toolbar" style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    
+                    <!-- LEFT: Title (Fixed with clean toolbar sizing) -->
+                    <div style="flex: 1; min-width: 250px;">
+                        <input type="text" id="subject-name" value="New Subject" placeholder="Subject Name" style="font-size: 1.25rem; font-weight: 700; background: transparent; border: none; color: var(--text-main); width: 100%; outline: none; padding: 0.25rem 0;">
                     </div>
-                    <div style="display: flex; gap: 0.5rem;">
+                    
+                    <!-- RIGHT: Status & Global Actions -->
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <span id="save-status-text" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; display: none; margin-right: 0.5rem;">All changes saved</span>
+                        <button id="save-cloud-btn" class="btn primary" style="display: none;">Save to Cloud</button>
                         <button id="mode-btn" class="btn text-btn">👁️ View Mode</button>
                         <button id="share-btn" class="btn secondary">Share / Permissions</button>
                     </div>
                 </div>
 
                 <div class="main-content">
-                    <input type="text" id="subject-name" class="subject-title large-green" value="New Subject" placeholder="Subject Name">
                     <input type="text" id="calc-description" class="input-minimal" placeholder="Add an optional description..." style="margin-bottom: 1.5rem; font-size: 0.95rem; border: none !important; border-bottom: 1px solid var(--border) !important; padding: 0.5rem 0; border-radius: 0;">
-                    
                     <div id="calc-notices-container" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom: 1.5rem;"></div>
                     <div id="calc-tabs-container" class="calc-tabs hidden" style="align-items: center;"></div>
 

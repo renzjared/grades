@@ -57,6 +57,11 @@ function resetToBlank() {
         appState = JSON.parse(JSON.stringify(defaultState));
     }
     
+    // Ensure the new local calculator starts in Edit Mode and the toggle is visible
+    appState.isEditMode = true;
+    document.getElementById('mode-btn')?.classList.remove('hidden');
+    document.getElementById('share-btn')?.classList.add('hidden'); 
+    
     originalTemplateState = null;
     if(typeof switchView === 'function') switchView('calc');
     render();
@@ -396,7 +401,7 @@ function calculateGrades() {
 
     calcInsights.totalRaw = finalR_Weighted;
     calcInsights.totalExtra = finalE_Weighted;
-    document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(2);
+    document.getElementById('final-raw-score').innerText = finalR_Weighted.toFixed(4);
 
     const rangeDisplay = document.getElementById('range-display');
     if (rangeDisplay) {
@@ -404,7 +409,7 @@ function calculateGrades() {
             rangeDisplay.classList.remove('hidden');
             let minGradeStr = scoreToGrade(calcInsights.minRaw);
             let maxGradeStr = scoreToGrade(calcInsights.maxRaw);
-            document.getElementById('grade-range-values').innerText = `${minGradeStr} to ${maxGradeStr} (${calcInsights.minRaw.toFixed(2)}% to ${calcInsights.maxRaw.toFixed(2)}%)`;
+            document.getElementById('grade-range-values').innerText = `${minGradeStr} to ${maxGradeStr} (${calcInsights.minRaw.toFixed(4)}% to ${calcInsights.maxRaw.toFixed(4)}%)`;
         } else {
             rangeDisplay.classList.add('hidden');
         }
@@ -423,7 +428,7 @@ function calculateGrades() {
                 tnValue.innerText = `Goal Achieved!`;
                 tnValue.style.color = 'var(--up-green)';
             } else {
-                tnValue.innerText = `${tNeeded.toFixed(2)}% avg. on rest`;
+                tnValue.innerText = `${tNeeded.toFixed(4)}% avg. on rest`;
                 tnValue.style.color = 'inherit';
             }
         } else {
@@ -482,7 +487,7 @@ function calculateGrades() {
             let mult = appState.heartScale[calcInsights.activeHeartIndex].mult;
             multText = ` (${(mult * 100).toFixed(0)}%)`;
         }
-        document.getElementById('final-heart-score').innerText = `+${finalE_Weighted.toFixed(2)}% Extra Points ❤️${multText}`;
+        document.getElementById('final-heart-score').innerText = `+${finalE_Weighted.toFixed(4)}% Extra Points ❤️${multText}`;
     } else {
         document.getElementById('final-heart-score').innerText = '';
     }
@@ -499,7 +504,7 @@ function calculateGrades() {
             advContainer.innerHTML = calcInsights.advancedExtras.map(e => `
                 <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem; font-size: 0.85rem;">
                     <span style="color: var(--text-muted);">${e.label}</span>
-                    <strong style="color: var(--text-main);">${e.value}</strong>
+                    <strong style="color: var(--text-main);">${typeof e.value === 'number' ? e.value.toFixed(4) : e.value}</strong>
                 </div>
             `).join('');
         } else {
@@ -522,11 +527,24 @@ function render() {
     const showBreakdown = appState.showBreakdown;
     document.getElementById('mode-btn').innerHTML = isEdit ? 'View Mode' : 'Edit Mode';
     document.getElementById('breakdown-btn').innerHTML = showBreakdown ? 'Hide Details' : 'Show Details';
-    
+        
     document.querySelectorAll('.edit-only').forEach(el => el.classList.toggle('hidden', !isEdit));
     
-    document.getElementById('subject-name').value = appState.subject;
-    document.getElementById('calc-description').value = appState.description || '';
+    // NEW: Set values and lock inputs if not in Edit Mode
+    const subjNameInput = document.getElementById('subject-name');
+    if (subjNameInput) {
+        subjNameInput.value = appState.subject;
+        subjNameInput.readOnly = !isEdit;
+        subjNameInput.style.cursor = isEdit ? 'text' : 'default';
+    }
+    
+    const descInput = document.getElementById('calc-description');
+    if (descInput) {
+        descInput.value = appState.description || '';
+        descInput.readOnly = !isEdit;
+        descInput.style.cursor = isEdit ? 'text' : 'default';
+        descInput.style.pointerEvents = isEdit ? 'auto' : 'none'; // Prevent focus ring in view mode
+    }
     
     document.getElementById('global-passing').value = appState.globalPassingScore;
     document.getElementById('global-passing').disabled = !isEdit;
@@ -652,11 +670,22 @@ function render() {
                 </div>
             </div>` : '';
 
+        // let summaryHtml = `
+        //     <div class="cat-summary-bar">
+        //         <div class="stat-box">Weight <strong>${catInsight.effectiveWeight ? catInsight.effectiveWeight.toFixed(1) : 0}%</strong></div>
+        //         <div class="stat-box">Category Score <strong>${catInsight.rPercent ? catInsight.rPercent.toFixed(1) : 0}% ${catInsight.ePercent > 0 ? `<span class="heart-text">(+${catInsight.ePercent.toFixed(1)}%)</span>` : ''}</strong></div>
+        //         <div class="stat-box highlight">Final Contribution <strong>+${catInsight.finalContribution ? catInsight.finalContribution.toFixed(2) : 0}</strong></div>
+        //     </div>
+        // `;
+        let rawContrib = (catInsight.rPercent || 0) * ((catInsight.effectiveWeight || 0) / 100);
+        let extraContrib = (catInsight.ePercent || 0) * ((catInsight.effectiveWeight || 0) / 100);
+        let totalContrib = rawContrib + extraContrib;
+
         let summaryHtml = `
             <div class="cat-summary-bar">
-                <div class="stat-box">Weight <strong>${catInsight.effectiveWeight ? catInsight.effectiveWeight.toFixed(1) : 0}%</strong></div>
-                <div class="stat-box">Category Score <strong>${catInsight.rPercent ? catInsight.rPercent.toFixed(1) : 0}% ${catInsight.ePercent > 0 ? `<span class="heart-text">(+${catInsight.ePercent.toFixed(1)}%)</span>` : ''}</strong></div>
-                <div class="stat-box highlight">Final Contribution <strong>+${catInsight.finalContribution ? catInsight.finalContribution.toFixed(2) : 0}</strong></div>
+                <div class="stat-box">Weight <strong>${catInsight.effectiveWeight ? catInsight.effectiveWeight.toFixed(4) : '0.0000'}%</strong></div>
+                <div class="stat-box">Category Score <strong>${catInsight.rPercent ? catInsight.rPercent.toFixed(4) : '0.0000'}% ${catInsight.ePercent > 0 ? `<span class="heart-text">(+${catInsight.ePercent.toFixed(4)}%)</span>` : ''}</strong></div>
+                <div class="stat-box highlight">Final Contribution <strong>+${totalContrib.toFixed(4)} (${rawContrib.toFixed(4)} + ${extraContrib.toFixed(4)})</strong></div>
             </div>
         `;
 
@@ -874,16 +903,31 @@ async function loadCalculatorFromSupabase() {
     }
 
     let hasAccess = false;
-    if (data.link_sharing_mode === 'view' || data.link_sharing_mode === 'edit') hasAccess = true;
-    if (activeUser && data.owner_id === activeUser.id) hasAccess = true;
+    let canEdit = false;
+
+    // 1. Check direct ownership & link modes
+    if (activeUser && data.owner_id === activeUser.id) {
+        hasAccess = true;
+        canEdit = true;
+    } else if (data.link_sharing_mode === 'edit') {
+        hasAccess = true;
+        canEdit = true;
+    } else if (data.link_sharing_mode === 'view') {
+        hasAccess = true;
+    }
     
+    // 2. Check explicit database permissions if link sharing didn't grant access
     if (!hasAccess && activeUser) {
         const { data: perm } = await supabaseClient.from('calculator_permissions')
             .select('role')
             .eq('calculator_id', currentCalculatorId)
             .eq('user_id', activeUser.id)
             .single();
-        if (perm) hasAccess = true;
+            
+        if (perm) {
+            hasAccess = true;
+            if (perm.role === 'edit') canEdit = true;
+        }
     }
 
     if (!hasAccess) {
@@ -891,10 +935,29 @@ async function loadCalculatorFromSupabase() {
         return;
     }
 
+    // 3. ENFORCE EDIT PERMISSIONS
+    const modeBtn = document.getElementById('mode-btn');
+    const shareBtn = document.getElementById('share-btn');
+    
+    if (!canEdit) {
+        // Force viewers out of edit mode and hide the toggles
+        appState.isEditMode = false;
+        if (modeBtn) modeBtn.classList.add('hidden');
+        if (shareBtn) shareBtn.classList.add('hidden');
+    } else {
+        // Restore toggles for owners and editors
+        if (modeBtn) modeBtn.classList.remove('hidden');
+        if (shareBtn) shareBtn.classList.remove('hidden');
+    }
+
     if (typeof switchView === 'function') switchView('calc');
     document.getElementById('class-stats-card').classList.remove('hidden');
 
     appState = JSON.parse(JSON.stringify({ ...defaultState, ...data.config }));
+    
+    // Safety check: ensure loaded config doesn't overwrite the permission lock
+    if (!canEdit) appState.isEditMode = false;
+
     originalTemplateState = JSON.parse(JSON.stringify(appState));
     
     const savedState = localStorage.getItem(`calc_state_${currentCalculatorId}`);

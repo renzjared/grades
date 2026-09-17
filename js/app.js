@@ -19,7 +19,6 @@ async function switchView(viewName) {
     document.getElementById('notes-view').classList.add('hidden');
     document.getElementById('profile-view').classList.add('hidden');
     document.getElementById('settings-view').classList.add('hidden'); // NEW
-    document.getElementById('floating-calc-header').classList.add('hidden');
     
     document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('mobile-open'));
     document.getElementById('mobile-sidebar-backdrop')?.classList.remove('mobile-open');
