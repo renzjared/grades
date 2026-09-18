@@ -254,7 +254,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .new-note-type-menu button { border: 0; background: transparent; color: var(--text-main); cursor: pointer; padding: 0.5rem 0.65rem; text-align: left; font: inherit; font-size: 0.82rem; border-radius: 3px; }
 .new-note-type-menu button:hover { background: var(--input-bg); color: var(--up-maroon); }
 .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.85rem; }
-.note-card { text-align: left; color: var(--text-main); min-height: 150px; }
+.note-card { display: flex; flex-direction: column; align-items: flex-start; text-align: left; color: var(--text-main); min-height: 150px; }
 .note-card h3 { margin: 0.4rem 0; font-size: 1rem; }
 .note-card small, .note-card p { color: var(--text-muted); font-size: 0.78rem; }
 .note-card p { margin-top: 0.8rem; line-height: 1.4; }
@@ -284,7 +284,16 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .notes-modal-hint { color: var(--text-muted); font-size: 0.8rem; margin: 0.8rem 0 0; }
 .notes-modal-label { display: block; margin: 1rem 0 0.35rem; color: var(--text-muted); font-size: 0.78rem; font-weight: 700; }
 .notes-modal-select { width: 100%; padding: 0.65rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--input-bg); color: var(--text-main); font: inherit; }
-.reference-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.reference-form-section { margin-bottom: 0.85rem; }
+.reference-form-grid { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); gap: 0.75rem; align-items: end; }
+.reference-field { min-width: 0; }
+.reference-form-error { margin: 0.35rem 0 0.5rem; color: #e53e3e; font-size: 0.78rem; }
+.author-row { display: grid; grid-template-columns: 1.25rem repeat(3, minmax(0, 1fr)) auto; align-items: center; gap: 0.45rem; margin-bottom: 0.5rem; }
+.author-row-number { color: var(--text-muted); font-size: 0.78rem; text-align: center; }
+.author-row .notes-modal-select { min-width: 0; }
+.author-remove { padding: 0.35rem 0.5rem; }
+.reference-add-author { margin-bottom: 0.35rem; font-size: 0.78rem; }
+@media (max-width: 520px) { .reference-form-grid { grid-template-columns: 1fr; gap: 0; } .author-row { grid-template-columns: 1rem repeat(3, minmax(0, 1fr)) auto; gap: 0.25rem; } }
 .reference-manager { display: grid; gap: 0.65rem; max-height: 360px; overflow-y: auto; }
 .reference-manager-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem; border: 1px solid var(--border); border-radius: 5px; }
 .reference-manager-row strong, .reference-manager-row small { display: block; }
@@ -331,9 +340,22 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .visual-tool-group { display: inline-flex; align-items: center; gap: 0.1rem; padding: 0 0.25rem; border-right: 1px solid var(--border); }
 .visual-tool-group:last-child { border-right: 0; }
 .visual-toolbar button, .visual-toolbar select { min-width: 34px; height: 34px; border: 0; background: transparent; color: var(--text-main); cursor: pointer; padding: 0.3rem 0.5rem; font: inherit; font-size: 0.92rem; border-radius: 4px; }
-.visual-toolbar select { min-width: 92px; height: 30px; background: var(--card-bg); border: 1px solid var(--border); }
+.visual-toolbar select { min-width: 74px; width: 74px; height: 30px; background: var(--card-bg); border: 1px solid var(--border); }
+.visual-toolbar select[data-command="fontName"] { min-width: 84px; width: 84px; }
+.visual-toolbar input[data-command="fontSize"] { min-width: 58px; width: 58px; height: 30px; padding: 0.2rem; border: 0; border-radius: 0; background: transparent; color: var(--text-main); text-align: center; font: inherit; }
+.visual-toolbar input[data-command="fontSize"]::-webkit-inner-spin-button, .visual-toolbar input[data-command="fontSize"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.visual-toolbar button[data-command="fontSizeStep"] { min-width: 28px; width: 28px; padding: 0.2rem; font-size: 1.1rem; font-weight: 700; }
+.font-size-control { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); }
+.font-size-control button, .font-size-control select { height: 30px; min-width: 30px; border: 0; border-radius: 0; background: transparent; }
+.font-size-control button + input, .font-size-control input + button { border-left: 1px solid var(--border); }
+.font-size-control button:hover, .font-size-control input:hover, .font-size-control input:focus { background: var(--input-bg); }
+.font-size-picker { position: relative; display: inline-flex; }
+.font-size-options { display: none; position: absolute; z-index: 40; top: calc(100% + 0.35rem); left: 50%; transform: translateX(-50%); grid-template-columns: repeat(4, 42px); gap: 0.15rem; padding: 0.3rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: var(--shadow); }
+.font-size-picker:hover .font-size-options, .font-size-picker:focus-within .font-size-options { display: grid; }
+.font-size-options button { width: 42px; min-width: 42px; height: 28px; padding: 0.15rem; }
 .visual-toolbar .visual-heading-group button { min-width: 30px; font-weight: 800; font-size: 0.72rem; }
 .visual-toolbar button:hover { background: var(--border); }
+.visual-toolbar button.active { background: var(--up-maroon-light); color: var(--up-maroon); box-shadow: inset 0 -2px 0 var(--up-maroon); }
 .visual-toolbar input[type="color"] { width: 32px; height: 30px; padding: 0; border: 0; background: transparent; }
 .color-picker-input { position: absolute; width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; }
 .color-tool { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-direction: column; gap: 0; }
@@ -346,6 +368,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .equation-toolbar { margin-top: -0.35rem; border-top: 0; }
 .equation-toolbar button { min-width: 42px; }
 .character-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; max-height: 260px; overflow-y: auto; }
+.emoji-selector .character-grid { max-height: none; overflow-y: visible; }
 .character-folder-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.7rem; }
 .character-folder-tab { border: 1px solid var(--border); background: var(--input-bg); color: var(--text-main); padding: 0.35rem 0.55rem; border-radius: 4px; cursor: pointer; font: inherit; font-size: 0.75rem; }
 .character-folder-tab.active { background: var(--up-maroon); border-color: var(--up-maroon); color: #fff; }
@@ -379,7 +402,10 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus { background:
 .note-editor-pane.editor-only-mode .note-pane-divider { display: none; }
 .note-editor-pane.visual-mode .note-editor-column { grid-column: 1; }
 body.resizing-note-panes { cursor: col-resize; user-select: none; }
-.visual-note-editor { outline: 0; line-height: 1.7; }
+.visual-note-editor { outline: 0; line-height: 1.7; font-size: 11pt; }
+.visual-note-editor .font-selection-highlight { background: rgba(91, 142, 239, 0.32); border-radius: 2px; }
+.visual-note-editor [style*="font-family: Computer Modern"] { font-family: 'KaTeX_Main', 'Latin Modern Roman', 'Computer Modern', serif !important; }
+.visual-note-editor [style*="font-family: Libertinus Serif"] { font-family: 'Libertinus Serif', 'Linux Libertine', Georgia, serif !important; }
 .visual-note-editor:focus { box-shadow: inset 0 0 0 2px var(--up-maroon-light); }
 .visual-note-editor ol, .visual-note-editor ul { padding-left: 2.7rem; }
 .visual-note-editor ol ol, .visual-note-editor ol ul, .visual-note-editor ul ol, .visual-note-editor ul ul { padding-left: 2.35rem; }
@@ -397,11 +423,21 @@ body.resizing-note-panes { cursor: col-resize; user-select: none; }
 .visual-note-editor table.table-selected { outline: 2px solid var(--up-maroon); outline-offset: 3px; }
 .visual-note-editor table.table-dragging { opacity: 0.45; }
 .visual-note-editor .note-image { display: inline-block; max-width: 100%; height: auto; margin: 0.5rem 0; border-radius: 6px; vertical-align: middle; }
+.visual-note-editor .note-image { cursor: grab; }
+.visual-note-editor .note-image.image-selected { outline: 2px solid var(--up-maroon); outline-offset: 3px; }
+.visual-note-editor .note-image.image-dragging { opacity: 0.45; }
+.note-image-frame { position: relative; display: inline-block; max-width: 100%; margin: 0.5rem 0; vertical-align: middle; line-height: 0; }
+.note-image-frame.image-crop-mode { overflow: hidden; }
+.note-image-frame .note-image { margin: 0; }
+.image-resize-handle { display: none; position: absolute; z-index: 3; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid #fff; border-radius: 1px; background: #111; box-shadow: 0 0 0 1px #111; }
+.note-image-frame.image-selected .image-resize-handle { display: block; }
+.handle-nw { top: -5px; left: -5px; cursor: nwse-resize; }.handle-n { top: -5px; left: calc(50% - 4px); cursor: ns-resize; }.handle-ne { top: -5px; right: -5px; cursor: nesw-resize; }.handle-e { top: calc(50% - 4px); right: -5px; cursor: ew-resize; }.handle-se { bottom: -5px; right: -5px; cursor: nwse-resize; }.handle-s { bottom: -5px; left: calc(50% - 4px); cursor: ns-resize; }.handle-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }.handle-w { top: calc(50% - 4px); left: -5px; cursor: ew-resize; }
+.note-image-frame.wrap-left { float: left; margin-right: 1rem; }.note-image-frame.wrap-right { float: right; margin-left: 1rem; }.note-image-frame.wrap-inline { float: none; }
 .visual-note-editor .note-equation { display: inline-block; padding: 0.15rem 0.35rem; border-radius: 3px; color: inherit; vertical-align: middle; }
 .visual-note-editor .note-equation.equation-selected { outline: 2px solid var(--up-maroon); outline-offset: 3px; }
 .visual-note-editor .note-equation.is-editing { outline: 2px solid var(--up-maroon); outline-offset: 3px; color: inherit; cursor: text; }
-.visual-note-editor .note-equation.is-raw-editing { outline: 2px solid var(--up-maroon); outline-offset: 3px; }
-.equation-latex-inline { width: 2ch; max-width: 70vw; height: 1.7rem; min-height: 0; padding: 0.15rem 0.35rem; border: 1px dotted var(--up-maroon); border-radius: 2px; background: transparent; color: inherit; font: inherit; vertical-align: middle; }
+.visual-note-editor .note-equation.is-raw-editing { outline: 0; }
+.equation-latex-inline { width: 12ch; min-width: 12ch; max-width: 70vw; height: 1.7rem; min-height: 0; box-sizing: border-box; padding: 0.15rem 0.35rem; border: 1px solid var(--up-maroon); border-radius: 2px; background: transparent; color: inherit; font: inherit; vertical-align: middle; }
 .equation-slot { display: inline-block; min-width: 1.15em; min-height: 1.25em; padding: 0 0.25em; border: 1px dotted var(--up-maroon); border-radius: 2px; text-align: center; vertical-align: middle; }
 .equation-slot:focus { outline: 1px solid var(--up-maroon); background: #fff; }
 .equation-fraction { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; line-height: 1.1; }

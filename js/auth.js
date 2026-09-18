@@ -79,7 +79,7 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (typeof populateProfileStats === 'function') populateProfileStats();
         updateClassroomLinkStatus();
         
-        if (!new URLSearchParams(window.location.search).get('id')) {
+        if (event === 'SIGNED_IN' && !new URLSearchParams(window.location.search).get('id')) {
             if (typeof switchView === 'function') switchView('assignments');
         }
 

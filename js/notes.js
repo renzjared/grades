@@ -13,8 +13,13 @@ let tableResizeState = null;
 let savedVisualRange = null;
 let notePaneResizeState = null;
 let selectedEquation = null;
+let selectedImage = null;
+let imageResizeState = null;
 let noteReferences = [];
+let activeListContinuation = null;
 let noteFormatSettings = { pageless: true, columns: 1, pageSize: 'a4', orientation: 'portrait', pageNumbers: false };
+function createNoteId() { return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+function isUuid(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || ''); }
 let emojiDatasetPromise = null;
 const EMOJI_CATEGORY_ICONS = { 'Smileys & Emotion': 'face', 'People & Body': 'person', 'Animals & Nature': 'leaf', 'Food & Drink': 'food', 'Travel & Places': 'travel', Activities: 'activity', Objects: 'object', Symbols: 'symbol', Flags: 'flag', Other: 'other' };
 const EMOJI_CATEGORY_ORDER = ['Smileys & Emotion', 'People & Body', 'Animals & Nature', 'Food & Drink', 'Travel & Places', 'Activities', 'Objects', 'Symbols', 'Flags', 'Other'];
@@ -101,12 +106,22 @@ window.addEventListener('offline', () => { isOnline = false; setSyncStatus('Offl
 function setSyncStatus(text) { const element = document.getElementById('notes-sync-status'); if (element) element.textContent = text; }
 function setSaveState(text) { const element = document.getElementById('notes-save-state'); if (element) element.textContent = text; }
 function formatLabel(format) { return NOTE_FORMATS[format]?.label || NOTE_FORMATS.visual.label; }
-function noteLocationItems() {
+function noteLocationItems(note = activeNote()) {
     const items = [{ label: 'Root', type: 'root', id: null }];
     if (!window.AcadState) return items;
+    const assignmentId = note?.assignment_id || (currentNotesContext.type === 'assignment' ? currentNotesContext.id : null);
+    const subjectId = note?.subject_id || (currentNotesContext.type === 'subject' ? currentNotesContext.id : null);
+    const subject = window.AcadState.subjects?.find(item => item.id === subjectId || item.id === window.AcadState.assignments?.find(assignment => assignment.id === assignmentId)?.subject_id);
+    const termId = note?.term_id || subject?.term_id || (currentNotesContext.type === 'term' ? currentNotesContext.id : null);
+    const term = window.AcadState.terms?.find(item => item.id === termId);
+    if (term) items.push({ label: term.name, type: 'term', id: term.id });
+    if (subject) items.push({ label: subject.code, type: 'subject', id: subject.id });
+    const assignment = window.AcadState.assignments?.find(item => item.id === assignmentId);
+    if (assignment) items.push({ label: assignment.title, type: 'assignment', id: assignment.id });
+    if (items.length > 1) return items;
     if (currentNotesContext.type === 'term') {
-        const term = window.AcadState.terms?.find(item => item.id === currentNotesContext.id);
-        if (term) items.push({ label: term.name, type: 'term', id: term.id });
+        const contextTerm = window.AcadState.terms?.find(item => item.id === currentNotesContext.id);
+        if (contextTerm) items.push({ label: contextTerm.name, type: 'term', id: contextTerm.id });
     }
     if (currentNotesContext.type === 'subject') {
         const subject = window.AcadState.subjects?.find(item => item.id === currentNotesContext.id);
@@ -127,7 +142,7 @@ function noteLocationItems() {
 function renderNoteLocationPath() {
     const path = document.getElementById('note-location-path');
     if (!path) return;
-    const items = noteLocationItems();
+    const items = noteLocationItems(activeNote());
     path.innerHTML = items.map((item, index) => `<button type="button" class="note-location-segment" onclick="setNotesContext('${item.type}', ${item.id === null ? 'null' : `'${escapeHtml(item.id)}'`})">${escapeHtml(item.label)}</button>${index < items.length - 1 ? '<span class="note-location-separator">/</span>' : ''}`).join('');
 }
 
@@ -149,16 +164,21 @@ function bindNotesControls() {
     document.querySelectorAll('[data-new-format]').forEach(button => button.addEventListener('click', () => { createNewNote(button.dataset.newFormat); closeNewNoteMenu(); }));
     document.getElementById('note-title-input').addEventListener('input', () => setSaveState('Unsaved changes'));
     editor().addEventListener('input', () => { setSaveState('Unsaved changes'); updateLivePreview(); });
+    editor().addEventListener('keydown', handleSourceKeydown, true);
     visualEditor().addEventListener('input', () => { setSaveState('Unsaved changes'); updateLivePreview(); });
-    visualEditor().addEventListener('keydown', handleVisualKeydown);
+    visualEditor().addEventListener('paste', handleVisualPaste);
+    visualEditor().addEventListener('keydown', handleVisualKeydown, true);
     visualEditor().addEventListener('keyup', saveVisualSelection);
     visualEditor().addEventListener('mouseup', saveVisualSelection);
     visualEditor().addEventListener('focus', saveVisualSelection);
+    document.addEventListener('selectionchange', updateVisualToolbarState);
+    visualEditor().addEventListener('mousedown', () => { activeListContinuation = null; clearToolbarSelectionHighlight(); });
+    document.addEventListener('mousedown', event => { if (event.target.closest('.visual-toolbar')) preserveToolbarSelectionHighlight(); });
     document.getElementById('note-editor-only').addEventListener('change', event => { document.querySelector('.note-preview').classList.toggle('hidden', event.target.checked); document.getElementById('note-editor-pane').classList.toggle('editor-only-mode', event.target.checked); document.getElementById('note-pane-divider').classList.toggle('hidden', event.target.checked); });
     document.getElementById('note-pane-divider').addEventListener('pointerdown', startNotePaneResize);
     document.addEventListener('pointermove', resizeNotePanes);
     document.addEventListener('pointerup', stopNotePaneResize);
-    document.querySelectorAll('[data-command]').forEach(control => control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'click', () => runVisualCommand(control.dataset.command, control.dataset.value || control.value)));
+    document.querySelectorAll('[data-command]').forEach(control => control.addEventListener(control.tagName === 'SELECT' || control.tagName === 'INPUT' ? 'change' : 'click', () => runVisualCommand(control.dataset.command, control.dataset.value || control.value)));
     document.querySelectorAll('.notes-menu-button').forEach(button => button.addEventListener('click', () => toggleMenu(button.dataset.menu)));
     document.querySelectorAll('.notes-dropdown [data-action]').forEach(button => button.addEventListener('click', () => { runFileAction(button.dataset.action); closeMenus(); }));
     document.querySelectorAll('#insert-menu [data-insert-action]').forEach(button => button.addEventListener('click', () => { runInsertAction(button.dataset.insertAction); closeMenus(); }));
@@ -175,24 +195,36 @@ function bindNotesControls() {
     document.querySelectorAll('.color-tool').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.colorTarget)?.click()));
     document.querySelectorAll('.color-picker-input').forEach(input => input.addEventListener('input', () => { if (input.id === 'font-color-picker') runVisualCommand('foreColor', input.value); else runTableAction(input.id === 'cell-color-picker' ? 'cell-color' : 'border-color', input.value); }));
     document.querySelectorAll('[data-equation-action]').forEach(control => control.addEventListener('click', () => control.dataset.equationAction === 'color' ? document.getElementById(control.dataset.colorTarget)?.click() : runEquationAction(control.dataset.equationAction, control.dataset.equation)));
+    document.querySelectorAll('[data-image-action]').forEach(control => control.addEventListener('click', () => runImageAction(control.dataset.imageAction)));
     document.getElementById('equation-color-picker').addEventListener('input', event => runEquationAction('color', event.target.value));
     visualEditor().addEventListener('contextmenu', openTableContextMenu);
     visualEditor().addEventListener('click', selectTableAtEvent);
     visualEditor().addEventListener('click', selectEquationAtEvent);
+    visualEditor().addEventListener('click', selectImageAtEvent);
+    visualEditor().addEventListener('dragstart', handleImageDragStart);
+    visualEditor().addEventListener('dragend', handleImageDragEnd);
+    visualEditor().addEventListener('dragover', handleImageDragOver);
+    visualEditor().addEventListener('drop', handleImageDrop);
+    visualEditor().addEventListener('contextmenu', openImageContextMenu);
     visualEditor().addEventListener('mouseup', selectTableAtEvent);
     visualEditor().addEventListener('dragstart', handleTableDragStart);
     visualEditor().addEventListener('dragover', handleTableDragOver);
     visualEditor().addEventListener('drop', handleTableDrop);
     visualEditor().addEventListener('mousemove', handleTableResizeMove);
     visualEditor().addEventListener('mousedown', handleTableResizeStart);
+    visualEditor().addEventListener('mousedown', startImageResize);
     document.addEventListener('mousemove', handleTableResizeDrag);
     document.addEventListener('mouseup', handleTableResizeEnd);
+    document.addEventListener('mousemove', handleImageResize);
+    document.addEventListener('mouseup', endImageResize);
     document.addEventListener('click', event => { if (!event.target.closest('#table-context-menu')) closeTableContextMenu(); });
+    document.addEventListener('click', event => { if (!event.target.closest('#image-context-menu')) closeImageContextMenu(); });
 }
 
 function handleNotesShortcut(event) {
     if (document.getElementById('note-editor-pane').classList.contains('hidden')) return;
     if (currentFormat === 'visual' && event.altKey && (event.key === '=' || event.code === 'Equal')) { event.preventDefault(); runVisualCommand('insertEquation', null, true); return; }
+    if (currentFormat === 'visual' && event.ctrlKey && event.shiftKey && (event.code === 'Comma' || event.code === 'Period' || event.key === '<' || event.key === '>')) { event.preventDefault(); event.stopPropagation(); adjustVisualFontSize(event.code === 'Period' || event.key === '>' ? 1 : -1); return; }
     if (!(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
     if (key === 'b') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('bold'); else document.execCommand('bold'); }
@@ -200,6 +232,64 @@ function handleNotesShortcut(event) {
     if (key === 'u') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('underline'); else document.execCommand('underline'); }
     if (key === 's') { event.preventDefault(); saveActiveNote(); }
 }
+function handleSourceKeydown(event) {
+    if (event.key !== 'Tab') return;
+    event.preventDefault();
+    const source = editor();
+    const start = source.selectionStart;
+    const end = source.selectionEnd;
+    if (!event.shiftKey) {
+        source.setRangeText('\t', start, end, 'end');
+    } else {
+        const lineStart = source.value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+        const selectedEnd = end === start ? start : end;
+        const lineEnd = source.value.indexOf('\n', selectedEnd);
+        const rangeEnd = lineEnd === -1 ? source.value.length : lineEnd;
+        const range = source.value.slice(lineStart, rangeEnd);
+        const unindented = range.replace(/^\t|^ {1,4}/gm, '');
+        const removedBeforeStart = range.slice(0, start - lineStart).length - range.slice(0, start - lineStart).replace(/^\t|^ {1,4}/, '').length;
+        source.setRangeText(unindented, lineStart, rangeEnd, 'select');
+        source.selectionStart = Math.max(lineStart, start - removedBeforeStart);
+        source.selectionEnd = Math.max(source.selectionStart, end - (range.length - unindented.length));
+    }
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+}
+function updateVisualToolbarState() {
+    if (currentFormat !== 'visual' || !visualEditor().contains(window.getSelection()?.anchorNode)) return;
+    ['bold', 'italic', 'underline'].forEach(command => document.querySelector(`[data-command="${command}"]`)?.classList.toggle('active', document.queryCommandState(command)));
+}
+function preserveToolbarSelectionHighlight() {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || selection.isCollapsed || !visualEditor().contains(selection.anchorNode)) { saveVisualSelection(); return; }
+    const range = selection.getRangeAt(0).cloneRange();
+    const highlight = document.createElement('span');
+    highlight.className = 'font-selection-highlight';
+    highlight.appendChild(range.extractContents());
+    range.insertNode(highlight);
+    const savedRange = document.createRange();
+    savedRange.selectNodeContents(highlight);
+    savedVisualRange = savedRange;
+}
+function clearToolbarSelectionHighlight() { visualEditor().querySelectorAll('.font-selection-highlight').forEach(item => item.classList.remove('font-selection-highlight')); }
+function applyVisualFontSize(size) {
+    visualEditor().focus();
+    restoreVisualSelection();
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    const span = document.createElement('span');
+    const normalizedSize = Math.max(6, Math.min(72, Number(size) || 11));
+    span.style.fontSize = `${normalizedSize}pt`;
+    if (range.collapsed) { span.appendChild(document.createTextNode('\u200b')); range.insertNode(span); range.setStart(span.firstChild, 1); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }
+    else { span.appendChild(range.extractContents()); range.insertNode(span); span.classList.remove('font-selection-highlight'); selection.removeAllRanges(); const nextRange = document.createRange(); nextRange.selectNodeContents(span); selection.addRange(nextRange); }
+    const sizeInput = document.querySelector('input[data-command="fontSize"]');
+    if (sizeInput) sizeInput.value = normalizedSize;
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+}
+function currentVisualFontSize() { const selection = window.getSelection(); const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement; const pixels = Number.parseFloat(node ? getComputedStyle(node).fontSize : ''); const size = Number.isFinite(pixels) ? pixels * 72 / 96 : 11; return Math.round(size); }
+function adjustVisualFontSize(delta) { const nextSize = Math.max(6, Math.min(72, currentVisualFontSize() + delta)); applyVisualFontSize(nextSize); }
 
 function setFormat(format, shouldConvert = false) {
     if (!NOTE_FORMATS[format]) return;
@@ -290,6 +380,24 @@ function openNotesModal(title, body, confirmLabel = '', onConfirm = null, tone =
     setTimeout(() => footer.querySelector('[data-modal-confirm]')?.focus(), 0);
 }
 function closeNotesModal() { document.getElementById('notes-modal').classList.add('hidden'); notesModalConfirm = null; }
+function imageHtml(url, alt = '') { return `<img class="note-image" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" draggable="true">&nbsp;`; }
+function handleVisualPaste(event) { const image = [...(event.clipboardData?.files || [])].find(file => file.type.startsWith('image/')); if (!image) return; event.preventDefault(); const reader = new FileReader(); reader.onload = () => { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, imageHtml(reader.result)); setSaveState('Unsaved changes'); updateLivePreview(); }; reader.readAsDataURL(image); }
+function ensureImageFrame(image) { if (image.parentElement?.classList.contains('note-image-frame')) return image.parentElement; const frame = document.createElement('span'); frame.className = 'note-image-frame'; frame.contentEditable = 'false'; image.parentNode.insertBefore(frame, image); frame.appendChild(image); ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].forEach(position => { const handle = document.createElement('span'); handle.className = `image-resize-handle handle-${position}`; handle.dataset.resize = position; frame.appendChild(handle); }); return frame; }
+function selectImageAtEvent(event) { const image = event.target.closest('.note-image'); if (!image || !visualEditor().contains(image)) { selectedImage = null; document.querySelectorAll('.image-selected').forEach(item => item.classList.remove('image-selected')); document.getElementById('image-toolbar').classList.add('hidden'); return; } const frame = ensureImageFrame(image); selectedImage = image; selectedEquation = null; document.getElementById('table-toolbar').classList.add('hidden'); document.getElementById('equation-toolbar').classList.add('hidden'); document.querySelectorAll('.image-selected').forEach(item => item.classList.remove('image-selected')); frame.classList.add('image-selected'); document.getElementById('image-toolbar').classList.remove('hidden'); selectImageRange(image); }
+function selectImageRange(image) { const frame = ensureImageFrame(image); const selection = window.getSelection(); const range = document.createRange(); range.selectNode(frame); selection.removeAllRanges(); selection.addRange(range); }
+async function copySelectedImage(removeAfter = false) { if (!selectedImage) return false; const image = selectedImage; const html = image.outerHTML; try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([image.alt || 'Image'], { type: 'text/plain' }) })]); } catch (error) { selectImageRange(image); document.execCommand('copy'); } if (removeAfter) removeSelectedImage(); return true; }
+function removeSelectedImage() { if (!selectedImage) return; ensureImageFrame(selectedImage).remove(); selectedImage = null; document.getElementById('image-toolbar').classList.add('hidden'); setSaveState('Unsaved changes'); updateLivePreview(); }
+function handleImageKeyboard(event) { if (!selectedImage) return false; const key = event.key.toLowerCase(); if ((event.ctrlKey || event.metaKey) && key === 'c') { event.preventDefault(); copySelectedImage(); return true; } if ((event.ctrlKey || event.metaKey) && key === 'x') { event.preventDefault(); copySelectedImage(true); return true; } if (event.key === 'Delete' || event.key === 'Backspace') { const selection = window.getSelection(); if (selection?.isCollapsed || selection?.containsNode?.(ensureImageFrame(selectedImage), true)) { event.preventDefault(); removeSelectedImage(); return true; } } return false; }
+function handleImageDragStart(event) { const image = event.target.closest('.note-image'); if (!image) return; selectedImage = image; const frame = ensureImageFrame(image); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.clearData(); event.dataTransfer.setData('text/plain', 'note-image-move'); frame.classList.add('image-dragging'); }
+function handleImageDragEnd() { visualEditor().querySelectorAll('.image-dragging').forEach(item => item.classList.remove('image-dragging')); }
+function handleImageDragOver(event) { if (selectedImage && event.target.closest('.note-image')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'move'; } }
+function handleImageDrop(event) { if (!event.dataTransfer?.types.includes('text/plain') || event.dataTransfer.getData('text/plain') !== 'note-image-move') return; event.preventDefault(); event.stopImmediatePropagation(); if (!selectedImage) return handleImageDragEnd(); const selectedFrame = ensureImageFrame(selectedImage); const target = event.target.closest('.note-image'); if (target && target !== selectedImage) { const targetFrame = ensureImageFrame(target); const rect = targetFrame.getBoundingClientRect(); targetFrame.parentNode.insertBefore(selectedFrame, event.clientY < rect.top + rect.height / 2 ? targetFrame : targetFrame.nextSibling); } else if (!selectedFrame.contains(event.target)) { const range = document.caretRangeFromPoint?.(event.clientX, event.clientY) || (() => { const position = document.caretPositionFromPoint?.(event.clientX, event.clientY); if (!position) return null; const nextRange = document.createRange(); nextRange.setStart(position.offsetNode, position.offset); nextRange.collapse(true); return nextRange; })(); if (range && visualEditor().contains(range.startContainer)) { range.collapse(true); range.insertNode(selectedFrame); } } handleImageDragEnd(); setSaveState('Unsaved changes'); updateLivePreview(); }
+function startImageResize(event) { const handle = event.target.closest('.image-resize-handle'); const frame = handle?.closest('.note-image-frame'); if (!handle || !frame || !selectedImage) return; event.preventDefault(); event.stopPropagation(); const rect = frame.getBoundingClientRect(); imageResizeState = { frame, handle: handle.dataset.resize, startX: event.clientX, startY: event.clientY, width: rect.width, height: rect.height, maxWidth: Number(selectedImage.dataset.cropOriginalWidth) || rect.width, maxHeight: Number(selectedImage.dataset.cropOriginalHeight) || rect.height, ratio: rect.width / Math.max(1, rect.height), crop: frame.classList.contains('image-crop-mode') }; }
+function handleImageResize(event) { if (!imageResizeState) return; const state = imageResizeState; const horizontal = state.handle.includes('e') || state.handle.includes('w'); const vertical = state.handle.includes('n') || state.handle.includes('s'); let width = state.width + (state.handle.includes('e') ? event.clientX - state.startX : state.handle.includes('w') ? state.startX - event.clientX : 0); let height = state.height + (state.handle.includes('s') ? event.clientY - state.startY : state.handle.includes('n') ? state.startY - event.clientY : 0); if (!state.crop && horizontal && !vertical) height = state.height; if (!state.crop && vertical && !horizontal) width = state.width; if (!state.crop && event.shiftKey && horizontal && vertical) { const size = Math.max(width, height); width = size; height = size / state.ratio; } if (state.crop) { width = Math.min(width, state.maxWidth); height = Math.min(height, state.maxHeight); } const target = state.crop ? state.frame : selectedImage; target.style.width = `${Math.max(32, width)}px`; target.style.height = `${Math.max(32, height)}px`; if (!state.crop) selectedImage.style.maxWidth = 'none'; }
+function endImageResize() { if (!imageResizeState) return; imageResizeState = null; setSaveState('Unsaved changes'); updateLivePreview(); }
+function openImageContextMenu(event) { const image = event.target.closest('.note-image'); if (!image) return; event.preventDefault(); selectImageAtEvent(event); const menu = document.getElementById('image-context-menu'); menu.style.left = `${event.clientX}px`; menu.style.top = `${event.clientY}px`; menu.classList.remove('hidden'); }
+function closeImageContextMenu() { document.getElementById('image-context-menu')?.classList.add('hidden'); }
+function runImageAction(action) { closeImageContextMenu(); if (!selectedImage) return; const frame = ensureImageFrame(selectedImage); if (action === 'resize') { frame.classList.remove('image-crop-mode'); frame.classList.add('image-resize-mode'); return; } if (action === 'crop') { const rect = frame.getBoundingClientRect(); frame.style.width = `${rect.width}px`; frame.style.height = `${rect.height}px`; frame.classList.add('image-crop-mode'); frame.classList.remove('image-resize-mode'); selectedImage.style.objectFit = 'fill'; selectedImage.style.width = `${rect.width}px`; selectedImage.style.height = `${rect.height}px`; selectedImage.style.maxWidth = 'none'; selectedImage.dataset.cropOriginalWidth = String(rect.width); selectedImage.dataset.cropOriginalHeight = String(rect.height); setSaveState('Unsaved changes'); updateLivePreview(); return; } if (action === 'wrap-left' || action === 'wrap-right') { frame.classList.remove('wrap-inline'); frame.classList.toggle('wrap-left', action === 'wrap-left'); frame.classList.toggle('wrap-right', action === 'wrap-right'); } if (action === 'wrap-inline') { frame.classList.remove('wrap-left', 'wrap-right'); frame.classList.add('wrap-inline'); } if (action === 'delete') { frame.remove(); selectedImage = null; document.getElementById('image-toolbar').classList.add('hidden'); } if (action === 'move-left') { const previous = frame.previousElementSibling; if (previous) previous.before(frame); } if (action === 'move-right') { const next = frame.nextElementSibling; if (next) next.after(frame); } setSaveState('Unsaved changes'); updateLivePreview(); }
 function selectedFormatBlock() { const selection = window.getSelection(); const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement; let block = node?.closest?.('p,h1,h2,h3,h4,h5,h6,blockquote,li,div'); if (!block || block === visualEditor()) { document.execCommand('formatBlock', false, 'p'); const refreshed = window.getSelection()?.anchorNode; block = (refreshed?.nodeType === Node.ELEMENT_NODE ? refreshed : refreshed?.parentElement)?.closest?.('p') || visualEditor(); } return block; }
 function applyBlockStyle(property, value) { restoreVisualSelection(); const block = selectedFormatBlock(); if (block && block !== visualEditor()) block.style[property] = value; setSaveState('Unsaved changes'); updateLivePreview(); }
 function updateFormatMenuState() { const pageless = noteFormatSettings.pageless; document.querySelectorAll('[data-requires-pages]').forEach(item => { item.disabled = false; item.classList.remove('disabled'); }); document.querySelectorAll('[data-format-action="pageless"]').forEach(item => item.classList.toggle('active', pageless)); document.querySelectorAll('[data-columns-value]').forEach(item => item.classList.toggle('active', Number(item.dataset.columnsValue) === Number(noteFormatSettings.columns))); }
@@ -317,17 +425,26 @@ function runFormatAction(action, value) {
 }
 const CITATION_FORMATS = { apa: 'APA 7', mla: 'MLA 9', chicago: 'Chicago', harvard: 'Harvard', ieee: 'IEEE' };
 const REFERENCE_TYPES = { book: 'Book', article: 'Journal article', web: 'Website' };
-function referenceField(id, label, value = '', type = 'text') { return `<label class="notes-modal-label" for="reference-${id}">${label}</label><input id="reference-${id}" class="notes-modal-select" type="${type}" value="${escapeHtml(value)}">`; }
-function referenceForm(reference = {}) { return `<input id="reference-id" type="hidden" value="${escapeHtml(reference.id || '')}"><div class="reference-form"><div class="reference-form-grid"><div><label class="notes-modal-label" for="reference-format">Citation format</label><select id="reference-format" class="notes-modal-select">${Object.entries(CITATION_FORMATS).map(([key, label]) => `<option value="${key}"${(reference.format || 'apa') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div><label class="notes-modal-label" for="reference-type">Reference type</label><select id="reference-type" class="notes-modal-select">${Object.entries(REFERENCE_TYPES).map(([key, label]) => `<option value="${key}"${(reference.type || 'book') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div></div>${referenceField('author', 'Author(s)', reference.author)}${referenceField('title', 'Title', reference.title)}<div class="reference-form-grid">${referenceField('year', 'Year', reference.year, 'number')}${referenceField('publisher', 'Publisher / journal', reference.publisher)}</div>${referenceField('url', 'URL', reference.url, 'url')}${referenceField('accessed', 'Accessed date', reference.accessed, 'date')}</div>`; }
-function referenceFromForm() { return { id: document.getElementById('reference-id')?.value || Math.random().toString(36).slice(2, 11), format: document.getElementById('reference-format').value, type: document.getElementById('reference-type').value, author: document.getElementById('reference-author').value.trim(), title: document.getElementById('reference-title').value.trim(), year: document.getElementById('reference-year').value.trim(), publisher: document.getElementById('reference-publisher').value.trim(), url: document.getElementById('reference-url').value.trim(), accessed: document.getElementById('reference-accessed').value.trim() }; }
-function formatReference(reference, index = 0) { const author = reference.author || 'Author'; const title = reference.title || 'Untitled'; const year = reference.year || 'n.d.'; const publisher = reference.publisher || ''; const url = reference.url || ''; if (reference.format === 'mla') return `${author}. "${title}." ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (reference.format === 'chicago') return `${author}. ${title}. ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (reference.format === 'harvard') return `${author} (${year}) ${title}. ${publisher}.${url ? ` Available at: ${url}` : ''}`; if (reference.format === 'ieee') return `[${index + 1}] ${author}, "${title}," ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; return `${author}. (${year}). ${title}. ${publisher}${url ? `. ${url}` : ''}`; }
-function formatInlineCitation(reference, index = 0) { if (reference.format === 'ieee') return `[${index + 1}]`; if (reference.format === 'mla') return `(${reference.author || 'Author'} ${reference.year || 'n.d.'})`; return `(${reference.author || 'Author'}, ${reference.year || 'n.d.'})`; }
+function referenceField(id, label, value = '', type = 'text') { return `<div class="reference-field"><label class="notes-modal-label" for="reference-${id}">${label}</label><input id="reference-${id}" class="notes-modal-select" type="${type}" value="${escapeHtml(value)}"></div>`; }
+function referenceAuthors(reference = {}) { if (Array.isArray(reference.authors) && reference.authors.length) return reference.authors; if (reference.author) return [{ first: reference.author, middle: '', last: '' }]; return [{ first: '', middle: '', last: '' }]; }
+function authorFormRows(reference = {}) { return referenceAuthors(reference).map((author, index) => `<div class="author-row" data-author-row><span class="author-row-number">${index + 1}</span><input class="notes-modal-select" data-author-first placeholder="First" value="${escapeHtml(author.first)}"><input class="notes-modal-select" data-author-middle placeholder="Middle" value="${escapeHtml(author.middle)}"><input class="notes-modal-select" data-author-last placeholder="Last" value="${escapeHtml(author.last)}"><button type="button" class="btn secondary author-remove" title="Remove author">×</button></div>`).join(''); }
+function referenceForm(reference = {}) { return `<input id="reference-id" type="hidden" value="${escapeHtml(reference.id || '')}"><div class="reference-form"><div class="reference-form-section"><label class="notes-modal-label" for="reference-format">Citation format</label><select id="reference-format" class="notes-modal-select">${Object.entries(CITATION_FORMATS).map(([key, label]) => `<option value="${key}"${(reference.format || 'apa') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="reference-form-section"><label class="notes-modal-label" for="reference-type">Reference type</label><select id="reference-type" class="notes-modal-select">${Object.entries(REFERENCE_TYPES).map(([key, label]) => `<option value="${key}"${(reference.type || 'book') === key ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="reference-form-section"><label class="notes-modal-label">Authors</label><div id="reference-authors">${authorFormRows(reference)}</div><p id="reference-author-error" class="reference-form-error hidden" role="alert">Complete the current author before adding another.</p><button type="button" class="btn secondary reference-add-author" id="reference-add-author">+ Add author</button></div>${referenceField('title', 'Title', reference.title)}<div class="reference-form-grid">${referenceField('year', 'Year', reference.year, 'number')}${referenceField('publisher', 'Publisher / journal', reference.publisher)}</div>${referenceField('url', 'URL', reference.url, 'url')}${referenceField('accessed', 'Accessed date', reference.accessed, 'date')}</div>`; }
+function authorRowComplete(row) { return [...row.querySelectorAll('input')].some(input => input.value.trim()); }
+function refreshAuthorNumbers(container) { [...container.children].forEach((row, index) => { row.querySelector('.author-row-number').textContent = index + 1; }); }
+function bindReferenceAuthors() { const container = document.getElementById('reference-authors'); const addButton = document.getElementById('reference-add-author'); const error = document.getElementById('reference-author-error'); if (!container || !addButton || addButton.dataset.bound) return; addButton.dataset.bound = 'true'; addButton.addEventListener('click', () => { const rows = [...container.querySelectorAll('[data-author-row]')]; const incomplete = rows.find(row => !authorRowComplete(row)); if (incomplete) { error.classList.remove('hidden'); incomplete.querySelector('input')?.focus(); return; } error.classList.add('hidden'); const index = rows.length + 1; container.insertAdjacentHTML('beforeend', `<div class="author-row" data-author-row><span class="author-row-number">${index}</span><input class="notes-modal-select" data-author-first placeholder="First"><input class="notes-modal-select" data-author-middle placeholder="Middle"><input class="notes-modal-select" data-author-last placeholder="Last"><button type="button" class="btn secondary author-remove" title="Remove author">×</button></div>`); }); container.addEventListener('click', event => { const button = event.target.closest('.author-remove'); if (!button || container.children.length <= 1) return; button.closest('[data-author-row]').remove(); refreshAuthorNumbers(container); }); }
+function referenceFromForm() { const authors = [...document.querySelectorAll('#reference-authors [data-author-row]')].map(row => ({ first: row.querySelector('[data-author-first]').value.trim(), middle: row.querySelector('[data-author-middle]').value.trim(), last: row.querySelector('[data-author-last]').value.trim() })).filter(author => author.first || author.middle || author.last); return { id: document.getElementById('reference-id')?.value || Math.random().toString(36).slice(2, 11), format: document.getElementById('reference-format').value, type: document.getElementById('reference-type').value, authors, title: document.getElementById('reference-title').value.trim(), year: document.getElementById('reference-year').value.trim(), publisher: document.getElementById('reference-publisher').value.trim(), url: document.getElementById('reference-url').value.trim(), accessed: document.getElementById('reference-accessed').value.trim() }; }
+function authorText(reference) { return referenceAuthors(reference).map(author => [author.first, author.middle, author.last].filter(Boolean).join(' ')).filter(Boolean).join(', ') || 'Author'; }
+function formatReference(reference, index = 0, format = reference.format) { const author = authorText(reference); const title = reference.title || 'Untitled'; const year = reference.year || 'n.d.'; const publisher = reference.publisher || ''; const url = reference.url || ''; if (format === 'mla') return `${author}. "${title}." ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (format === 'chicago') return `${author}. ${title}. ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; if (format === 'harvard') return `${author} (${year}) ${title}. ${publisher}.${url ? ` Available at: ${url}` : ''}`; if (format === 'ieee') return `[${index + 1}] ${author}, "${title}," ${publisher}${publisher ? ', ' : ''}${year}.${url ? ` ${url}` : ''}`; return `${author}. (${year}). ${title}. ${publisher}${url ? `. ${url}` : ''}`; }
+function formatInlineCitation(reference, index = 0) { const author = authorText(reference); if (reference.format === 'ieee') return `[${index + 1}]`; if (reference.format === 'mla') return `(${author} ${reference.year || 'n.d.'})`; return `(${author}, ${reference.year || 'n.d.'})`; }
 function insertReferenceHtml(html) { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, html); setSaveState('Unsaved changes'); updateLivePreview(); }
-function openReferenceDialog(action, reference = null) { if (action === 'manage') return openReferenceManager(); openNotesModal(action === 'citation' ? 'Insert citation' : action === 'footnote' ? 'Insert footnote' : 'Insert bibliography', referenceForm(reference || {}), action === 'citation' ? 'Insert citation' : action === 'footnote' ? 'Insert footnote' : 'Insert bibliography', () => { const value = referenceFromForm(); const existingIndex = noteReferences.findIndex(item => item.id === value.id); if (existingIndex >= 0) noteReferences[existingIndex] = value; else noteReferences.push(value); const index = noteReferences.findIndex(item => item.id === value.id); if (action === 'citation') insertReferenceHtml(`<span class="note-citation" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${escapeHtml(formatInlineCitation(value, index))}</span>&nbsp;`); if (action === 'footnote') { const footnoteNumber = visualEditor().querySelectorAll('.note-footnote-marker').length + 1; insertReferenceHtml(`<sup class="note-footnote-marker" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${footnoteNumber}</sup>&nbsp;`); } if (action === 'bibliography') insertReferenceHtml(`<section class="note-bibliography"><h3>References</h3>${noteReferences.map((item, itemIndex) => `<p data-reference-id="${escapeHtml(item.id)}">${escapeHtml(formatReference(item, itemIndex))}</p>`).join('')}</section>`); }); }
+function openReferenceDialog(action, reference = null) { if (action === 'manage') return openReferenceManager(); if (action === 'bibliography') return openBibliographyDialog(); openNotesModal(action === 'citation' ? 'Insert citation' : 'Insert footnote', referenceForm(reference || {}), action === 'citation' ? 'Insert citation' : 'Insert footnote', () => { const value = referenceFromForm(); const existingIndex = noteReferences.findIndex(item => item.id === value.id); if (existingIndex >= 0) noteReferences[existingIndex] = value; else noteReferences.push(value); const index = noteReferences.findIndex(item => item.id === value.id); if (action === 'citation') insertReferenceHtml(`<span class="note-citation" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${escapeHtml(formatInlineCitation(value, index))}</span>&nbsp;`); if (action === 'footnote') { const footnoteNumber = visualEditor().querySelectorAll('.note-footnote-marker').length + 1; insertReferenceHtml(`<sup class="note-footnote-marker" contenteditable="false" data-reference-id="${escapeHtml(value.id)}">${footnoteNumber}</sup>&nbsp;`); } }); bindReferenceAuthors(); }
+function openBibliographyDialog() { const body = `<label class="notes-modal-label" for="bibliography-format">Bibliography format</label><select id="bibliography-format" class="notes-modal-select">${Object.entries(CITATION_FORMATS).map(([key, label]) => `<option value="${key}">${label}</option>`).join('')}</select><p class="notes-modal-hint">The bibliography will be generated from the references already managed in this note.</p>`; openNotesModal('Insert bibliography', body, 'Insert bibliography', () => { const format = document.getElementById('bibliography-format').value; insertReferenceHtml(`<section class="note-bibliography"><h3>References</h3>${noteReferences.map((item, itemIndex) => `<p data-reference-id="${escapeHtml(item.id)}">${escapeHtml(formatReference(item, itemIndex, format))}</p>`).join('')}</section>`); }); }
 function openReferenceManager() { const body = noteReferences.length ? `<div class="reference-manager">${noteReferences.map((reference, index) => `<div class="reference-manager-row"><div><strong>${escapeHtml(reference.title || 'Untitled')}</strong><small>${escapeHtml(formatReference(reference, index))}</small></div><span><button type="button" class="btn secondary" data-reference-edit="${escapeHtml(reference.id)}">Edit</button><button type="button" class="btn danger" data-reference-delete="${escapeHtml(reference.id)}">Delete</button></span></div>`).join('')}</div>` : '<p class="notes-modal-copy">No references have been added to this note.</p>'; openNotesModal('Manage references', body, 'Add reference', () => openReferenceDialog('citation')); document.querySelectorAll('[data-reference-edit]').forEach(button => button.addEventListener('click', () => { const reference = noteReferences.find(item => item.id === button.dataset.referenceEdit); openReferenceDialog('citation', reference); })); document.querySelectorAll('[data-reference-delete]').forEach(button => button.addEventListener('click', () => { noteReferences = noteReferences.filter(item => item.id !== button.dataset.referenceDelete); setSaveState('Unsaved changes'); openReferenceManager(); })); }
 function runVisualCommand(command, value, editEquation = false) {
     restoreVisualSelection();
     visualEditor().focus();
+    if (command === 'fontSize') return applyVisualFontSize(value);
+    if (command === 'fontSizeStep') return adjustVisualFontSize(Number(value) || 0);
     if (command === 'insertTable') { document.execCommand('insertHTML', false, '<table class="note-table" draggable="true" data-border-style="solid"><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table><p></p>'); makeTablesInteractive(); }
     else if (command === 'insertCode') document.execCommand('insertHTML', false, '<pre class="note-code-block"><code>code</code></pre><p></p>');
     else if (command === 'insertEquation') insertEquation(editEquation ? '' : EQUATION_TEMPLATES.exponent.source, editEquation);
@@ -348,7 +465,7 @@ function runInsertAction(action) {
     if (action === 'divider') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, '<hr class="note-divider"><p></p>'); setSaveState('Unsaved changes'); updateLivePreview(); }
 }
 function insertSourceText(value) { const source = editor(); const start = source.selectionStart; const end = source.selectionEnd; source.setRangeText(value, start, end, 'end'); source.focus(); }
-function insertImage(url, alt = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, `<img class="note-image" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" draggable="false">&nbsp;`); } else if (currentFormat === 'md') insertSourceText(`![${alt || 'Image'}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\includegraphics[width=\\linewidth]{${url}}`); else insertSourceText(`#image("${url}", width: 100%)`); setSaveState('Unsaved changes'); updateLivePreview(); }
+function insertImage(url, alt = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); document.execCommand('insertHTML', false, imageHtml(url, alt)); } else if (currentFormat === 'md') insertSourceText(`![${alt || 'Image'}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\includegraphics[width=\\linewidth]{${url}}`); else insertSourceText(`#image("${url}", width: 100%)`); setSaveState('Unsaved changes'); updateLivePreview(); }
 function insertLink(url, text = '') { if (!url) return; if (currentFormat === 'visual') { restoreVisualSelection(); visualEditor().focus(); if (text) document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`); else document.execCommand('createLink', false, url); } else if (currentFormat === 'md') insertSourceText(`[${text || url}](${url})`); else if (currentFormat === 'latex') insertSourceText(`\\href{${url}}{${text || url}}`); else insertSourceText(`#link("${url}")[${text || url}]`); setSaveState('Unsaved changes'); updateLivePreview(); }
 function unicodeEmoji(value) { if (!value) return ''; const normalized = (Array.isArray(value) ? value.join(' ') : String(value)).replace(/U\+/gi, '').trim(); const codes = normalized.split(/[\s_-]+/).filter(Boolean); if (codes.length && codes.every(code => /^[0-9A-F]+$/i.test(code))) return String.fromCodePoint(...codes.map(code => parseInt(code, 16))); return value; }
 function fallbackEmojiFolders() { return { 'Smileys & Emotion': '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😋 😛 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🫡 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 ☠️ 👽 👾 🤖 🎃'.split(' '), 'People & Body': '👋 🤚 🖐️ ✋ 🖖 👌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✍️ 👏 🙌 👐 🤝 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 💕 💞 💓 💗 💖 💘 💝 💟'.split(' '), 'Animals & Nature': '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐙 🦋 🐝 🐞 🐢 🐍 🦎 🐳 🐬 🐟 🦈 🐊 🦓 🦒 🐘 🦏 🦛 🐪 🐫 🌸 🌹 🌻 🌞 🌝 🌈 ⭐ 🌟 ⚡ 🔥 ❄️'.split(' '), 'Food & Drink': '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥕 🌽 🌶️ 🍔 🍕 🌭 🌮 🍿 🍜 🍣 🍪 🎂 🍰 🍫 🍭 ☕ 🧃 🍺 🍻 🍷'.split(' '), Activities: '⚽ 🏀 🏈 ⚾ 🎾 🏐 🏉 🎱 🪀 🏆 🥇 🎮 🎲 🎭 🎨 🎼 🎸 🚗 🚕 🚌 🚓 🚑 ✈️ 🚀 🚲 🏠 🏫 🏥 🗺️ 🌍 🏖️ 🏔️'.split(' '), Objects: '⌚ 📱 💻 ⌨️ 🖨️ 📷 🔋 💡 📚 📖 ✏️ 📝 📌 📎 🔒 🔑 🔨 🔬 🔭 💰 🎁 🎈 🎉 ✅ ❌ ❗ ❓ ⚠️ 💯 🔗'.split(' ') }; }
@@ -376,17 +493,50 @@ function currentListItem() {
     const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
     return node?.closest?.('li') || null;
 }
-function indentCurrentListItem() {
-    const item = currentListItem();
-    if (item) document.execCommand('indent', false, null);
+function currentTextBlock() {
+    const selection = window.getSelection();
+    const anchorNode = selection?.anchorNode;
+    const node = anchorNode?.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode?.parentElement;
+    const block = node?.closest?.('p,h1,h2,h3,h4,h5,h6,blockquote,div');
+    if (block && block !== visualEditor() && visualEditor().contains(block)) return block;
+    if (!node || !visualEditor().contains(node)) return null;
+    let topLevel = anchorNode;
+    while (topLevel.parentElement && topLevel.parentElement !== visualEditor()) topLevel = topLevel.parentElement;
+    if (topLevel === visualEditor() || topLevel.nodeType !== Node.TEXT_NODE && topLevel.matches('ol,ul,table,hr')) return null;
+    const wrapper = document.createElement('p');
+    topLevel.parentNode.insertBefore(wrapper, topLevel);
+    wrapper.appendChild(topLevel);
+    return wrapper;
 }
+function indentCurrentListItem() { runListIndentCommand('indent'); }
 function runListIndentCommand(command) {
     const item = currentListItem();
-    if (!item) { document.execCommand(command, false, null); return; }
-    document.execCommand(command, false, null);
+    if (item) {
+        const list = item.parentElement;
+        if (command === 'indent') {
+            const previousItem = item.previousElementSibling;
+            if (!previousItem?.matches('li')) return;
+            let nestedList = [...previousItem.children].find(child => child.matches(list.tagName.toLowerCase()));
+            if (!nestedList) { nestedList = document.createElement(list.tagName.toLowerCase()); previousItem.appendChild(nestedList); }
+            nestedList.appendChild(item);
+        } else {
+            const parentItem = list.parentElement?.closest('li');
+            if (!parentItem) return;
+            const followingItem = parentItem.nextElementSibling;
+            if (followingItem) followingItem.before(item);
+            else parentItem.parentElement.appendChild(item);
+            if (!list.children.length) list.remove();
+        }
+        return;
+    }
+    const block = currentTextBlock();
+    if (!block) return;
+    const currentIndent = Number.parseFloat(block.style.marginLeft) || 0;
+    block.style.marginLeft = `${Math.max(0, currentIndent + (command === 'indent' ? 40 : -40))}px`;
 }
 
 function hasUnsavedChanges() { const pane = document.getElementById('note-editor-pane'); return Boolean(pane && !pane.classList.contains('hidden') && document.getElementById('notes-save-state')?.textContent === 'Unsaved changes'); }
+function serializedVisualContent() { const clone = visualEditor().cloneNode(true); clone.querySelectorAll('.image-resize-handle').forEach(handle => handle.remove()); clone.querySelectorAll('.image-selected, .image-dragging').forEach(item => item.classList.remove('image-selected', 'image-dragging')); return clone.innerHTML; }
 function selectTableAtEvent(event) { const table = event.target.closest('table'); if (!table || !visualEditor().contains(table)) return; selectedEquation = null; document.getElementById('equation-toolbar').classList.add('hidden'); selectedTable = table; wholeTableSelected = !event.target.closest('td,th'); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); document.getElementById('table-toolbar').classList.remove('hidden'); table.classList.add('table-selected'); makeTableInteractive(table); }
 function insertEquation(source, edit = false) { document.execCommand('insertHTML', false, `<span class="note-equation" contenteditable="false" data-new-equation="true" data-source="${escapeHtml(source)}">${renderKatex(source, false)}</span>&nbsp;`); const equation = visualEditor().querySelector('.note-equation[data-new-equation="true"]'); if (!equation) return; equation.removeAttribute('data-new-equation'); if (edit) openRawEquationEditor(equation); }
 function equationSource(equation) { return equation.dataset.source || equation.textContent.replace(/^\\\(|\\\)$/g, '').trim(); }
@@ -429,8 +579,8 @@ function latexFromVisual(equation) {
 }
 function finalizeEditingEquations(except = null) { let finalized = false; visualEditor().querySelectorAll('.note-equation.is-editing').forEach(equation => { if (equation === except) return; const source = latexFromVisual(equation); equation.dataset.source = source; equation.contentEditable = 'false'; equation.classList.remove('is-editing', 'equation-selected'); equation.innerHTML = renderKatex(source, false); finalized = true; }); if (finalized) updateLivePreview(); }
 function finishRawEquationEditor(equation, source) { equation.dataset.source = source.trim() || 'x'; equation.contentEditable = 'false'; equation.classList.remove('is-raw-editing', 'equation-selected'); equation.innerHTML = renderKatex(equation.dataset.source, false); setSaveState('Unsaved changes'); updateLivePreview(); }
-function resizeRawEquationInput(input) { input.style.width = `${Math.max(2, input.value.length + 1)}ch`; }
-function openRawEquationEditor(equation) { if (equation.classList.contains('is-editing')) equation.dataset.source = latexFromVisual(equation); const source = equationSource(equation); equation.contentEditable = 'false'; equation.classList.remove('is-editing'); equation.classList.add('is-raw-editing'); equation.innerHTML = `<input class="equation-latex-inline" type="text" aria-label="Equation LaTeX" value="${escapeHtml(source)}">`; const input = equation.querySelector('.equation-latex-inline'); resizeRawEquationInput(input); input.focus(); input.setSelectionRange(input.value.length, input.value.length); input.addEventListener('input', () => { resizeRawEquationInput(input); setSaveState('Unsaved changes'); }); input.addEventListener('blur', () => finishRawEquationEditor(equation, input.value), { once: true }); input.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); finishRawEquationEditor(equation, source); } }); }
+function resizeRawEquationInput(input) { input.style.width = `${Math.max(12, input.value.length + 1)}ch`; }
+function openRawEquationEditor(equation) { if (equation.classList.contains('is-editing')) equation.dataset.source = latexFromVisual(equation); const source = equationSource(equation); equation.contentEditable = 'false'; equation.classList.remove('is-editing', 'equation-selected'); equation.classList.add('is-raw-editing'); equation.innerHTML = `<input class="equation-latex-inline" type="text" aria-label="Equation LaTeX" value="${escapeHtml(source)}">`; const input = equation.querySelector('.equation-latex-inline'); resizeRawEquationInput(input); input.focus(); input.setSelectionRange(input.value.length, input.value.length); input.addEventListener('input', () => { resizeRawEquationInput(input); setSaveState('Unsaved changes'); }); input.addEventListener('blur', () => finishRawEquationEditor(equation, input.value), { once: true }); input.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); finishRawEquationEditor(equation, source); } }); }
 function selectEquationAtEvent(event) { const equation = event.target.closest('.note-equation'); if (!equation || !visualEditor().contains(equation) || equation.classList.contains('is-raw-editing')) return; selectedTable = null; document.getElementById('table-toolbar').classList.add('hidden'); selectedEquation = equation; document.querySelectorAll('.equation-selected').forEach(item => item.classList.remove('equation-selected')); document.getElementById('equation-toolbar').classList.remove('hidden'); equation.classList.add('equation-selected'); if (event.detail > 1) { finalizeEditingEquations(); openRawEquationEditor(equation); } else if (!equation.classList.contains('is-editing')) enterEquationVisualEdit(equation); }
 function runEquationAction(action, value) { if (!selectedEquation) return; finalizeEditingEquations(selectedEquation); if (action === 'template') { selectedEquation.dataset.source = value; openRawEquationEditor(selectedEquation); } if (action === 'size-up') selectedEquation.classList.add('equation-large'); if (action === 'size-down') selectedEquation.classList.remove('equation-large'); if (action === 'color') selectedEquation.style.color = value; setSaveState('Unsaved changes'); updateLivePreview(); }
 function makeTableInteractive(table) { if (!table) return; table.draggable = true; table.classList.add('note-table'); table.dataset.borderStyle = table.dataset.borderStyle || 'solid'; document.querySelectorAll('.border-style-button').forEach(button => button.classList.toggle('active', button.dataset.borderStyle === table.dataset.borderStyle)); }
@@ -506,8 +656,13 @@ function adjacentNode(node, offset, direction) {
 
 function handleVisualKeydown(event) {
     if (handleEquationNavigation(event)) return;
-    if (event.key === 'Tab' && currentListItem()) { event.preventDefault(); runListIndentCommand(event.shiftKey ? 'outdent' : 'indent'); saveVisualSelection(); setSaveState('Unsaved changes'); updateLivePreview(); return; }
+    if (handleImageKeyboard(event)) return;
+    if (event.key === 'Tab' && !event.target.closest('input,textarea,td,th')) { event.preventDefault(); runListIndentCommand(event.shiftKey ? 'outdent' : 'indent'); saveVisualSelection(); setSaveState('Unsaved changes'); updateLivePreview(); return; }
     if (handleListBackspace(event)) return;
+    if (handleIndentedBlockBackspace(event)) return;
+    if (handleBlockBackspace(event)) return;
+    if (handleEmptyFormattingBackspace(event)) return;
+    if (autoInsertDivider(event)) return;
     if (handleTableKeydown(event)) return;
     if (autoStartList(event)) return;
     if (event.key !== ' ') return;
@@ -527,27 +682,92 @@ function handleVisualKeydown(event) {
     updateLivePreview();
 }
 
+function handleIndentedBlockBackspace(event) {
+    if (event.key !== 'Backspace') return false;
+    const selection = window.getSelection();
+    const block = currentTextBlock();
+    if (!selection?.isCollapsed || !block || !isCaretAtStart(selection, block)) return false;
+    const marginLeft = Number.parseFloat(block.style.marginLeft) || 0;
+    if (marginLeft > 0) {
+        event.preventDefault();
+        block.style.marginLeft = `${Math.max(0, marginLeft - 40)}px`;
+        saveVisualSelection();
+        setSaveState('Unsaved changes');
+        updateLivePreview();
+        return true;
+    }
+    const quote = block.parentElement?.closest('blockquote');
+    if (!quote || !visualEditor().contains(quote)) return false;
+    event.preventDefault();
+    quote.parentElement.insertBefore(block, quote.nextSibling);
+    if (!quote.children.length && !quote.textContent.trim()) quote.remove();
+    saveVisualSelection();
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+    return true;
+}
+
+function handleBlockBackspace(event) {
+    if (event.key !== 'Backspace') return false;
+    const selection = window.getSelection();
+    const block = currentTextBlock();
+    if (!selection?.isCollapsed || !block || !block.textContent.trim() || !isCaretAtStart(selection, block)) return false;
+    const previous = block.previousElementSibling;
+    if (!previous?.matches('p,h1,h2,h3,h4,h5,h6,blockquote,div') || previous === visualEditor()) return false;
+    event.preventDefault();
+    while (block.firstChild) previous.appendChild(block.firstChild);
+    block.remove();
+    placeCaretAtEnd(previous);
+    saveVisualSelection();
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+    return true;
+}
+
+function autoInsertDivider(event) {
+    if (event.key !== 'Enter') return false;
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed || selection.anchorNode?.nodeType !== Node.TEXT_NODE) return false;
+    const block = selection.anchorNode.parentElement?.closest('p,div');
+    const beforeCaret = selection.anchorNode.textContent.slice(0, selection.anchorOffset);
+    if (!block || block === visualEditor() || beforeCaret.trim() !== '---' || block.textContent.trim() !== '---') return false;
+    event.preventDefault();
+    block.innerHTML = '<hr class="note-divider">';
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = '<br>';
+    block.parentElement.insertBefore(paragraph, block.nextSibling);
+    placeCaretAtStart(paragraph);
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+    return true;
+}
+
 function autoStartList(event) {
     if (event.key !== ' ') return false;
     const selection = window.getSelection();
-    if (!selection || !selection.isCollapsed || selection.anchorNode?.nodeType !== Node.TEXT_NODE) return false;
-    const block = selection.anchorNode.parentElement?.closest('p,div');
+    if (!selection || !selection.isCollapsed || !selection.anchorNode) return false;
+    const anchorElement = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
+    const block = anchorElement?.closest('p,div');
     if (block && block !== visualEditor() && !visualEditor().contains(block)) return false;
-    const beforeCaret = selection.anchorNode.textContent.slice(0, selection.anchorOffset);
+    if (!block || block === visualEditor()) return false;
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(block);
+    beforeRange.setEnd(selection.anchorNode, selection.anchorOffset);
+    const beforeCaret = beforeRange.toString();
     const ordered = /^\d+\. $/.test(beforeCaret);
     const unordered = /^- $/.test(beforeCaret);
     if (!ordered && !unordered) return false;
     event.preventDefault();
     const markerRange = document.createRange();
-    markerRange.setStart(selection.anchorNode, selection.anchorOffset - beforeCaret.length);
+    markerRange.selectNodeContents(block);
     markerRange.setEnd(selection.anchorNode, selection.anchorOffset);
     markerRange.deleteContents();
-    if (block && block !== visualEditor()) {
-        const blockRange = document.createRange();
-        blockRange.selectNodeContents(block);
-        selection.removeAllRanges();
-        selection.addRange(blockRange);
-    }
+    const caretRange = document.createRange();
+    caretRange.selectNodeContents(block);
+    caretRange.collapse(true);
+    caretRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caretRange);
     document.execCommand(ordered ? 'insertOrderedList' : 'insertUnorderedList', false, null);
     indentCurrentListItem();
     saveVisualSelection();
@@ -561,20 +781,49 @@ function handleListBackspace(event) {
     const selection = window.getSelection();
     const item = currentListItem();
     const anchorElement = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
-    const continuation = anchorElement?.closest?.('.list-continuation');
+    const continuation = anchorElement?.closest?.('.list-continuation') || (activeListContinuation && visualEditor().contains(activeListContinuation) ? activeListContinuation : null);
     if (!selection?.isCollapsed || (!item && !continuation) || !isCaretAtStart(selection, item || continuation)) return false;
     event.preventDefault();
     if (continuation) {
         if (continuation.dataset.listIndent !== '0') { continuation.dataset.listIndent = '0'; continuation.style.removeProperty('--list-depth'); }
-        else { continuation.classList.remove('list-continuation'); continuation.removeAttribute('data-list-indent'); }
+        else {
+            const previous = continuation.previousElementSibling;
+            const next = continuation.nextElementSibling;
+            continuation.remove();
+            activeListContinuation = null;
+            if (previous) placeCaretAtEnd(previous);
+            else if (next) placeCaretAtStart(next);
+            else placeCaretAtStart(visualEditor());
+        }
     } else if (isEmptyListItem(item)) {
-        removeEmptyListItemMarker(item);
+        if (item.parentElement?.parentElement?.closest('li')) {
+            runListIndentCommand('outdent');
+            placeCaretAtStart(item);
+        } else removeEmptyListItemMarker(item);
     } else if (item.parentElement?.parentElement?.closest('li')) {
-        document.execCommand('outdent', false, null);
+        runListIndentCommand('outdent');
+        placeCaretAtStart(item);
     } else return false;
     saveVisualSelection();
     setSaveState('Unsaved changes');
     updateLivePreview();
+    return true;
+}
+
+function handleEmptyFormattingBackspace(event) {
+    if (event.key !== 'Backspace') return false;
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed || !selection.anchorNode) return false;
+    const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
+    const block = element?.closest?.('p,div,h1,h2,h3,h4,h5,h6,blockquote');
+    if (!block || block === visualEditor() || selection.anchorOffset !== 0) return false;
+    const wrappers = [...block.querySelectorAll('span')].filter(span => !span.textContent.trim() && !span.querySelector('br'));
+    if (!wrappers.length && block.textContent.trim()) return false;
+    event.preventDefault();
+    wrappers.forEach(wrapper => wrapper.remove());
+    if (!block.textContent.trim() && !block.querySelector('br')) block.innerHTML = '<br>';
+    placeCaretAtStart(block);
+    saveVisualSelection();
     return true;
 }
 
@@ -591,6 +840,7 @@ function isCaretAtStart(selection, item) {
 }
 function isEmptyListItem(item) { return !item.textContent.replace(/\u00a0/g, ' ').trim() && !item.querySelector('img,table,.note-equation,.note-citation,.note-footnote-marker'); }
 function placeCaretAtStart(element) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
+function placeCaretAtEnd(element) { const target = element?.matches?.('ol,ul') ? [...element.children].reverse().find(item => item.matches('li')) || element : element; const range = document.createRange(); range.selectNodeContents(target); range.collapse(false); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
 function removeEmptyListItemMarker(item) {
     const list = item.parentElement;
     if (!list?.matches('ol,ul')) return;
@@ -604,6 +854,7 @@ function removeEmptyListItemMarker(item) {
     continuation.dataset.listIndent = String(depth);
     continuation.style.setProperty('--list-depth', depth);
     continuation.innerHTML = '<br>';
+    activeListContinuation = continuation;
     const followingList = followingItems.length ? list.cloneNode(false) : null;
     if (followingList) {
         followingItems.forEach(followingItem => followingList.appendChild(followingItem));
@@ -727,7 +978,8 @@ function runFileAction(action) {
     if (action === 'delete') return deleteActiveNote();
     if (action === 'duplicate') return duplicateNote();
     if (action === 'convert') return openNotesModal('Convert note', `<p class="notes-modal-copy">Choose the format for this note. Your current content will be converted in place and can be reviewed before saving.</p><label class="notes-modal-label" for="notes-convert-select">New format</label><select id="notes-convert-select" class="notes-modal-select"><option value="visual">Visual</option><option value="md">Markdown</option><option value="latex">LaTeX</option><option value="typst">Typst</option></select>`, 'Convert', () => setFormat(document.getElementById('notes-convert-select')?.value || currentFormat, true));
-    if (action === 'print' || action === 'export-pdf') return printNote();
+    if (action === 'print') return printNote('Print');
+    if (action === 'export-pdf') return printNote('Export as PDF');
     if (action === 'export-source') return exportNote();
     if (action === 'page-setup') return openNotesModal('Page setup', '<p class="notes-modal-copy">Page size, margins, orientation, and destination are selected in the browser print dialog.</p><p class="notes-modal-hint">Choose Print or Export as PDF after closing this dialog.</p>');
     if (action === 'details') { const note = activeNote(); return openNotesModal('Note details', `<dl class="notes-details"><dt>Type</dt><dd>${formatLabel(currentFormat)}</dd><dt>Created</dt><dd>${note?.created_at ? new Date(note.created_at).toLocaleString() : 'Not saved'}</dd><dt>Updated</dt><dd>${note?.updated_at ? new Date(note.updated_at).toLocaleString() : 'Not saved'}</dd></dl>`); }
@@ -735,20 +987,21 @@ function runFileAction(action) {
 }
 function runEditAction(action) { if (action === 'paste-plain') navigator.clipboard?.readText().then(text => document.execCommand('insertText', false, text)); else document.execCommand(action === 'paste-plain' ? 'paste' : action); }
 function duplicateNote() { const note = activeNote(); if (!note) return; guardNoteNavigation(() => { openEditor(); document.getElementById('note-title-input').value = `${note.title} Copy`; visualEditor().innerHTML = note.visual_content || ''; editor().value = note.content || ''; setFormat(note.format || 'visual'); }); }
-function printNote() {
+function printNote(actionLabel = 'Print') {
     const preview = document.getElementById('custom-preview-pane');
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-    if (!printWindow) return;
+    finalizeEditingEquations();
+    updateLivePreview();
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { openNotesModal(`${actionLabel} unavailable`, '<p class="notes-modal-copy">Your browser blocked the print window. Allow pop-ups for this site, then try again.</p>'); return; }
     const title = escapeHtml(document.getElementById('note-title-input').value || 'Untitled Note');
-    printWindow.document.write(`<html><head><title>${title}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>html,body{background:#fff;color:#37352f}body{font-family:'Inter',sans-serif;line-height:1.5}.note-print{max-width:800px;margin:0 auto;padding:24px}.note-print pre{font-family:Consolas,monospace}.note-print img,.note-print svg{max-width:100%;height:auto}@media print{.note-print{padding:0}}</style></head><body class="note-print">${preview.innerHTML}</body></html>`);
-    const closeAfterPrint = () => { printWindow.close(); };
-    printWindow.addEventListener('afterprint', closeAfterPrint, { once: true });
-    printWindow.onload = async () => {
-        await printWindow.document.fonts?.ready;
-        printWindow.focus();
-        printWindow.print();
-    };
+    const printColumns = noteFormatSettings.pageless ? 1 : Number(noteFormatSettings.columns) || 1;
+    const printPageSize = noteFormatSettings.pageSize === 'letter' ? 'letter' : 'A4';
+    const printOrientation = noteFormatSettings.orientation === 'landscape' ? 'landscape' : 'portrait';
+    printWindow.document.write(`<html><head><meta charset="utf-8"><title>${title}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css"><style>@page{size:${printPageSize} ${printOrientation};margin:0.7in}html,body{background:#fff!important;color:#202124!important}body{font-family:'Inter',sans-serif;line-height:1.5;margin:0}.note-print{box-sizing:border-box;max-width:900px;margin:0 auto;padding:0.25in}.note-print{column-count:${printColumns};column-gap:2rem}.note-print pre{font-family:Consolas,monospace}.note-print img,.note-print svg{max-width:100%;height:auto}.note-print .note-equation{color:inherit;background:transparent}.note-print h1,.note-print h2,.note-print h3,.note-print h4,.note-print table,.note-print pre,.note-print figure,.note-print .note-bibliography{break-inside:avoid}@media print{.note-print{max-width:none;padding:0}.note-print .note-page-number{position:fixed;bottom:0;left:0;right:0}}</style></head><body><main class="note-print">${preview.innerHTML}</main></body></html>`);
     printWindow.document.close();
+    const print = async () => { await printWindow.document.fonts?.ready; const images = [...printWindow.document.images]; await Promise.all(images.map(image => image.complete ? Promise.resolve() : new Promise(resolve => { image.onload = image.onerror = resolve; }))); printWindow.focus(); printWindow.print(); };
+    printWindow.onload = print;
+    if (printWindow.document.readyState === 'complete') print();
 }
 function exportNote() { const extension = currentFormat === 'visual' ? 'html' : currentFormat === 'md' ? 'md' : currentFormat === 'latex' ? 'tex' : 'typ'; const content = currentFormat === 'visual' ? `<!doctype html><meta charset="utf-8"><title>${escapeHtml(document.getElementById('note-title-input').value)}</title>${visualEditor().innerHTML}` : editor().value; const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' })); link.download = `${document.getElementById('note-title-input').value || 'note'}.${extension}`; link.click(); URL.revokeObjectURL(link.href); }
 
@@ -756,8 +1009,8 @@ async function saveActiveNote() {
     const now = new Date().toISOString();
     const title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
     let note = activeNote();
-    if (!note) { note = { id: Math.random().toString(36).slice(2, 11), user_id: currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
-    note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? visualEditor().innerHTML : note.visual_content || ''; note.references = noteReferences; note.format_settings = noteFormatSettings; note.updated_at = now; note._isDirty = true;
+    if (!note) { note = { id: createNoteId(), user_id: currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
+    note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? serializedVisualContent() : note.visual_content || ''; note.references = noteReferences; note.format_settings = noteFormatSettings; note.updated_at = now; note._isDirty = true;
     localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
     if (isOnline) {
         const synced = await syncNotesWithServer();
@@ -789,24 +1042,27 @@ async function syncNotesWithServer() {
         const dirty = localNotes.filter(note => note._isDirty);
         if (dirty.length) {
             const payload = dirty.map(note => {
-                const clean = { ...note };
-                delete clean._isDirty;
-                if (clean.id.length < 15) delete clean.id;
-                return clean;
+                if (!isUuid(note.id)) { const replacementId = createNoteId(); if (activeNoteId === note.id) activeNoteId = replacementId; note.id = replacementId; }
+                const clean = { ...note }; delete clean._isDirty; return clean;
             });
-            const result = await supabaseClient.from('notes').upsert(payload);
+            const result = await supabaseClient.from('notes').upsert(payload, { onConflict: 'id' });
             uploadError = result.error;
         }
         if (!uploadError) {
             const { data, error } = await supabaseClient.from('notes').select('*').eq('user_id', currentUser.id);
             uploadError = error;
-            if (!error && data) localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false }));
+            if (!error && data) {
+                const dirtyIds = dirty.map(note => note.id);
+                const returnedIds = new Set(data.map(note => note.id));
+                if (dirtyIds.some(id => !returnedIds.has(id))) uploadError = new Error('Saved notes were not returned by the database. Check the notes table permissions and RLS policies.');
+                else localNotes = data.map(note => ({ ...normalizeNote(note), _isDirty: false }));
+            }
         }
     } catch (error) {
         uploadError = error;
     }
     localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
-    setSyncStatus(uploadError ? 'Local changes' : 'Synced');
+    setSyncStatus(uploadError ? `Local changes${uploadError.message ? `: ${uploadError.message}` : ''}` : 'Synced');
     renderNotesList();
     return !uploadError;
 }
