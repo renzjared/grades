@@ -3,9 +3,21 @@ let timelineInterval = null;
 
 let calShowClasses = localStorage.getItem('cal_show_classes') !== 'false';
 let calShowTasks = localStorage.getItem('cal_show_tasks') !== 'false';
+let calCustomEvents = JSON.parse(localStorage.getItem('cal_custom_events') || '[]');
+let calEditingEventId = null;
+let calEventsLoadedUserId = null;
+let calEventsSyncing = false;
 
 async function renderCalendarView() {
     if (!currentUser) return;
+
+    if (calEventsLoadedUserId !== currentUser.id) {
+        const cached = localStorage.getItem(`cal_custom_events_${currentUser.id}`);
+        if (cached) {
+            try { calCustomEvents = JSON.parse(cached); } catch (error) { calCustomEvents = []; }
+        }
+        await syncCalendarEvents(true);
+    }
 
     if (!window.AcadState || !window.AcadState.activeTerm || window.AcadState.terms.length === 0) {
         if (typeof fetchTerms === 'function') await fetchTerms(); 
@@ -143,11 +155,12 @@ function getEventsForDate(dateStr) {
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` === dateStr;
         });
     }
-    return { classes, tasks };
+    const custom = calCustomEvents.filter(event => event.date === dateStr);
+    return { classes, tasks, custom };
 }
 
 function renderEventPillsArray(dateStr) {
-    let { classes, tasks } = getEventsForDate(dateStr);
+    let { classes, tasks, custom } = getEventsForDate(dateStr);
     let pills = [];
 
     classes.sort((a,b) => a.start_time.localeCompare(b.start_time)).forEach(c => {
@@ -164,6 +177,11 @@ function renderEventPillsArray(dateStr) {
         const sub = window.AcadState.subjects.find(s => s.id === t.subject_id);
         const txtColor = window.getContrastYIQ ? window.getContrastYIQ(sub.color) : '#fff';
         pills.push(`<div class="cal-event-pill" style="background-color:${sub.color}; color:${txtColor}; border:none;" onclick="openTaskSidebar('${t.id}')" title="Due: ${t.title}"><span style="font-weight:700; margin-right:4px;">${new Date(t.due_date).toTimeString().slice(0,5)}</span> ${t.title}</div>`);
+    });
+
+    custom.forEach(event => {
+        const color = event.color || '#2563eb';
+        pills.push(`<div class="cal-event-pill" style="background-color:${color}; color:${window.getContrastYIQ ? window.getContrastYIQ(color) : '#fff'}; border:none;" onclick="openCalendarEventModal('${event.id}')" title="${escapeHtml(event.title)}"><span style="font-weight:700; margin-right:4px;">${escapeHtml(event.start || '')}</span> ${escapeHtml(event.title)}</div>`);
     });
 
     return pills;
@@ -217,19 +235,21 @@ function buildAbsoluteGrid(startDate, dayCount) {
     let now = new Date();
     let todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     
-    let html = `<div style="display:flex; flex-direction:column; height:100%; width:100%;">`;
+    let html = `<div class="cal-absolute-grid" style="--calendar-day-count:${dayCount};">`;
     
-    html += `<div style="display:flex; margin-left:50px; border-bottom:1px solid var(--border); flex-shrink:0;">`;
+    html += `<div class="cal-absolute-header">`;
+    html += '<div class="cal-time-gutter" aria-hidden="true"></div>';
     for(let i=0; i<dayCount; i++) {
         let d = new Date(startDate);
         d.setDate(d.getDate() + i);
         let dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         let isToday = dStr === todayStr;
-        html += `<div style="flex:1; text-align:center; padding:0.5rem; font-weight:600; font-size:0.85rem; color:${isToday ? 'var(--up-maroon)' : 'var(--text-muted)'};">${d.toLocaleDateString(undefined, {weekday:'short', day:'numeric'})}</div>`;
+        const weekdayInitial = d.toLocaleDateString(undefined, { weekday: 'narrow' });
+        html += `<div class="cal-absolute-day-label${isToday ? ' today' : ''}"><span class="cal-weekday-initial">${weekdayInitial}</span><span class="cal-date-number">${d.getDate()}</span></div>`;
     }
     html += `</div>`;
 
-    html += `<div class="time-grid-container" id="time-grid-scroll" style="flex:1; overflow-y:auto; position:relative; border:1px solid var(--border); background:var(--card-bg); border-radius:var(--radius);">`;
+    html += `<div class="time-grid-container" id="time-grid-scroll">`;
     html += `<div style="position:relative; height:1440px;">`;
     html += `<div class="current-time-line" id="current-time-line" style="display:none;"></div>`;
 
@@ -240,15 +260,15 @@ function buildAbsoluteGrid(startDate, dayCount) {
         html += `<div class="time-grid-line" style="top: ${h*60}px"></div>`;
     }
 
-    html += `<div style="position:absolute; left:50px; right:0; top:0; bottom:0; display:flex;">`;
+    html += `<div class="time-columns">`;
     for(let i=0; i<dayCount; i++) {
         let d = new Date(startDate);
         d.setDate(d.getDate() + i);
         let dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        let { classes, tasks } = getEventsForDate(dStr);
+        let { classes, tasks, custom } = getEventsForDate(dStr);
         let isToday = dStr === todayStr;
 
-        html += `<div class="time-column" style="flex:1; position:relative; ${isToday ? 'background:rgba(123,17,19,0.03);' : ''}">`;
+        html += `<div class="time-column${isToday ? ' today' : ''}">`;
 
         classes.forEach(c => {
             const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
@@ -284,6 +304,17 @@ function buildAbsoluteGrid(startDate, dayCount) {
                 <strong style="color:${txtColor}; margin-right:6px; font-size:0.75rem;">${dTime.toTimeString().slice(0,5)}</strong> 
                 <span style="overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:0.75rem; flex:1;">${t.title}</span>
             </div>`;
+        });
+
+        custom.forEach(event => {
+            const color = event.color || '#2563eb';
+            const start = event.start || '00:00';
+            const end = event.end || start;
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            const topPx = (sh * 60) + sm;
+            const heightPx = Math.max(24, ((eh * 60) + em) - topPx);
+            html += `<div class="time-event" style="top:${topPx}px; height:${heightPx}px; background:${color}; color:${window.getContrastYIQ ? window.getContrastYIQ(color) : '#fff'}; border:none;" onclick="openCalendarEventModal('${event.id}')"><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(start)}${end ? `–${escapeHtml(end)}` : ''}${event.location ? ` • ${escapeHtml(event.location)}` : ''}</span></div>`;
         });
 
         html += `</div>`;
@@ -354,7 +385,81 @@ function updateTimeline() {
     }
 }
 
+function calendarDateValue(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function calendarEventColor(type) { return { class: '#16803c', exam: '#c62828', meeting: '#2563eb', other: '#7c3aed' }[type] || '#2563eb'; }
+function calendarEventId() { return window.crypto?.randomUUID?.() || `cal-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+async function syncCalendarEvents(pull = false) {
+    if (!currentUser || !navigator.onLine || calEventsSyncing) return false;
+    calEventsSyncing = true;
+    try {
+        if (pull) {
+            const { data, error } = await supabaseClient.from('calendar_events').select('*').eq('user_id', currentUser.id).order('date', { ascending: true }).order('start', { ascending: true });
+            if (error) throw error;
+            const localPending = calCustomEvents.filter(event => event._isDirty || !event.user_id);
+            const serverIds = new Set((data || []).map(event => event.id));
+            calCustomEvents = [...(data || []).map(event => ({ ...event, _isDirty: false })), ...localPending.filter(event => !serverIds.has(event.id))];
+            calEventsLoadedUserId = currentUser.id;
+        }
+        const pending = calCustomEvents.filter(event => event._isDirty || !event.user_id);
+        if (pending.length) {
+            const payload = pending.map(event => ({ id: event.id, user_id: currentUser.id, title: event.title, type: event.type, date: event.date, start: event.start, end: event.end, location: event.location || '', details: event.details || '', color: event.color || calendarEventColor(event.type) }));
+            const { error } = await supabaseClient.from('calendar_events').upsert(payload, { onConflict: 'id' });
+            if (error) throw error;
+            const syncedIds = new Set(pending.map(event => event.id));
+            calCustomEvents = calCustomEvents.map(event => syncedIds.has(event.id) ? { ...event, user_id: currentUser.id, _isDirty: false } : event);
+        }
+        localStorage.setItem(`cal_custom_events_${currentUser.id}`, JSON.stringify(calCustomEvents));
+        localStorage.setItem('cal_custom_events', JSON.stringify(calCustomEvents));
+        return true;
+    } catch (error) {
+        console.warn('Calendar event sync unavailable; using local events.', error.message || error);
+        return false;
+    } finally {
+        calEventsSyncing = false;
+    }
+}
+function closeCalendarEventModal() { document.getElementById('calendar-event-modal')?.classList.add('hidden'); calEditingEventId = null; }
+function openCalendarEventModal(eventId = null) {
+    const modal = document.getElementById('calendar-event-modal');
+    if (!modal) return;
+    const event = eventId ? calCustomEvents.find(item => item.id === eventId) : null;
+    calEditingEventId = event?.id || null;
+    document.getElementById('calendar-event-modal-title').textContent = event ? 'Edit event' : 'Add event';
+    document.getElementById('cal-event-title').value = event?.title || '';
+    document.getElementById('cal-event-type').value = event?.type || 'meeting';
+    document.getElementById('cal-event-date').value = event?.date || calendarDateValue(calCurrentDate);
+    document.getElementById('cal-event-start').value = event?.start || '09:00';
+    document.getElementById('cal-event-end').value = event?.end || '10:00';
+    document.getElementById('cal-event-location').value = event?.location || '';
+    document.getElementById('cal-event-details').value = event?.details || '';
+    modal.classList.remove('hidden');
+    document.getElementById('cal-event-title').focus();
+}
+function saveCalendarEvent() {
+    const title = document.getElementById('cal-event-title').value.trim();
+    const date = document.getElementById('cal-event-date').value;
+    const start = document.getElementById('cal-event-start').value;
+    const end = document.getElementById('cal-event-end').value;
+    if (!title || !date || !start) return;
+    const type = document.getElementById('cal-event-type').value;
+    const event = { id: calEditingEventId || calendarEventId(), title, type, date, start, end: end || start, location: document.getElementById('cal-event-location').value.trim(), details: document.getElementById('cal-event-details').value.trim(), color: calendarEventColor(type), user_id: currentUser?.id || null, _isDirty: true };
+    const index = calCustomEvents.findIndex(item => item.id === event.id);
+    if (index >= 0) calCustomEvents[index] = event;
+    else calCustomEvents.push(event);
+    localStorage.setItem(`cal_custom_events_${currentUser?.id || 'local'}`, JSON.stringify(calCustomEvents));
+    localStorage.setItem('cal_custom_events', JSON.stringify(calCustomEvents));
+    syncCalendarEvents(false);
+    closeCalendarEventModal();
+    renderCalendarView();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('online', () => syncCalendarEvents(false));
+    document.getElementById('cal-add-event-btn')?.addEventListener('click', () => openCalendarEventModal());
+    document.getElementById('cal-mobile-add-event-btn')?.addEventListener('click', () => openCalendarEventModal());
+    document.getElementById('cal-event-cancel')?.addEventListener('click', closeCalendarEventModal);
+    document.getElementById('cal-event-save')?.addEventListener('click', saveCalendarEvent);
+    document.getElementById('calendar-event-modal')?.addEventListener('click', event => { if (event.target.id === 'calendar-event-modal') closeCalendarEventModal(); });
     document.getElementById('cal-view-selector')?.addEventListener('change', (e) => {
         localStorage.setItem('cal_view_pref', e.target.value);
         renderCalendarView();

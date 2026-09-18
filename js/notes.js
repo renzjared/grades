@@ -7,6 +7,8 @@ let typstLoading = null;
 let typstImportersReady = null;
 let notesModalConfirm = null;
 let selectedTable = null;
+let selectedTableCellRange = [];
+let tableCellSelectionState = null;
 let wholeTableSelected = false;
 let autosaveTimer = null;
 let tableResizeState = null;
@@ -15,8 +17,13 @@ let notePaneResizeState = null;
 let selectedEquation = null;
 let selectedImage = null;
 let imageResizeState = null;
+let visualUndoStack = [];
+let visualRedoStack = [];
 let noteReferences = [];
 let activeListContinuation = null;
+let activeListItem = null;
+let notesTooltip = null;
+let notesTooltipTarget = null;
 let noteFormatSettings = { pageless: true, columns: 1, pageSize: 'a4', orientation: 'portrait', pageNumbers: false };
 function createNoteId() { return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function isUuid(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || ''); }
@@ -48,7 +55,7 @@ let currentNotesContext = JSON.parse(localStorage.getItem('acad_notes_active') |
 let expandedNoteFolders = new Set(JSON.parse(localStorage.getItem('acad_notes_expanded') || '[]'));
 
 const NOTE_FORMATS = {
-    visual: { label: 'Visual', description: 'A rich document with inline formatting, tables, code, and equations.' },
+    visual: { label: 'Visual', description: 'A rich document with native paragraph and list editing, inline formatting, tables, code, and equations.' },
     md: { label: 'Markdown', description: 'Markdown source with a rendered preview.' },
     latex: { label: 'LaTeX', description: 'LaTeX math and text rendered with KaTeX.' },
     typst: { label: 'Typst', description: 'Typst source compiled to SVG in the browser.' }
@@ -159,6 +166,7 @@ let notesControlsBound = false;
 function bindNotesControls() {
     if (notesControlsBound) return;
     notesControlsBound = true;
+    bindNotesTooltips();
     document.getElementById('new-note-btn').addEventListener('click', () => createNewNote('visual'));
     document.getElementById('new-note-type-toggle').addEventListener('click', toggleNewNoteMenu);
     document.querySelectorAll('[data-new-format]').forEach(button => button.addEventListener('click', () => { createNewNote(button.dataset.newFormat); closeNewNoteMenu(); }));
@@ -168,9 +176,11 @@ function bindNotesControls() {
     visualEditor().addEventListener('input', () => { setSaveState('Unsaved changes'); updateLivePreview(); });
     visualEditor().addEventListener('paste', handleVisualPaste);
     visualEditor().addEventListener('keydown', handleVisualKeydown, true);
+    visualEditor().addEventListener('beforeinput', handleVisualBeforeInput, true);
+    visualEditor().addEventListener('change', event => { if (event.target.matches('.note-code-language')) setCodeBlockLanguage(event.target.closest('pre.note-code-block'), event.target.value); });
     visualEditor().addEventListener('keyup', saveVisualSelection);
-    visualEditor().addEventListener('mouseup', saveVisualSelection);
-    visualEditor().addEventListener('focus', saveVisualSelection);
+    visualEditor().addEventListener('mouseup', () => { rememberActiveListItem(); saveVisualSelection(); });
+    visualEditor().addEventListener('focus', () => { rememberActiveListItem(); saveVisualSelection(); });
     document.addEventListener('selectionchange', updateVisualToolbarState);
     visualEditor().addEventListener('mousedown', () => { activeListContinuation = null; clearToolbarSelectionHighlight(); });
     document.addEventListener('mousedown', event => { if (event.target.closest('.visual-toolbar')) preserveToolbarSelectionHighlight(); });
@@ -191,7 +201,8 @@ function bindNotesControls() {
     document.getElementById('notes-modal-close').addEventListener('click', closeNotesModal);
     document.getElementById('notes-modal').addEventListener('click', event => { if (event.target.id === 'notes-modal') closeNotesModal(); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !document.getElementById('notes-modal').classList.contains('hidden')) closeNotesModal(); });
-    document.querySelectorAll('[data-table-action]').forEach(control => control.addEventListener('click', () => runTableAction(control.dataset.tableAction, control.dataset.borderStyle || control.value)));
+    document.querySelectorAll('[data-table-action]').forEach(control => control.addEventListener('click', () => runTableAction(control.dataset.tableAction, control.dataset.borderEdge || control.dataset.borderStyle || control.value)));
+    document.getElementById('border-thickness-picker').addEventListener('change', event => runTableAction('border-thickness', event.target.value));
     document.querySelectorAll('.color-tool').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.colorTarget)?.click()));
     document.querySelectorAll('.color-picker-input').forEach(input => input.addEventListener('input', () => { if (input.id === 'font-color-picker') runVisualCommand('foreColor', input.value); else runTableAction(input.id === 'cell-color-picker' ? 'cell-color' : 'border-color', input.value); }));
     document.querySelectorAll('[data-equation-action]').forEach(control => control.addEventListener('click', () => control.dataset.equationAction === 'color' ? document.getElementById(control.dataset.colorTarget)?.click() : runEquationAction(control.dataset.equationAction, control.dataset.equation)));
@@ -201,6 +212,7 @@ function bindNotesControls() {
     visualEditor().addEventListener('click', selectTableAtEvent);
     visualEditor().addEventListener('click', selectEquationAtEvent);
     visualEditor().addEventListener('click', selectImageAtEvent);
+    document.addEventListener('mousedown', event => { if (!event.target.closest('.note-table, #table-toolbar, #table-context-menu')) clearTableSelection(); });
     visualEditor().addEventListener('dragstart', handleImageDragStart);
     visualEditor().addEventListener('dragend', handleImageDragEnd);
     visualEditor().addEventListener('dragover', handleImageDragOver);
@@ -211,7 +223,11 @@ function bindNotesControls() {
     visualEditor().addEventListener('dragover', handleTableDragOver);
     visualEditor().addEventListener('drop', handleTableDrop);
     visualEditor().addEventListener('mousemove', handleTableResizeMove);
+    visualEditor().addEventListener('mouseleave', () => visualEditor().classList.remove('table-resize-column', 'table-resize-row'));
     visualEditor().addEventListener('mousedown', handleTableResizeStart);
+    visualEditor().addEventListener('mousedown', startTableCellSelection);
+    visualEditor().addEventListener('mousemove', updateTableCellSelection);
+    visualEditor().addEventListener('mouseup', finishTableCellSelection);
     visualEditor().addEventListener('mousedown', startImageResize);
     document.addEventListener('mousemove', handleTableResizeDrag);
     document.addEventListener('mouseup', handleTableResizeEnd);
@@ -219,6 +235,66 @@ function bindNotesControls() {
     document.addEventListener('mouseup', endImageResize);
     document.addEventListener('click', event => { if (!event.target.closest('#table-context-menu')) closeTableContextMenu(); });
     document.addEventListener('click', event => { if (!event.target.closest('#image-context-menu')) closeImageContextMenu(); });
+}
+
+const NOTE_TOOL_SHORTCUTS = {
+    bold: 'Ctrl+B', italic: 'Ctrl+I', underline: 'Ctrl+U',
+    insertEquation: 'Alt+=', indent: 'Tab', outdent: 'Shift+Tab',
+    undo: 'Ctrl+Z', redo: 'Ctrl+Y', save: 'Ctrl+S', print: 'Ctrl+P'
+};
+function notesTooltipControl(eventTarget) {
+    return eventTarget.closest?.('.visual-toolbar button, .visual-toolbar select, .visual-toolbar input') || null;
+}
+function notesTooltipLabel(control) {
+    const label = control.getAttribute('aria-label') || control.getAttribute('title') || [...control.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(' ').trim();
+    return label.replace(/\s+/g, ' ').trim();
+}
+function notesTooltipShortcut(control) {
+    const shortcut = control.querySelector('span')?.textContent?.trim() || NOTE_TOOL_SHORTCUTS[control.dataset.command] || NOTE_TOOL_SHORTCUTS[control.dataset.action] || NOTE_TOOL_SHORTCUTS[control.dataset.formatAction];
+    return shortcut || '';
+}
+function showNotesTooltip(control) {
+    const label = notesTooltipLabel(control);
+    if (!label) return;
+    const shortcut = notesTooltipShortcut(control);
+    if (!notesTooltip) {
+        notesTooltip = document.createElement('div');
+        notesTooltip.className = 'notes-tooltip';
+        notesTooltip.setAttribute('role', 'tooltip');
+        document.body.appendChild(notesTooltip);
+    }
+    notesTooltip.innerHTML = `<span class="notes-tooltip-name"></span>${shortcut ? '<kbd class="notes-tooltip-shortcut"></kbd>' : ''}`;
+    notesTooltip.querySelector('.notes-tooltip-name').textContent = label;
+    if (shortcut) notesTooltip.querySelector('.notes-tooltip-shortcut').textContent = shortcut;
+    notesTooltipTarget = control;
+    notesTooltip.classList.add('visible');
+    const rect = control.getBoundingClientRect();
+    const tooltipRect = notesTooltip.getBoundingClientRect();
+    const left = Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, rect.left + (rect.width - tooltipRect.width) / 2));
+    const top = rect.bottom + 8 + tooltipRect.height <= window.innerHeight ? rect.bottom + 8 : rect.top - tooltipRect.height - 8;
+    notesTooltip.style.left = `${left}px`;
+    notesTooltip.style.top = `${Math.max(8, top)}px`;
+}
+function hideNotesTooltip(control = null) {
+    if (control && notesTooltipTarget && control !== notesTooltipTarget) return;
+    notesTooltip?.classList.remove('visible');
+    notesTooltipTarget = null;
+}
+function bindNotesTooltips() {
+    document.addEventListener('pointerover', event => {
+        const control = notesTooltipControl(event.target);
+        if (!control || event.relatedTarget && control.contains(event.relatedTarget)) return;
+        showNotesTooltip(control);
+    });
+    document.addEventListener('pointerout', event => {
+        const control = notesTooltipControl(event.target);
+        if (control && (!event.relatedTarget || !control.contains(event.relatedTarget))) hideNotesTooltip(control);
+    });
+    document.addEventListener('focusin', event => { const control = notesTooltipControl(event.target); if (control) showNotesTooltip(control); });
+    document.addEventListener('focusout', event => { const control = notesTooltipControl(event.target); if (control) hideNotesTooltip(control); });
+    window.addEventListener('scroll', () => hideNotesTooltip(), true);
+    window.addEventListener('resize', () => hideNotesTooltip());
+    document.querySelectorAll('.visual-toolbar button[title], .visual-toolbar button[aria-label]').forEach(button => button.removeAttribute('title'));
 }
 
 function handleNotesShortcut(event) {
@@ -230,6 +306,8 @@ function handleNotesShortcut(event) {
     if (key === 'b') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('bold'); else document.execCommand('bold'); }
     if (key === 'i') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('italic'); else document.execCommand('italic'); }
     if (key === 'u') { event.preventDefault(); if (currentFormat === 'visual') runVisualCommand('underline'); else document.execCommand('underline'); }
+    if (key === 'z') { event.preventDefault(); if (currentFormat === 'visual' && visualUndoStack.length) restoreVisualHistory(visualUndoStack, visualRedoStack); else { if (currentFormat === 'visual') visualEditor().focus(); else editor().focus(); document.execCommand('undo'); } }
+    if (key === 'y') { event.preventDefault(); if (currentFormat === 'visual' && visualRedoStack.length) restoreVisualHistory(visualRedoStack, visualUndoStack); else { if (currentFormat === 'visual') visualEditor().focus(); else editor().focus(); document.execCommand('redo'); } }
     if (key === 's') { event.preventDefault(); saveActiveNote(); }
 }
 function handleSourceKeydown(event) {
@@ -275,11 +353,25 @@ function clearToolbarSelectionHighlight() { visualEditor().querySelectorAll('.fo
 function applyVisualFontSize(size) {
     visualEditor().focus();
     restoreVisualSelection();
+    const normalizedSize = Math.max(6, Math.min(72, Number(size) || 11));
+    const preservedHighlights = [...visualEditor().querySelectorAll('.font-selection-highlight')];
+    if (preservedHighlights.length) {
+        preservedHighlights.forEach(highlight => { highlight.style.fontSize = `${normalizedSize}pt`; highlight.classList.remove('font-selection-highlight'); });
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(preservedHighlights[0]);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const sizeInput = document.querySelector('input[data-command="fontSize"]');
+        if (sizeInput) sizeInput.value = normalizedSize;
+        setSaveState('Unsaved changes');
+        updateLivePreview();
+        return;
+    }
     const selection = window.getSelection();
     if (!selection?.rangeCount) return;
     const range = selection.getRangeAt(0);
     const span = document.createElement('span');
-    const normalizedSize = Math.max(6, Math.min(72, Number(size) || 11));
     span.style.fontSize = `${normalizedSize}pt`;
     if (range.collapsed) { span.appendChild(document.createTextNode('\u200b')); range.insertNode(span); range.setStart(span.firstChild, 1); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }
     else { span.appendChild(range.extractContents()); range.insertNode(span); span.classList.remove('font-selection-highlight'); selection.removeAllRanges(); const nextRange = document.createRange(); nextRange.selectNodeContents(span); selection.addRange(nextRange); }
@@ -296,6 +388,7 @@ function setFormat(format, shouldConvert = false) {
     if (shouldConvert && currentFormat !== format) convertCurrentNote(format);
     currentFormat = format;
     document.getElementById('note-format-label').textContent = formatLabel(format);
+    document.getElementById('note-format-label').className = `note-format-label format-${format}`;
     document.getElementById('visual-toolbar').classList.toggle('hidden', format !== 'visual');
     document.getElementById('note-editor-pane').classList.toggle('visual-mode', format === 'visual');
     document.getElementById('note-format-description').textContent = NOTE_FORMATS[format].description;
@@ -349,10 +442,13 @@ function openEditor(noteId = null, newTitle = '', newFormat = 'visual') {
     const note = noteId ? localNotes.find(item => item.id === noteId) : null;
     activeNoteId = note?.id || null;
     noteReferences = Array.isArray(note?.references) ? note.references : [];
+    visualUndoStack = [];
+    visualRedoStack = [];
     noteFormatSettings = { pageless: true, columns: 1, pageSize: 'a4', orientation: 'portrait', pageNumbers: false, ...(note?.format_settings || {}) };
     document.getElementById('note-title-input').value = note?.title || newTitle;
     currentFormat = note ? normalizeNote(note).format : newFormat;
     visualEditor().innerHTML = note?.visual_content || (currentFormat === 'visual' ? note?.content || '' : '');
+    highlightNoteCodeBlocks();
     editor().value = note?.content || (!note && NOTE_TEMPLATES[currentFormat] ? NOTE_TEMPLATES[currentFormat] : '');
     setFormat(currentFormat);
     applyNoteFormatClass();
@@ -388,6 +484,26 @@ function selectImageRange(image) { const frame = ensureImageFrame(image); const 
 async function copySelectedImage(removeAfter = false) { if (!selectedImage) return false; const image = selectedImage; const html = image.outerHTML; try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([image.alt || 'Image'], { type: 'text/plain' }) })]); } catch (error) { selectImageRange(image); document.execCommand('copy'); } if (removeAfter) removeSelectedImage(); return true; }
 function removeSelectedImage() { if (!selectedImage) return; ensureImageFrame(selectedImage).remove(); selectedImage = null; document.getElementById('image-toolbar').classList.add('hidden'); setSaveState('Unsaved changes'); updateLivePreview(); }
 function handleImageKeyboard(event) { if (!selectedImage) return false; const key = event.key.toLowerCase(); if ((event.ctrlKey || event.metaKey) && key === 'c') { event.preventDefault(); copySelectedImage(); return true; } if ((event.ctrlKey || event.metaKey) && key === 'x') { event.preventDefault(); copySelectedImage(true); return true; } if (event.key === 'Delete' || event.key === 'Backspace') { const selection = window.getSelection(); if (selection?.isCollapsed || selection?.containsNode?.(ensureImageFrame(selectedImage), true)) { event.preventDefault(); removeSelectedImage(); return true; } } return false; }
+function handleEquationKeyboard(event) {
+    if (event.key !== 'Delete' && event.key !== 'Backspace') return false;
+    const selection = window.getSelection();
+    const targetEquation = event.target.closest?.('.note-equation');
+    const equation = targetEquation || (selectedEquation?.isConnected && visualEditor().contains(selectedEquation) && selection?.containsNode?.(selectedEquation, true) ? selectedEquation : [...visualEditor().querySelectorAll('.note-equation')].find(item => selection?.containsNode?.(item, true)));
+    if (!equation || equation.classList.contains('is-raw-editing')) return false;
+    if (!selection?.isCollapsed && !selection.containsNode?.(equation, true)) return false;
+    event.preventDefault();
+    const previous = equation.previousSibling;
+    const next = equation.nextSibling;
+    equation.remove();
+    selectedEquation = null;
+    document.getElementById('equation-toolbar').classList.add('hidden');
+    if (previous?.nodeType === Node.TEXT_NODE || previous?.nodeType === Node.ELEMENT_NODE) placeCaretAtEnd(previous);
+    else if (next) placeCaretAtStart(next);
+    else placeCaretAtStart(visualEditor());
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+    return true;
+}
 function handleImageDragStart(event) { const image = event.target.closest('.note-image'); if (!image) return; selectedImage = image; const frame = ensureImageFrame(image); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.clearData(); event.dataTransfer.setData('text/plain', 'note-image-move'); frame.classList.add('image-dragging'); }
 function handleImageDragEnd() { visualEditor().querySelectorAll('.image-dragging').forEach(item => item.classList.remove('image-dragging')); }
 function handleImageDragOver(event) { if (selectedImage && event.target.closest('.note-image')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'move'; } }
@@ -441,17 +557,66 @@ function openReferenceDialog(action, reference = null) { if (action === 'manage'
 function openBibliographyDialog() { const body = `<label class="notes-modal-label" for="bibliography-format">Bibliography format</label><select id="bibliography-format" class="notes-modal-select">${Object.entries(CITATION_FORMATS).map(([key, label]) => `<option value="${key}">${label}</option>`).join('')}</select><p class="notes-modal-hint">The bibliography will be generated from the references already managed in this note.</p>`; openNotesModal('Insert bibliography', body, 'Insert bibliography', () => { const format = document.getElementById('bibliography-format').value; insertReferenceHtml(`<section class="note-bibliography"><h3>References</h3>${noteReferences.map((item, itemIndex) => `<p data-reference-id="${escapeHtml(item.id)}">${escapeHtml(formatReference(item, itemIndex, format))}</p>`).join('')}</section>`); }); }
 function openReferenceManager() { const body = noteReferences.length ? `<div class="reference-manager">${noteReferences.map((reference, index) => `<div class="reference-manager-row"><div><strong>${escapeHtml(reference.title || 'Untitled')}</strong><small>${escapeHtml(formatReference(reference, index))}</small></div><span><button type="button" class="btn secondary" data-reference-edit="${escapeHtml(reference.id)}">Edit</button><button type="button" class="btn danger" data-reference-delete="${escapeHtml(reference.id)}">Delete</button></span></div>`).join('')}</div>` : '<p class="notes-modal-copy">No references have been added to this note.</p>'; openNotesModal('Manage references', body, 'Add reference', () => openReferenceDialog('citation')); document.querySelectorAll('[data-reference-edit]').forEach(button => button.addEventListener('click', () => { const reference = noteReferences.find(item => item.id === button.dataset.referenceEdit); openReferenceDialog('citation', reference); })); document.querySelectorAll('[data-reference-delete]').forEach(button => button.addEventListener('click', () => { noteReferences = noteReferences.filter(item => item.id !== button.dataset.referenceDelete); setSaveState('Unsaved changes'); openReferenceManager(); })); }
 function runVisualCommand(command, value, editEquation = false) {
-    restoreVisualSelection();
     visualEditor().focus();
+    restoreVisualSelection();
     if (command === 'fontSize') return applyVisualFontSize(value);
     if (command === 'fontSizeStep') return adjustVisualFontSize(Number(value) || 0);
     if (command === 'insertTable') { document.execCommand('insertHTML', false, '<table class="note-table" draggable="true" data-border-style="solid"><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table><p></p>'); makeTablesInteractive(); }
-    else if (command === 'insertCode') document.execCommand('insertHTML', false, '<pre class="note-code-block"><code>code</code></pre><p></p>');
+    else if (command === 'insertCode') { const language = 'plaintext'; document.execCommand('insertHTML', false, `<pre class="note-code-block" data-language="${language}">${codeLanguageControlMarkup(language)}<code class="language-${language}">code</code></pre><p></p>`); highlightNoteCodeBlocks(); }
     else if (command === 'insertEquation') insertEquation(editEquation ? '' : EQUATION_TEMPLATES.exponent.source, editEquation);
     else if (command === 'indent' || command === 'outdent') runListIndentCommand(command);
     else if (command === 'insertUnorderedList' || command === 'insertOrderedList') { document.execCommand(command, false, null); indentCurrentListItem(); }
     else document.execCommand(command, false, value || null);
     saveVisualSelection();
+    updateLivePreview();
+}
+
+const NOTE_CODE_LANGUAGES = [['plaintext', 'Plain text'], ['javascript', 'JavaScript'], ['typescript', 'TypeScript'], ['python', 'Python'], ['java', 'Java'], ['cpp', 'C++'], ['csharp', 'C#'], ['xml', 'HTML / XML'], ['css', 'CSS'], ['json', 'JSON'], ['sql', 'SQL'], ['bash', 'Shell'], ['markdown', 'Markdown']];
+function codeLanguageControlMarkup(language) { return `<select class="note-code-language" contenteditable="false" aria-label="Code language">${NOTE_CODE_LANGUAGES.map(([value, label]) => `<option value="${value}"${value === language ? ' selected' : ''}>${label}</option>`).join('')}</select>`; }
+function ensureCodeLanguageControl(block) {
+    if (!block || block.querySelector('.note-code-language')) return;
+    block.insertAdjacentHTML('afterbegin', codeLanguageControlMarkup(block.dataset.language || 'plaintext'));
+}
+function fallbackCodeHighlight(source) {
+    const tokenPattern = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\/\/[^\n]*|#[^\n]*|\/\*[\s\S]*?\*\/|\b\d+(?:\.\d+)?\b|\b(?:and|as|break|case|class|const|continue|def|delete|else|export|extends|false|for|from|function|if|import|in|interface|let|new|none|null|not|or|private|public|return|select|static|true|try|typeof|var|while|with|yield)\b)/gi;
+    let output = '';
+    let cursor = 0;
+    for (const match of String(source).matchAll(tokenPattern)) {
+        output += escapeHtml(source.slice(cursor, match.index));
+        const token = match[0];
+        const className = /^(?:\/\/|#|\/\*)/.test(token) ? 'hljs-comment' : /^(?:["'`])/.test(token) ? 'hljs-string' : /^\d/.test(token) ? 'hljs-number' : 'hljs-keyword';
+        output += `<span class="${className}">${escapeHtml(token)}</span>`;
+        cursor = match.index + token.length;
+    }
+    return output + escapeHtml(String(source).slice(cursor));
+}
+function highlightNoteCodeBlock(block) {
+    const code = block?.matches?.('code') ? block : block?.querySelector?.('code');
+    if (!code) return;
+    block = block.matches?.('pre') ? block : code.parentElement;
+    block.dataset.language = block.dataset.language || code.className.match(/language-([\w-]+)/)?.[1] || 'plaintext';
+    ensureCodeLanguageControl(block);
+    const language = block.matches?.('pre') ? block.dataset.language : code.parentElement?.dataset.language;
+    if (!language) return;
+    code.className = `language-${language}`;
+    const source = code.textContent;
+    if (language === 'plaintext') {
+        code.textContent = source;
+        return;
+    }
+    try { code.innerHTML = window.hljs?.getLanguage(language) ? hljs.highlight(source, { language, ignoreIllegals: true }).value : fallbackCodeHighlight(source); } catch (error) { code.innerHTML = fallbackCodeHighlight(source); }
+}
+function highlightNoteCodeBlocks(root = visualEditor()) {
+    root.querySelectorAll?.('pre.note-code-block').forEach(highlightNoteCodeBlock);
+}
+function setCodeBlockLanguage(block, language) {
+    if (!block) return;
+    block.dataset.language = language || 'plaintext';
+    const selector = block.querySelector('.note-code-language');
+    if (selector) selector.value = block.dataset.language;
+    highlightNoteCodeBlock(block);
+    saveVisualSelection();
+    setSaveState('Unsaved changes');
     updateLivePreview();
 }
 
@@ -480,8 +645,18 @@ async function openCharacterSelector(title, type) { openNotesModal(title, '<div 
 function saveVisualSelection() {
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount || !visualEditor().contains(selection.anchorNode)) return;
+    rememberActiveListItem();
     savedVisualRange = selection.getRangeAt(0).cloneRange();
 }
+function rememberActiveListItem() {
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode;
+    const node = anchor?.nodeType === Node.ELEMENT_NODE ? anchor : anchor?.parentElement;
+    const item = node?.closest?.('li');
+    activeListItem = item && visualEditor().contains(item) ? item : null;
+}
+function recordVisualHistory() { visualUndoStack.push(visualEditor().innerHTML); if (visualUndoStack.length > 50) visualUndoStack.shift(); visualRedoStack = []; }
+function restoreVisualHistory(fromStack, toStack) { toStack.push(visualEditor().innerHTML); visualEditor().innerHTML = fromStack.pop(); selectedTable = null; selectedEquation = null; selectedImage = null; visualEditor().focus(); placeCaretAtEnd(visualEditor()); updateLivePreview(); setSaveState('Unsaved changes'); }
 function restoreVisualSelection() {
     if (!savedVisualRange) { visualEditor().focus(); return; }
     const selection = window.getSelection();
@@ -490,7 +665,18 @@ function restoreVisualSelection() {
 }
 function currentListItem() {
     const selection = window.getSelection();
-    const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
+    const anchorNode = selection?.anchorNode;
+    if (anchorNode?.nodeType === Node.ELEMENT_NODE && anchorNode.matches('ol,ul')) {
+        const child = anchorNode.children[Math.min(selection.anchorOffset, anchorNode.children.length - 1)];
+        if (child?.matches('li')) return child;
+    }
+    if (anchorNode?.nodeType === Node.ELEMENT_NODE) {
+        const child = anchorNode.children[Math.min(selection.anchorOffset, anchorNode.children.length - 1)];
+        const list = child?.matches?.('ol,ul') ? child : null;
+        const emptyItem = list && [...list.children].reverse().find(item => item.matches('li') && isEmptyListItem(item));
+        if (emptyItem) return emptyItem;
+    }
+    const node = anchorNode?.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode?.parentElement;
     return node?.closest?.('li') || null;
 }
 function currentTextBlock() {
@@ -509,16 +695,30 @@ function currentTextBlock() {
     return wrapper;
 }
 function indentCurrentListItem() { runListIndentCommand('indent'); }
+function restoreMovedListSelection(item, anchorNode, anchorOffset) {
+    if (!anchorNode || !item.contains(anchorNode)) { placeCaretAtStart(item); return; }
+    const range = document.createRange();
+    const maxOffset = anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.textContent.length : anchorNode.childNodes.length;
+    range.setStart(anchorNode, Math.min(anchorOffset, maxOffset));
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
 function runListIndentCommand(command) {
     const item = currentListItem();
     if (item) {
         const list = item.parentElement;
+        const selection = window.getSelection();
+        const anchorNode = selection?.isCollapsed ? selection.anchorNode : null;
+        const anchorOffset = selection?.isCollapsed ? selection.anchorOffset : 0;
         if (command === 'indent') {
             const previousItem = item.previousElementSibling;
             if (!previousItem?.matches('li')) return;
             let nestedList = [...previousItem.children].find(child => child.matches(list.tagName.toLowerCase()));
             if (!nestedList) { nestedList = document.createElement(list.tagName.toLowerCase()); previousItem.appendChild(nestedList); }
             nestedList.appendChild(item);
+            restoreMovedListSelection(item, anchorNode, anchorOffset);
         } else {
             const parentItem = list.parentElement?.closest('li');
             if (!parentItem) return;
@@ -526,6 +726,7 @@ function runListIndentCommand(command) {
             if (followingItem) followingItem.before(item);
             else parentItem.parentElement.appendChild(item);
             if (!list.children.length) list.remove();
+            restoreMovedListSelection(item, anchorNode, anchorOffset);
         }
         return;
     }
@@ -537,7 +738,14 @@ function runListIndentCommand(command) {
 
 function hasUnsavedChanges() { const pane = document.getElementById('note-editor-pane'); return Boolean(pane && !pane.classList.contains('hidden') && document.getElementById('notes-save-state')?.textContent === 'Unsaved changes'); }
 function serializedVisualContent() { const clone = visualEditor().cloneNode(true); clone.querySelectorAll('.image-resize-handle').forEach(handle => handle.remove()); clone.querySelectorAll('.image-selected, .image-dragging').forEach(item => item.classList.remove('image-selected', 'image-dragging')); return clone.innerHTML; }
-function selectTableAtEvent(event) { const table = event.target.closest('table'); if (!table || !visualEditor().contains(table)) return; selectedEquation = null; document.getElementById('equation-toolbar').classList.add('hidden'); selectedTable = table; wholeTableSelected = !event.target.closest('td,th'); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); document.getElementById('table-toolbar').classList.remove('hidden'); table.classList.add('table-selected'); makeTableInteractive(table); }
+function clearTableSelection() { clearTableCellSelection(); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); selectedTable = null; wholeTableSelected = false; document.getElementById('table-toolbar')?.classList.add('hidden'); }
+function selectTableAtEvent(event) { const table = event.target.closest('table'); if (!table || !visualEditor().contains(table)) { clearTableSelection(); return; } selectedEquation = null; document.getElementById('equation-toolbar').classList.add('hidden'); selectedTable = table; wholeTableSelected = !event.target.closest('td,th'); document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); document.getElementById('table-toolbar').classList.toggle('hidden', !wholeTableSelected && !selectedTableCellRange.length); if (wholeTableSelected) table.classList.add('table-selected'); makeTableInteractive(table); }
+function clearTableCellSelection() { selectedTableCellRange.forEach(cell => cell.classList.remove('table-cell-selected')); selectedTableCellRange = []; }
+function tableCellAtPoint(event) { const cell = event.target.closest('td,th'); return cell && selectedTable?.contains(cell) ? cell : null; }
+function selectTableCellRange(startCell, endCell) { if (!startCell || !endCell || startCell.parentElement?.parentElement !== endCell.parentElement?.parentElement) return; const table = startCell.closest('table'); const startRow = startCell.parentElement.rowIndex; const endRow = endCell.parentElement.rowIndex; const startColumn = startCell.cellIndex; const endColumn = endCell.cellIndex; const minRow = Math.min(startRow, endRow); const maxRow = Math.max(startRow, endRow); const minColumn = Math.min(startColumn, endColumn); const maxColumn = Math.max(startColumn, endColumn); clearTableCellSelection(); selectedTableCellRange = [...table.rows].slice(minRow, maxRow + 1).flatMap(row => [...row.cells].slice(minColumn, maxColumn + 1)); selectedTableCellRange.forEach(cell => cell.classList.add('table-cell-selected')); }
+function startTableCellSelection(event) { const cell = tableCellAtPoint(event); if (!cell || resizeTarget(event)) return; selectedTable = cell.closest('table'); wholeTableSelected = false; selectedTable.classList.remove('table-selected'); tableCellSelectionState = { startCell: cell, currentCell: cell }; selectTableCellRange(cell, cell); event.preventDefault(); }
+function updateTableCellSelection(event) { if (!tableCellSelectionState) return; const cell = tableCellAtPoint(event); if (!cell) return; tableCellSelectionState.currentCell = cell; selectTableCellRange(tableCellSelectionState.startCell, cell); }
+function finishTableCellSelection() { if (!tableCellSelectionState) return; tableCellSelectionState = null; setSaveState('Unsaved changes'); }
 function insertEquation(source, edit = false) { document.execCommand('insertHTML', false, `<span class="note-equation" contenteditable="false" data-new-equation="true" data-source="${escapeHtml(source)}">${renderKatex(source, false)}</span>&nbsp;`); const equation = visualEditor().querySelector('.note-equation[data-new-equation="true"]'); if (!equation) return; equation.removeAttribute('data-new-equation'); if (edit) openRawEquationEditor(equation); }
 function equationSource(equation) { return equation.dataset.source || equation.textContent.replace(/^\\\(|\\\)$/g, '').trim(); }
 function equationVisualMarkup(source) {
@@ -585,14 +793,14 @@ function selectEquationAtEvent(event) { const equation = event.target.closest('.
 function runEquationAction(action, value) { if (!selectedEquation) return; finalizeEditingEquations(selectedEquation); if (action === 'template') { selectedEquation.dataset.source = value; openRawEquationEditor(selectedEquation); } if (action === 'size-up') selectedEquation.classList.add('equation-large'); if (action === 'size-down') selectedEquation.classList.remove('equation-large'); if (action === 'color') selectedEquation.style.color = value; setSaveState('Unsaved changes'); updateLivePreview(); }
 function makeTableInteractive(table) { if (!table) return; table.draggable = true; table.classList.add('note-table'); table.dataset.borderStyle = table.dataset.borderStyle || 'solid'; document.querySelectorAll('.border-style-button').forEach(button => button.classList.toggle('active', button.dataset.borderStyle === table.dataset.borderStyle)); }
 function makeTablesInteractive() { visualEditor().querySelectorAll('table').forEach(makeTableInteractive); }
-function handleTableDragStart(event) { const table = event.target.closest('table'); if (!table) return; selectedTable = table; wholeTableSelected = true; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'note-table'); table.classList.add('table-dragging'); }
+function handleTableDragStart(event) { const table = event.target.closest('table'); if (!table || resizeTarget(event)) return; selectedTable = table; wholeTableSelected = true; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'note-table'); table.classList.add('table-dragging'); }
 function handleTableDragOver(event) { if (!event.target.closest('table') || !selectedTable) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
 function handleTableDrop(event) { const target = event.target.closest('table'); if (!target || !selectedTable || target === selectedTable) return; event.preventDefault(); const rect = target.getBoundingClientRect(); const before = event.clientY < rect.top + rect.height / 2; target.parentNode.insertBefore(selectedTable, before ? target : target.nextSibling); selectedTable.classList.remove('table-dragging'); setSaveState('Unsaved changes'); updateLivePreview(); }
-function resizeTarget(event) { const cell = event.target.closest('td,th'); if (!cell || !visualEditor().contains(cell)) return null; const rect = cell.getBoundingClientRect(); const nearRight = Math.abs(event.clientX - rect.right) <= 6; const nearBottom = Math.abs(event.clientY - rect.bottom) <= 6; return nearRight ? { cell, axis: 'column' } : nearBottom ? { cell, axis: 'row' } : null; }
-function handleTableResizeMove(event) { if (tableResizeState) return; const target = resizeTarget(event); visualEditor().style.cursor = target ? `${target.axis === 'column' ? 'col' : 'row'}-resize` : ''; }
-function handleTableResizeStart(event) { const target = resizeTarget(event); if (!target) return; event.preventDefault(); tableResizeState = { ...target, startX: event.clientX, startY: event.clientY, width: target.cell.getBoundingClientRect().width, height: target.cell.getBoundingClientRect().height }; }
+function resizeTarget(event) { const cell = event.target.closest('td,th'); if (!cell || !visualEditor().contains(cell)) return null; const rect = cell.getBoundingClientRect(); const tolerance = 16; const nearRight = Math.abs(event.clientX - rect.right) <= tolerance; const nearBottom = Math.abs(event.clientY - rect.bottom) <= tolerance; return nearRight ? { cell, axis: 'column' } : nearBottom ? { cell, axis: 'row' } : null; }
+function handleTableResizeMove(event) { if (tableResizeState) return; const target = resizeTarget(event); visualEditor().classList.toggle('table-resize-column', target?.axis === 'column'); visualEditor().classList.toggle('table-resize-row', target?.axis === 'row'); }
+function handleTableResizeStart(event) { const target = resizeTarget(event); if (!target) return; event.preventDefault(); event.stopPropagation(); tableResizeState = { ...target, startX: event.clientX, startY: event.clientY, width: target.cell.getBoundingClientRect().width, height: target.cell.getBoundingClientRect().height }; }
 function handleTableResizeDrag(event) { if (!tableResizeState) return; const { cell, axis } = tableResizeState; if (axis === 'column') cell.style.width = `${Math.max(48, tableResizeState.width + event.clientX - tableResizeState.startX)}px`; else cell.style.height = `${Math.max(28, tableResizeState.height + event.clientY - tableResizeState.startY)}px`; setSaveState('Unsaved changes'); }
-function handleTableResizeEnd() { if (!tableResizeState) return; tableResizeState = null; updateLivePreview(); }
+function handleTableResizeEnd() { if (!tableResizeState) return; tableResizeState = null; visualEditor().classList.remove('table-resize-column', 'table-resize-row'); updateLivePreview(); }
 function openTableContextMenu(event) { const table = event.target.closest('table'); if (!table) return; event.preventDefault(); selectedTable = table; wholeTableSelected = true; document.querySelectorAll('.table-selected').forEach(item => item.classList.remove('table-selected')); table.classList.add('table-selected'); const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(table); selection.removeAllRanges(); selection.addRange(range); const menu = document.getElementById('table-context-menu'); menu.style.left = `${event.clientX}px`; menu.style.top = `${event.clientY}px`; menu.classList.remove('hidden'); document.getElementById('table-toolbar').classList.remove('hidden'); }
 function closeTableContextMenu() { document.getElementById('table-context-menu').classList.add('hidden'); }
 function selectedCell() { const selection = window.getSelection(); const node = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement; return node?.closest?.('td,th') || selectedTable?.querySelector('td,th'); }
@@ -605,11 +813,16 @@ function runTableAction(action, value) {
     if (action === 'delete-column' && cell) { if (selectedTable.rows[0].cells.length === 1) return runTableAction('delete-table'); [...selectedTable.rows].forEach(row => row.deleteCell(cell.cellIndex)); }
     if (action === 'delete-table') { const table = selectedTable; selectedTable = null; wholeTableSelected = false; table.remove(); document.getElementById('table-toolbar').classList.add('hidden'); closeTableContextMenu(); }
     if (action === 'cell-color' && cell) cell.style.backgroundColor = value;
-    if (action === 'border-color') { selectedTable.style.borderColor = value; selectedTable.querySelectorAll('td,th').forEach(tableCell => { tableCell.style.borderColor = value; }); }
-    if (action === 'border-style') { selectedTable.dataset.borderStyle = value; document.querySelectorAll('.border-style-button').forEach(button => button.classList.toggle('active', button.dataset.borderStyle === value)); }
+    if (action === 'border-color') { tableBorderCells().forEach(tableCell => { tableCell.style.borderTopColor = value; tableCell.style.borderRightColor = value; tableCell.style.borderBottomColor = value; tableCell.style.borderLeftColor = value; }); }
+    if (action === 'border-style') { tableBorderCells().forEach(tableCell => { tableCell.style.borderTopStyle = value; tableCell.style.borderRightStyle = value; tableCell.style.borderBottomStyle = value; tableCell.style.borderLeftStyle = value; }); document.querySelectorAll('.border-style-button').forEach(button => button.classList.toggle('active', button.dataset.borderStyle === value)); }
     if (action === 'toggle-borders') selectedTable.dataset.borderStyle = selectedTable.dataset.borderStyle === 'none' ? 'solid' : 'none';
+    if (action === 'border-edge') applySelectedCellBorder(value);
+    if (action === 'border-thickness') applySelectedCellBorderWidth(value);
     setSaveState('Unsaved changes'); updateLivePreview(); closeTableContextMenu();
 }
+function tableBorderCells() { if (selectedTableCellRange.length) return selectedTableCellRange; if (wholeTableSelected && selectedTable) return [...selectedTable.querySelectorAll('td,th')]; const cell = selectedCell(); return cell ? [cell] : []; }
+function applySelectedCellBorder(edge) { const cells = tableBorderCells(); if (!cells.length) return; const color = document.getElementById('border-color-picker')?.value || '#e9e9e7'; const width = document.getElementById('border-thickness-picker')?.value || '1px'; const rows = cells.map(cell => cell.parentElement.rowIndex); const columns = cells.map(cell => cell.cellIndex); cells.forEach(cell => { const row = cell.parentElement.rowIndex; const column = cell.cellIndex; const edges = edge === 'outer' ? { top: row === Math.min(...rows), bottom: row === Math.max(...rows), left: column === Math.min(...columns), right: column === Math.max(...columns) } : edge === 'inner' ? { top: row > Math.min(...rows), bottom: row < Math.max(...rows), left: column > Math.min(...columns), right: column < Math.max(...columns) } : { top: edge === 'top', bottom: edge === 'bottom', left: edge === 'left', right: edge === 'right' }; Object.entries(edges).forEach(([side, enabled]) => { if (!enabled) return; const property = `border${side[0].toUpperCase()}${side.slice(1)}`; cell.style[`${property}Style`] = 'solid'; cell.style[`${property}Width`] = width; cell.style[`${property}Color`] = color; }); }); }
+function applySelectedCellBorderWidth(value) { const cells = tableBorderCells(); if (!cells.length) return; ['borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'].forEach(property => cells.forEach(cell => { cell.style[property] = `${Number(value) || 1}px`; })); }
 
 function equationRawInput(equation) { return equation?.querySelector('.equation-latex-inline'); }
 function placeCaretAroundEquation(equation, direction) { const selection = window.getSelection(); const range = document.createRange(); if (direction === 'before') range.setStartBefore(equation); else range.setStartAfter(equation); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); visualEditor().focus(); saveVisualSelection(); }
@@ -655,13 +868,12 @@ function adjacentNode(node, offset, direction) {
 }
 
 function handleVisualKeydown(event) {
+    if (event.target.matches?.('.equation-latex-inline') && (event.key === 'Backspace' || event.key === 'Delete')) return;
     if (handleEquationNavigation(event)) return;
+    if (handleEquationKeyboard(event)) return;
     if (handleImageKeyboard(event)) return;
     if (event.key === 'Tab' && !event.target.closest('input,textarea,td,th')) { event.preventDefault(); runListIndentCommand(event.shiftKey ? 'outdent' : 'indent'); saveVisualSelection(); setSaveState('Unsaved changes'); updateLivePreview(); return; }
-    if (handleListBackspace(event)) return;
-    if (handleIndentedBlockBackspace(event)) return;
-    if (handleBlockBackspace(event)) return;
-    if (handleEmptyFormattingBackspace(event)) return;
+    if (handleListLevelBackspace(event)) return;
     if (autoInsertDivider(event)) return;
     if (handleTableKeydown(event)) return;
     if (autoStartList(event)) return;
@@ -680,6 +892,49 @@ function handleVisualKeydown(event) {
     const rendered = window.katex ? katex.renderToString(equation[1], { throwOnError: false }) : escapeHtml(equation[1]);
     document.execCommand('insertHTML', false, `<span class="note-equation" contenteditable="false" data-source="${escapeHtml(equation[1])}">${rendered}</span>&nbsp;`);
     updateLivePreview();
+}
+
+function handleVisualBeforeInput(event) {
+    if (event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
+        savedVisualRange = null;
+    }
+}
+
+function handleListLevelBackspace(event) {
+    if (event.key !== 'Backspace') return false;
+    const selection = window.getSelection();
+    const item = currentListItem();
+    const list = item?.parentElement;
+    if (!selection?.isCollapsed || !item || !list?.matches('ol,ul') || !isEmptyListItem(item) || !isCaretAtStart(selection, item)) return false;
+    event.preventDefault();
+    const parentItem = list.parentElement?.closest('li');
+    if (parentItem) {
+        runListIndentCommand('outdent');
+        placeCaretAtStart(item);
+    } else {
+        const parent = list.parentElement;
+        const itemIndex = [...list.children].indexOf(item);
+        const followingItems = [...list.children].slice(itemIndex + 1);
+        const paragraph = document.createElement('p');
+        paragraph.innerHTML = '<br>';
+        if (followingItems.length) {
+            const followingList = list.cloneNode(false);
+            followingItems.forEach(followingItem => followingList.appendChild(followingItem));
+            if (list.matches('ol')) followingList.start = itemIndex + 1;
+            item.remove();
+            parent.insertBefore(paragraph, list.nextSibling);
+            parent.insertBefore(followingList, paragraph.nextSibling);
+        } else {
+            item.remove();
+            parent.insertBefore(paragraph, list.nextSibling);
+        }
+        if (!list.children.length) list.remove();
+        placeCaretAtStart(paragraph);
+    }
+    saveVisualSelection();
+    setSaveState('Unsaved changes');
+    updateLivePreview();
+    return true;
 }
 
 function handleIndentedBlockBackspace(event) {
@@ -754,8 +1009,8 @@ function autoStartList(event) {
     beforeRange.selectNodeContents(block);
     beforeRange.setEnd(selection.anchorNode, selection.anchorOffset);
     const beforeCaret = beforeRange.toString();
-    const ordered = /^\d+\. $/.test(beforeCaret);
-    const unordered = /^- $/.test(beforeCaret);
+    const ordered = /^\d+\.$/.test(beforeCaret);
+    const unordered = /^-$/.test(beforeCaret);
     if (!ordered && !unordered) return false;
     event.preventDefault();
     const markerRange = document.createRange();
@@ -769,7 +1024,8 @@ function autoStartList(event) {
     selection.removeAllRanges();
     selection.addRange(caretRange);
     document.execCommand(ordered ? 'insertOrderedList' : 'insertUnorderedList', false, null);
-    indentCurrentListItem();
+    const item = currentListItem();
+    if (item) { placeCaretAtStart(item); visualEditor().focus(); }
     saveVisualSelection();
     setSaveState('Unsaved changes');
     updateLivePreview();
@@ -779,10 +1035,12 @@ function autoStartList(event) {
 function handleListBackspace(event) {
     if (event.key !== 'Backspace') return false;
     const selection = window.getSelection();
-    const item = currentListItem();
+    const item = currentListItem() || (activeListItem && visualEditor().contains(activeListItem) ? activeListItem : null);
     const anchorElement = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
     const continuation = anchorElement?.closest?.('.list-continuation') || (activeListContinuation && visualEditor().contains(activeListContinuation) ? activeListContinuation : null);
-    if (!selection?.isCollapsed || (!item && !continuation) || !isCaretAtStart(selection, item || continuation)) return false;
+    const emptyItem = item && isEmptyListItem(item);
+    if (!selection?.isCollapsed || (!item && !continuation) || (!emptyItem && !isCaretAtStart(selection, item || continuation))) return false;
+    recordVisualHistory();
     event.preventDefault();
     if (continuation) {
         if (continuation.dataset.listIndent !== '0') { continuation.dataset.listIndent = '0'; continuation.style.removeProperty('--list-depth'); }
@@ -795,15 +1053,28 @@ function handleListBackspace(event) {
             else if (next) placeCaretAtStart(next);
             else placeCaretAtStart(visualEditor());
         }
-    } else if (isEmptyListItem(item)) {
+    } else if (emptyItem) {
+        const list = item.parentElement;
+        const previous = item.previousElementSibling;
+        const next = item.nextElementSibling;
         if (item.parentElement?.parentElement?.closest('li')) {
             runListIndentCommand('outdent');
             placeCaretAtStart(item);
-        } else removeEmptyListItemMarker(item);
+        } else if (list?.children.length > 1) {
+            item.remove();
+            if (previous) placeCaretAtEnd(previous);
+            else if (next) placeCaretAtStart(next);
+        } else removeEmptyListItemMarker(item, item.dataset.emptyOutdented === 'true' ? 0 : null);
     } else if (item.parentElement?.parentElement?.closest('li')) {
         runListIndentCommand('outdent');
         placeCaretAtStart(item);
-    } else return false;
+    } else {
+        const previous = item.previousElementSibling;
+        if (!previous?.matches('li')) return false;
+        while (item.firstChild) previous.appendChild(item.firstChild);
+        item.remove();
+        placeCaretAtEnd(previous);
+    }
     saveVisualSelection();
     setSaveState('Unsaved changes');
     updateLivePreview();
@@ -817,6 +1088,19 @@ function handleEmptyFormattingBackspace(event) {
     const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
     const block = element?.closest?.('p,div,h1,h2,h3,h4,h5,h6,blockquote');
     if (!block || block === visualEditor() || selection.anchorOffset !== 0) return false;
+    const hasContent = block.textContent.trim() || block.querySelector('img,table,.note-equation,.note-citation,.note-footnote-marker');
+    if (!hasContent) {
+        event.preventDefault();
+        const previous = block.previousElementSibling;
+        const next = block.nextElementSibling;
+        if (previous) { block.remove(); placeCaretAtEnd(previous); }
+        else if (next) { block.remove(); placeCaretAtStart(next); }
+        else { block.innerHTML = '<br>'; placeCaretAtStart(block); }
+        saveVisualSelection();
+        setSaveState('Unsaved changes');
+        updateLivePreview();
+        return true;
+    }
     const wrappers = [...block.querySelectorAll('span')].filter(span => !span.textContent.trim() && !span.querySelector('br'));
     if (!wrappers.length && block.textContent.trim()) return false;
     event.preventDefault();
@@ -841,14 +1125,14 @@ function isCaretAtStart(selection, item) {
 function isEmptyListItem(item) { return !item.textContent.replace(/\u00a0/g, ' ').trim() && !item.querySelector('img,table,.note-equation,.note-citation,.note-footnote-marker'); }
 function placeCaretAtStart(element) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(true); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
 function placeCaretAtEnd(element) { const target = element?.matches?.('ol,ul') ? [...element.children].reverse().find(item => item.matches('li')) || element : element; const range = document.createRange(); range.selectNodeContents(target); range.collapse(false); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
-function removeEmptyListItemMarker(item) {
+function removeEmptyListItemMarker(item, continuationDepth = null) {
     const list = item.parentElement;
     if (!list?.matches('ol,ul')) return;
     const parent = list.parentElement;
     if (!parent) return;
     const itemIndex = [...list.children].indexOf(item);
     const followingItems = [...list.children].slice(itemIndex + 1);
-    const depth = Math.max(1, [...visualEditor().querySelectorAll('ol,ul')].filter(candidate => candidate.contains(item)).length);
+    const depth = continuationDepth === null ? Math.max(1, [...visualEditor().querySelectorAll('ol,ul')].filter(candidate => candidate.contains(item)).length) : continuationDepth;
     const continuation = document.createElement('div');
     continuation.className = 'list-continuation';
     continuation.dataset.listIndent = String(depth);
@@ -865,9 +1149,17 @@ function removeEmptyListItemMarker(item) {
         parent.insertBefore(continuation, list.nextSibling);
         if (followingList) parent.insertBefore(followingList, continuation.nextSibling);
     } else {
-        parent.insertBefore(continuation, list);
-        if (followingList) parent.insertBefore(followingList, continuation.nextSibling);
+        const blankLine = document.createElement('p');
+        blankLine.className = 'list-continuation';
+        blankLine.dataset.listIndent = String(depth);
+        blankLine.style.setProperty('--list-depth', depth);
+        blankLine.innerHTML = '<br>';
+        parent.insertBefore(blankLine, list);
+        if (followingList) parent.insertBefore(followingList, blankLine.nextSibling);
         list.remove();
+        activeListContinuation = blankLine;
+        placeCaretAtStart(blankLine);
+        return;
     }
     placeCaretAtStart(continuation);
 }
@@ -901,7 +1193,7 @@ function handleTableKeydown(event) {
 
 function updateLivePreview() {
     const pane = document.getElementById('custom-preview-pane');
-    if (currentFormat === 'visual') { pane.innerHTML = visualEditor().innerHTML || '<div class="text-muted">Start typing to see preview...</div>'; renderMath(pane); return; }
+    if (currentFormat === 'visual') { pane.innerHTML = visualEditor().innerHTML || '<div class="text-muted">Start typing to see preview...</div>'; highlightNoteCodeBlocks(pane); renderMath(pane); return; }
     const raw = editor().value;
     if (!raw.trim()) { pane.innerHTML = '<div class="text-muted">Start typing to see preview...</div>'; return; }
     if (currentFormat === 'md') { pane.innerHTML = marked.parse(raw); renderMath(pane); }
@@ -980,6 +1272,7 @@ function runFileAction(action) {
     if (action === 'convert') return openNotesModal('Convert note', `<p class="notes-modal-copy">Choose the format for this note. Your current content will be converted in place and can be reviewed before saving.</p><label class="notes-modal-label" for="notes-convert-select">New format</label><select id="notes-convert-select" class="notes-modal-select"><option value="visual">Visual</option><option value="md">Markdown</option><option value="latex">LaTeX</option><option value="typst">Typst</option></select>`, 'Convert', () => setFormat(document.getElementById('notes-convert-select')?.value || currentFormat, true));
     if (action === 'print') return printNote('Print');
     if (action === 'export-pdf') return printNote('Export as PDF');
+    if (action === 'export-odt') return exportOdt();
     if (action === 'export-source') return exportNote();
     if (action === 'page-setup') return openNotesModal('Page setup', '<p class="notes-modal-copy">Page size, margins, orientation, and destination are selected in the browser print dialog.</p><p class="notes-modal-hint">Choose Print or Export as PDF after closing this dialog.</p>');
     if (action === 'details') { const note = activeNote(); return openNotesModal('Note details', `<dl class="notes-details"><dt>Type</dt><dd>${formatLabel(currentFormat)}</dd><dt>Created</dt><dd>${note?.created_at ? new Date(note.created_at).toLocaleString() : 'Not saved'}</dd><dt>Updated</dt><dd>${note?.updated_at ? new Date(note.updated_at).toLocaleString() : 'Not saved'}</dd></dl>`); }
@@ -1004,6 +1297,242 @@ function printNote(actionLabel = 'Print') {
     if (printWindow.document.readyState === 'complete') print();
 }
 function exportNote() { const extension = currentFormat === 'visual' ? 'html' : currentFormat === 'md' ? 'md' : currentFormat === 'latex' ? 'tex' : 'typ'; const content = currentFormat === 'visual' ? `<!doctype html><meta charset="utf-8"><title>${escapeHtml(document.getElementById('note-title-input').value)}</title>${visualEditor().innerHTML}` : editor().value; const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' })); link.download = `${document.getElementById('note-title-input').value || 'note'}.${extension}`; link.click(); URL.revokeObjectURL(link.href); }
+
+const ODT_NAMESPACES = {
+    office: 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+    style: 'urn:oasis:names:tc:opendocument:xmlns:style:1.0',
+    text: 'urn:oasis:names:tc:opendocument:xmlns:text:1.0',
+    table: 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+    draw: 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0',
+    fo: 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0',
+    xlink: 'http://www.w3.org/1999/xlink',
+    dc: 'http://purl.org/dc/elements/1.1/',
+    meta: 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0',
+    manifest: 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0'
+};
+function escapeXml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&apos;', '"': '&quot;' }[character])); }
+function odtText(value) {
+    const text = String(value ?? '').replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+    const parts = [];
+    let cursor = 0;
+    const markdown = /(__|\*\*|`|(?<!\*)\*(?!\*))([\s\S]*?)\1/g;
+    for (const match of text.matchAll(markdown)) {
+        if (match.index > cursor) parts.push(escapeXml(text.slice(cursor, match.index)).replace(/\r?\n/g, '<text:line-break/>'));
+        const valueXml = escapeXml(match[2]).replace(/\r?\n/g, '<text:line-break/>');
+        const style = match[1] === '`' ? 'T-Code' : match[1].includes('*') ? (match[1].length === 2 ? 'T-Bold' : 'T-Italic') : 'T-Code';
+        parts.push(`<text:span text:style-name="${style}">${valueXml}</text:span>`);
+        if (/^[\p{L}\p{N}]/u.test(text.slice(match.index + match[0].length))) parts.push(' ');
+        cursor = match.index + match[0].length;
+    }
+    parts.push(escapeXml(text.slice(cursor)).replace(/\r?\n/g, '<text:line-break/>'));
+    return parts.join('');
+}
+function unwrapOdtElement(element) {
+    const parent = element.parentNode;
+    if (!parent) return;
+    while (element.firstChild) parent.insertBefore(element.firstChild, element);
+    element.remove();
+}
+function normalizeOdtRoot(source) {
+    const root = document.createElement('div');
+    root.innerHTML = source || '';
+    root.querySelectorAll('.note-equation').forEach(equation => {
+        const annotation = equation.querySelector('annotation');
+        const value = equation.dataset.source || annotation?.textContent || equation.textContent;
+        equation.replaceChildren();
+        equation.dataset.odtLatex = value.trim();
+    });
+    root.querySelectorAll('.katex').forEach(equation => {
+        const annotation = equation.querySelector('annotation');
+        const value = annotation?.textContent || equation.getAttribute('aria-label') || equation.textContent;
+        equation.replaceChildren();
+        equation.className = 'odt-equation';
+        equation.dataset.odtLatex = value.trim();
+    });
+    root.querySelectorAll('.katex-mathml, .katex-html, .image-resize-handle, .font-selection-highlight').forEach(unwrapOdtElement);
+    root.querySelectorAll('.note-code-language').forEach(control => control.remove());
+    root.querySelectorAll('.note-image-frame').forEach(frame => {
+        const image = frame.querySelector('img');
+        if (image) frame.replaceWith(image);
+        else frame.remove();
+    });
+    root.querySelectorAll('.list-continuation').forEach(item => item.remove());
+    const plainMarkdown = root.textContent.trim();
+    const hasSemanticMarkup = root.querySelector('h1,h2,h3,h4,h5,h6,ol,ul,table,pre,strong,em,u')
+    const hasMarkdownBlocks = /(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s)/m.test(plainMarkdown);
+    if (!hasSemanticMarkup && hasMarkdownBlocks && window.marked) root.innerHTML = marked.parse(plainMarkdown);
+    return root;
+}
+function odtMathMl(source) {
+    const latex = String(source || 'x').trim() || 'x';
+    const fraction = latex.match(/^\\frac\{([^{}]+)\}\{([^{}]+)\}$/);
+    const root = latex.match(/^\\sqrt\{([^{}]+)\}$/);
+    const exponent = latex.match(/^([^\s]+)\^\{([^{}]+)\}$/);
+    const expression = fraction ? `<math:mfrac><math:mtext>${escapeXml(fraction[1])}</math:mtext><math:mtext>${escapeXml(fraction[2])}</math:mtext></math:mfrac>` : root ? `<math:msqrt><math:mtext>${escapeXml(root[1])}</math:mtext></math:msqrt>` : exponent ? `<math:msup><math:mtext>${escapeXml(exponent[1])}</math:mtext><math:mtext>${escapeXml(exponent[2])}</math:mtext></math:msup>` : `<math:mtext>${escapeXml(latex)}</math:mtext>`;
+    return `<math:math><math:semantics>${expression}<math:annotation encoding="application/x-tex">${escapeXml(latex)}</math:annotation></math:semantics></math:math>`;
+}
+function odtStyleName(element) {
+    if (element.matches('strong,b')) return 'T-Bold';
+    if (element.matches('em,i')) return 'T-Italic';
+    if (element.matches('u')) return 'T-Underline';
+    if (element.matches('s,del,strike')) return 'T-Strike';
+    return '';
+}
+function odtImageType(dataUrl) { return dataUrl.match(/^data:image\/([a-z0-9.+-]+);base64,/i)?.[1].replace('svg+xml', 'svg') || 'png'; }
+async function odtImageData(image) {
+    const source = image.getAttribute('src') || '';
+    if (source.startsWith('data:')) return { data: source.split(',')[1], type: odtImageType(source), binary: true };
+    try {
+        const response = await fetch(source, { mode: 'cors' });
+        if (!response.ok) throw new Error('Image request failed');
+        return { data: await response.blob(), type: (response.headers.get('content-type') || 'image/png').split('/').pop(), binary: true };
+    } catch (error) {
+        return null;
+    }
+}
+async function odtImageFrame(image, images, anchorType = 'as-char') {
+    const imageData = await odtImageData(image);
+    if (!imageData) return escapeXml(image.alt || '[Image]');
+    const index = images.length + 1;
+    const path = `Pictures/image${index}.${imageData.type}`;
+    images.push({ path, ...imageData });
+    return `<draw:frame draw:name="Image${index}" text:anchor-type="${anchorType}" svg:width="12cm" svg:height="8cm" style:rel-width="scale" style:rel-height="scale"><draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+}
+async function odtInline(node, images) {
+    if (node.nodeType === Node.TEXT_NODE) return odtText(node.nodeValue.replace(/\u00a0/g, ' '));
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    if (node.matches('br')) return '<text:line-break/>';
+    if (node.matches('img')) return odtImageFrame(node, images);
+    if (node.matches('.note-equation, .odt-equation')) return odtMathMl(node.dataset.odtLatex || node.dataset.source || node.textContent);
+    const content = [...node.childNodes].map(child => odtInline(child, images));
+    const inline = (await Promise.all(content)).join('').replace(/([\p{L}\p{N}])(?=<text:span|<math:math|<draw:frame)/gu, '$1 ').replace(/(<\/text:span>|<\/math:math>|<\/draw:frame>)(?=[\p{L}\p{N}])/gu, '$1 ');
+    if (node.matches('a')) return `<text:a xlink:type="simple" xlink:href="${escapeXml(node.getAttribute('href') || '')}">${inline}</text:a>`;
+    return inline;
+}
+async function odtParagraph(element, images, styleName = 'P') {
+    const parts = [];
+    let inlineNodes = [];
+    const flushInline = async () => {
+        if (!inlineNodes.length) return;
+        const content = (await Promise.all(inlineNodes.map(child => odtInline(child, images)))).join('');
+        parts.push(`<text:p text:style-name="${styleName}">${content || '<text:s/>'}</text:p>`);
+        inlineNodes = [];
+    };
+    for (const child of [...element.childNodes]) {
+        if (child.nodeType === Node.ELEMENT_NODE && child.matches('img')) {
+            await flushInline();
+            parts.push(`<text:p text:style-name="P">${await odtImageFrame(child, images, 'paragraph')}</text:p>`);
+        } else inlineNodes.push(child);
+    }
+    await flushInline();
+    return parts.join('') || `<text:p text:style-name="${styleName}"><text:s/></text:p>`;
+}
+async function odtList(list, images, depth = 1) {
+    const items = [];
+    for (const item of [...list.children].filter(child => child.matches('li'))) {
+        const blocks = [];
+        const inlineNodes = [...item.childNodes].filter(child => !(child.nodeType === Node.ELEMENT_NODE && child.matches('ol,ul')));
+        const content = (await Promise.all(inlineNodes.map(child => odtInline(child, images)))).join('');
+        blocks.push(`<text:p text:style-name="List-P">${content || '<text:s/>'}</text:p>`);
+        for (const nested of [...item.children].filter(child => child.matches('ol,ul'))) blocks.push(await odtList(nested, images, depth + 1));
+        items.push(`<text:list-item>${blocks.join('')}</text:list-item>`);
+    }
+    return `<text:list text:style-name="${list.matches('ol') ? 'L-Number' : 'L-Bullet'}">${items.join('')}</text:list>`;
+}
+async function odtTable(table, images) {
+    const rows = [];
+    for (const row of [...table.rows]) {
+        const cells = [];
+        for (const cell of [...row.cells]) cells.push(`<table:table-cell table:style-name="TB-Cell" office:value-type="string">${await odtParagraph(cell, images)}</table:table-cell>`);
+        rows.push(`<table:table-row>${cells.join('')}</table:table-row>`);
+    }
+    return `<table:table table:name="Table1" table:style-name="TB-Table">${rows.join('')}</table:table>`;
+}
+async function odtBlocks(root, images) {
+    const output = [];
+    for (const element of [...root.children]) {
+        if (element.matches('div,section,article,main') && element.querySelector('h1,h2,h3,h4,h5,h6,p,ol,ul,table,pre,blockquote')) output.push(await odtBlocks(element, images));
+        else if (element.matches('ol,ul')) output.push(await odtList(element, images));
+        else if (element.matches('table')) output.push(await odtTable(element, images));
+        else if (element.matches('hr')) output.push('<text:p text:style-name="Divider"><text:s/></text:p>');
+        else if (element.matches('h1,h2,h3,h4,h5,h6')) output.push(await odtParagraph(element, images, `H-${Math.min(3, Number(element.tagName.slice(1)))}`));
+        else if (element.matches('pre')) output.push(await odtParagraph(element, images, 'Preformatted')); 
+        else output.push(await odtParagraph(element, images, 'P'));
+    }
+    if (!output.length && root.textContent.trim()) output.push(await odtParagraph(root, images));
+    return output.join('');
+}
+function odtContentXml(title, body) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="${ODT_NAMESPACES.office}" xmlns:style="${ODT_NAMESPACES.style}" xmlns:text="${ODT_NAMESPACES.text}" xmlns:table="${ODT_NAMESPACES.table}" xmlns:draw="${ODT_NAMESPACES.draw}" xmlns:xlink="${ODT_NAMESPACES.xlink}" xmlns:fo="${ODT_NAMESPACES.fo}" xmlns:svg="http://www.w3.org/2000/svg" xmlns:math="http://www.w3.org/1998/Math/MathML" office:version="1.3">
+<office:automatic-styles>
+<style:style style:name="P" style:family="paragraph"><style:text-properties fo:font-size="11pt"/></style:style>
+<style:style style:name="List-P" style:family="paragraph"><style:paragraph-properties fo:margin-top="0in" fo:margin-bottom="0in"/><style:text-properties fo:font-size="11pt"/></style:style>
+<style:style style:name="Divider" style:family="paragraph"><style:paragraph-properties fo:border-bottom="0.75pt solid #777777" fo:padding-bottom="0.08in"/></style:style>
+<style:style style:name="H-1" style:family="paragraph"><style:text-properties fo:font-size="18pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="H-2" style:family="paragraph"><style:text-properties fo:font-size="15pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="H-3" style:family="paragraph"><style:text-properties fo:font-size="13pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="Preformatted" style:family="paragraph"><style:text-properties style:font-name="Liberation Mono"/></style:style>
+<style:style style:name="T-Bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+<style:style style:name="T-Italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+<style:style style:name="T-Underline" style:family="text"><style:text-properties style:text-underline-style="solid"/></style:style>
+<style:style style:name="T-Strike" style:family="text"><style:text-properties style:text-line-through-style="solid"/></style:style>
+<style:style style:name="T-Code" style:family="text"><style:text-properties style:font-name="Liberation Mono"/></style:style>
+<text:list-style style:name="L-Bullet"><text:list-level-style-bullet text:level="1" text:bullet-char="•"/><text:list-level-style-bullet text:level="2" text:bullet-char="◦"/><text:list-level-style-bullet text:level="3" text:bullet-char="▪"/></text:list-style>
+<text:list-style style:name="L-Number"><text:list-level-style-number text:level="1" style:num-format="1"/><text:list-level-style-number text:level="2" style:num-format="a"/><text:list-level-style-number text:level="3" style:num-format="i"/></text:list-style>
+<style:style style:name="TB-Table" style:family="table"><style:table-properties table:border-model="collapsing"/></style:style>
+<style:style style:name="TB-Cell" style:family="table-cell"><style:table-cell-properties fo:border="0.5pt solid #b7b7b7" fo:padding="0.08in"/></style:style>
+</office:automatic-styles>
+<office:body><office:text><text:sequence-decls><text:sequence-decl text:display-outline-level="0" text:name="Illustration"/></text:sequence-decls>${body}</office:text></office:body></office:document-content>`;
+}
+function odtStylesXml() {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles xmlns:office="${ODT_NAMESPACES.office}" xmlns:style="${ODT_NAMESPACES.style}" xmlns:text="${ODT_NAMESPACES.text}" xmlns:fo="${ODT_NAMESPACES.fo}" xmlns:svg="http://www.w3.org/2000/svg" office:version="1.3">
+<office:font-face-decls><style:font-face style:name="Liberation Sans" svg:font-family="Liberation Sans"/><style:font-face style:name="Liberation Mono" svg:font-family="Liberation Mono"/></office:font-face-decls>
+<office:styles>
+<style:default-style style:family="paragraph"><style:paragraph-properties fo:margin-bottom="0.08in" fo:line-height="115%"/><style:text-properties fo:font-family="Liberation Sans" fo:font-size="11pt"/></style:default-style>
+<style:style style:name="P" style:family="paragraph"><style:text-properties fo:font-size="11pt"/></style:style>
+<style:style style:name="List-P" style:family="paragraph"><style:paragraph-properties fo:margin-top="0in" fo:margin-bottom="0in"/><style:text-properties fo:font-size="11pt"/></style:style>
+<style:style style:name="Divider" style:family="paragraph"><style:paragraph-properties fo:border-bottom="0.75pt solid #777777" fo:padding-bottom="0.08in"/></style:style>
+<style:style style:name="H-1" style:family="paragraph"><style:text-properties fo:font-size="18pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="H-2" style:family="paragraph"><style:text-properties fo:font-size="15pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="H-3" style:family="paragraph"><style:text-properties fo:font-size="13pt" fo:font-weight="bold"/></style:style>
+<style:style style:name="Preformatted" style:family="paragraph"><style:text-properties style:font-name="Liberation Mono"/></style:style>
+<style:style style:name="T-Bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+<style:style style:name="T-Italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+<style:style style:name="T-Underline" style:family="text"><style:text-properties style:text-underline-style="solid"/></style:style>
+<style:style style:name="T-Strike" style:family="text"><style:text-properties style:text-line-through-style="solid"/></style:style>
+<style:style style:name="T-Code" style:family="text"><style:text-properties style:font-name="Liberation Mono"/></style:style>
+<text:list-style style:name="L-Bullet"><text:list-level-style-bullet text:level="1" text:bullet-char="•"/><text:list-level-style-bullet text:level="2" text:bullet-char="◦"/><text:list-level-style-bullet text:level="3" text:bullet-char="▪"/></text:list-style>
+<text:list-style style:name="L-Number"><text:list-level-style-number text:level="1" style:num-format="1"/><text:list-level-style-number text:level="2" style:num-format="a"/><text:list-level-style-number text:level="3" style:num-format="i"/></text:list-style>
+</office:styles><office:automatic-styles><style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="8.27in" fo:page-height="11.69in" fo:margin="0.8in"/></style:page-layout></office:automatic-styles><office:master-styles><style:master-page style:name="Default" style:page-layout-name="PM1"/></office:master-styles></office:document-styles>`;
+}
+function odtManifestXml(images) { return `<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="${ODT_NAMESPACES.manifest}" manifest:version="1.3"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>${images.map(image => `<manifest:file-entry manifest:full-path="${image.path}" manifest:media-type="image/${escapeXml(image.type)}"/>`).join('')}</manifest:manifest>`; }
+async function exportOdt() {
+    if (!window.JSZip) { openNotesModal('ODT export unavailable', '<p class="notes-modal-copy">The ODT packaging library could not be loaded. Check your connection and try again.</p>'); return; }
+    finalizeEditingEquations();
+    const title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
+    const root = document.createElement('div');
+    if (currentFormat === 'visual') root.replaceChildren(...normalizeOdtRoot(serializedVisualContent()).childNodes);
+    else if (currentFormat === 'md') root.innerHTML = window.marked ? marked.parse(editor().value) : `<p>${escapeHtml(editor().value).replace(/\n/g, '<br>')}</p>`;
+    else root.innerHTML = `<pre>${escapeHtml(editor().value)}</pre>`;
+    const images = [];
+    const body = await odtBlocks(root, images);
+    const meta = `<?xml version="1.0" encoding="UTF-8"?><office:document-meta xmlns:office="${ODT_NAMESPACES.office}" xmlns:dc="${ODT_NAMESPACES.dc}" xmlns:meta="${ODT_NAMESPACES.meta}" office:version="1.3"><office:meta><dc:title>${escapeXml(title)}</dc:title><meta:generator>Tala</meta:generator></office:meta></office:document-meta>`;
+    const zip = new JSZip();
+    zip.file('mimetype', 'application/vnd.oasis.opendocument.text', { compression: 'STORE' });
+    zip.file('content.xml', odtContentXml(title, body));
+    zip.file('styles.xml', odtStylesXml());
+    zip.file('meta.xml', meta);
+    zip.file('META-INF/manifest.xml', odtManifestXml(images));
+    images.forEach(image => zip.file(image.path, image.data, image.binary ? { base64: typeof image.data === 'string' } : undefined));
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.oasis.opendocument.text', compression: 'DEFLATE' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${title.replace(/[\\/:*?"<>|]+/g, '_')}.odt`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
 
 async function saveActiveNote() {
     const now = new Date().toISOString();
@@ -1034,7 +1563,7 @@ window.updateNotesTree = function() {
     tree.innerHTML = html; renderNotesList();
 };
 function contextNotes() { return localNotes.filter(note => currentNotesContext.type === 'root' || (currentNotesContext.type === 'term' && note.term_id === currentNotesContext.id && !note.subject_id) || (currentNotesContext.type === 'subject' && note.subject_id === currentNotesContext.id && !note.assignment_id) || (currentNotesContext.type === 'assignment' && note.assignment_id === currentNotesContext.id)); }
-function renderNotesList() { const container = document.getElementById('notes-list-container'); if (!container) return; const notes = contextNotes().sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)); container.innerHTML = notes.length ? notes.map(note => `<button class="note-card" onclick="openEditor('${note.id}')"><span class="note-card-format">${NOTE_FORMATS[note.format || 'visual'].label}</span><h3>${escapeHtml(note.title || 'Untitled Note')}</h3><small>${new Date(note.updated_at || Date.now()).toLocaleDateString()}</small><p>${escapeHtml((note.content || '').replace(/[#*_\[\]]/g, '').slice(0, 130) || 'Empty note')}</p></button>`).join('') : '<p class="text-muted">No notes in this folder. Create one to get started.</p>'; }
+function renderNotesList() { const container = document.getElementById('notes-list-container'); if (!container) return; const notes = contextNotes().sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)); container.innerHTML = notes.length ? notes.map(note => { const format = note.format || 'visual'; const locationItems = noteLocationItems(note); const location = (locationItems.length > 1 ? locationItems.slice(1) : locationItems).map(item => item.label).join(' / '); return `<button class="note-card" onclick="openEditor('${note.id}')"><span class="note-card-format format-${format}">${NOTE_FORMATS[format]?.label || NOTE_FORMATS.visual.label}</span><h3>${escapeHtml(note.title || 'Untitled Note')}</h3><small>${new Date(note.updated_at || Date.now()).toLocaleDateString()}</small><p>${escapeHtml((note.content || '').replace(/[#*_\[\]]/g, '').slice(0, 130) || 'Empty note')}</p><span class="note-card-location"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.5h6l1.8 2H20.5v9.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 6.5V5A1.5 1.5 0 0 1 5 3.5h4l2 2h8A1.5 1.5 0 0 1 20.5 7v1.5"/></svg><span>${escapeHtml(location)}</span></span></button>`; }).join('') : '<p class="text-muted">No notes in this folder. Create one to get started.</p>'; }
 async function syncNotesWithServer() {
     if (!isOnline || !currentUser) return false;
     let uploadError = null;
