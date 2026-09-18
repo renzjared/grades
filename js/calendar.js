@@ -162,29 +162,33 @@ function getEventsForDate(dateStr) {
 function renderEventPillsArray(dateStr) {
     let { classes, tasks, custom } = getEventsForDate(dateStr);
     let pills = [];
+    let sequence = 0;
+    const addPill = (time, html) => pills.push({ time: time || '23:59', sequence: sequence++, html });
 
-    classes.sort((a,b) => a.start_time.localeCompare(b.start_time)).forEach(c => {
+    classes.forEach(c => {
         const sub = window.AcadState.subjects.find(s => s.id === c.subject_id);
         const isCancelled = c.modality === 'cancelled';
         const baseColor = isCancelled ? 'var(--text-muted)' : sub.color;
         const bgColor = isCancelled ? 'var(--input-bg)' : `${sub.color}22`;
         const txtColor = 'var(--text-main)';
         const decor = isCancelled ? 'text-decoration:line-through;' : '';
-        pills.push(`<div class="cal-event-pill" style="background-color:${bgColor}; color:${txtColor}; border-left: 3px solid ${baseColor}; ${decor}" onclick="openClassModal('${c.id}')" title="${sub.name} (${c.start_time.slice(0,5)})"><span style="display:inline-flex; align-items:center; color:${baseColor}; margin-right:2px;">${getIconForModality(c.modality)}</span> ${c.start_time.slice(0,5)} ${sub.code}</div>`);
+        addPill(c.start_time, `<div class="cal-event-pill" style="background-color:${bgColor}; color:${txtColor}; border-left: 3px solid ${baseColor}; ${decor}" onclick="openClassModal('${c.id}')" title="${sub.name} (${c.start_time.slice(0,5)})"><span style="display:inline-flex; align-items:center; color:${baseColor}; margin-right:2px;">${getIconForModality(c.modality)}</span> ${c.start_time.slice(0,5)} ${sub.code}</div>`);
     });
 
     tasks.forEach(t => {
         const sub = window.AcadState.subjects.find(s => s.id === t.subject_id);
         const txtColor = window.getContrastYIQ ? window.getContrastYIQ(sub.color) : '#fff';
-        pills.push(`<div class="cal-event-pill" style="background-color:${sub.color}; color:${txtColor}; border:none;" onclick="openTaskSidebar('${t.id}')" title="Due: ${t.title}"><span style="font-weight:700; margin-right:4px;">${new Date(t.due_date).toTimeString().slice(0,5)}</span> ${t.title}</div>`);
+        const dueTime = new Date(t.due_date).toTimeString().slice(0, 5);
+        addPill(dueTime, `<div class="cal-event-pill" style="background-color:${sub.color}; color:${txtColor}; border:none;" onclick="openTaskSidebar('${t.id}')" title="Due: ${t.title}"><span style="font-weight:700; margin-right:4px;">${dueTime}</span> ${t.title}</div>`);
     });
 
     custom.forEach(event => {
         const color = event.color || '#2563eb';
-        pills.push(`<div class="cal-event-pill" style="background-color:${color}; color:${window.getContrastYIQ ? window.getContrastYIQ(color) : '#fff'}; border:none;" onclick="openCalendarEventModal('${event.id}')" title="${escapeHtml(event.title)}"><span style="font-weight:700; margin-right:4px;">${escapeHtml(event.start || '')}</span> ${escapeHtml(event.title)}</div>`);
+        const start = calendarTimeValue(event.start);
+        addPill(start, `<div class="cal-event-pill" style="background-color:${color}; color:${window.getContrastYIQ ? window.getContrastYIQ(color) : '#fff'}; border:none;" onclick="openCalendarEventModal('${event.id}')" title="${escapeHtml(event.title)}"><span style="font-weight:700; margin-right:4px;">${escapeHtml(start)}</span> ${escapeHtml(event.title)}</div>`);
     });
 
-    return pills;
+    return pills.sort((a, b) => a.time.localeCompare(b.time) || a.sequence - b.sequence).map(pill => pill.html);
 }
 
 function buildMonthGrid(year, month) {
@@ -308,8 +312,8 @@ function buildAbsoluteGrid(startDate, dayCount) {
 
         custom.forEach(event => {
             const color = event.color || '#2563eb';
-            const start = event.start || '00:00';
-            const end = event.end || start;
+            const start = calendarTimeValue(event.start) || '00:00';
+            const end = calendarTimeValue(event.end) || start;
             const [sh, sm] = start.split(':').map(Number);
             const [eh, em] = end.split(':').map(Number);
             const topPx = (sh * 60) + sm;
@@ -386,6 +390,7 @@ function updateTimeline() {
 }
 
 function calendarDateValue(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function calendarTimeValue(value) { return String(value || '').slice(0, 5); }
 function calendarEventColor(type) { return { class: '#16803c', exam: '#c62828', meeting: '#2563eb', other: '#7c3aed' }[type] || '#2563eb'; }
 function calendarEventId() { return window.crypto?.randomUUID?.() || `cal-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 async function syncCalendarEvents(pull = false) {
@@ -428,8 +433,8 @@ function openCalendarEventModal(eventId = null) {
     document.getElementById('cal-event-title').value = event?.title || '';
     document.getElementById('cal-event-type').value = event?.type || 'meeting';
     document.getElementById('cal-event-date').value = event?.date || calendarDateValue(calCurrentDate);
-    document.getElementById('cal-event-start').value = event?.start || '09:00';
-    document.getElementById('cal-event-end').value = event?.end || '10:00';
+    document.getElementById('cal-event-start').value = calendarTimeValue(event?.start) || '09:00';
+    document.getElementById('cal-event-end').value = calendarTimeValue(event?.end) || '10:00';
     document.getElementById('cal-event-location').value = event?.location || '';
     document.getElementById('cal-event-details').value = event?.details || '';
     modal.classList.remove('hidden');
