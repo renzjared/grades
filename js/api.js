@@ -35,7 +35,7 @@ window.OfflineSync = {
         });
     },
     async processQueue() {
-        if (!navigator.onLine) return;
+        if (!navigator.onLine || new URLSearchParams(window.location.search).get('test') === '1') return;
         const tx = this.db.transaction('mutation_queue', 'readonly');
         const req = tx.objectStore('mutation_queue').getAll();
         
@@ -77,6 +77,19 @@ window.OfflineSync.init();
 
 // 2. The Network Interceptor
 const offlineCapableFetch = async (url, options) => {
+    const testMode = new URLSearchParams(window.location.search).get('test') === '1';
+    const requestUrl = typeof url === 'string' ? url : url.url;
+    if (testMode && requestUrl?.startsWith(SUPABASE_URL)) {
+        const method = (options.method || 'GET').toUpperCase();
+        const body = method === 'GET'
+            ? []
+            : { message: 'Supabase writes are disabled in test mode.' };
+        return new Response(JSON.stringify(body), {
+            status: method === 'GET' ? 200 : 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     if (navigator.onLine) {
         try {
             const response = await fetch(url, options);

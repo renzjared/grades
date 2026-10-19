@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 520" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="120" y1="0" x2="1670" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9DC9EF"/>
+      <stop offset=".32" stop-color="#CFDDF6"/>
+      <stop offset=".68" stop-color="#B8B7EA"/>
+      <stop offset="1" stop-color="#88B9D5"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="352" y1="480" x2="1448" y2="65" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6DA9CA" stop-opacity=".8"/>
+      <stop offset=".48" stop-color="#E6F5FF" stop-opacity=".66"/>
+      <stop offset="1" stop-color="#8587C8" stop-opacity=".58"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="1178" y1="105" x2="1470" y2="405" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".9"/>
+      <stop offset=".4" stop-color="#EAF7FF" stop-opacity=".24"/>
+      <stop offset=".73" stop-color="#B4DFFF" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".74"/>
+    </linearGradient>
+    <linearGradient id="orbSmall" x1="361" y1="93" x2="548" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".78"/>
+      <stop offset=".55" stop-color="#E9E6FF" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".68"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(0 284 -624 0 1320 27)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5FCFF" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#F5FCFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-50%" width="160%" height="200%">
+      <feGaussianBlur stdDeviation="38"/>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="24" stdDeviation="25" flood-color="#496B99" flood-opacity=".2"/>
+    </filter>
+    <clipPath id="clip">
+      <path d="M0 0h1800v520H0z"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <path fill="url(#sky)" d="M0 0h1800v520H0z"/>
+    <path fill="url(#glow)" d="M0 0h1800v520H0z"/>
+    <ellipse cx="372" cy="67" fill="#F6FCFF" fill-opacity=".72" rx="180" ry="95" filter="url(#soft)"/>
+    <ellipse cx="1070" cy="530" fill="#7F8CD0" fill-opacity=".48" rx="400" ry="116" filter="url(#soft)"/>
+    <ellipse cx="1710" cy="160" fill="#EAFBFF" fill-opacity=".72" rx="190" ry="160" filter="url(#soft)"/>
+    <path d="M-66 391C141 267 260 312 448 380c189 69 326 76 491 4 185-81 319-184 506-157 146 21 260 110 416 92v254H-66V391Z" fill="#F4FBFF" fill-opacity=".28"/>
+    <path d="M-52 427c196-90 369-109 553-43 179 64 301 77 482 7 173-67 313-143 496-112 140 24 254 111 390 94v191H-52V427Z" fill="url(#wave)" fill-opacity=".64"/>
+    <path d="M-33 469c237-83 403-55 580 9 173 63 311 54 469-13 205-87 366-107 535-40 116 46 175 74 282 57v69H-33v-82Z" fill="#DDF2FA" fill-opacity=".43"/>
+    <g filter="url(#shadow)">
+      <circle cx="1326" cy="246" r="146" fill="url(#orb)" fill-opacity=".74" stroke="#fff" stroke-opacity=".78" stroke-width="2"/>
+      <circle cx="1326" cy="246" r="127" stroke="#fff" stroke-opacity=".3" stroke-width="1.5"/>
+      <path d="M1218 191c34-57 94-87 153-83" stroke="#fff" stroke-opacity=".84" stroke-width="9" stroke-linecap="round"/>
+      <path d="M1206 251c14 61 58 107 115 125" stroke="#fff" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g filter="url(#shadow)">
+      <circle cx="452" cy="172" r="94" fill="url(#orbSmall)" fill-opacity=".66" stroke="#fff" stroke-opacity=".78" stroke-width="2"/>
+      <path d="M389 133c18-31 49-48 82-50" stroke="#fff" stroke-opacity=".82" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <circle cx="826" cy="103" r="25" fill="#fff" fill-opacity=".6"/>
+    <circle cx="1560" cy="407" r="18" fill="#fff" fill-opacity=".62"/>
+    <path d="M0 1h1800" stroke="#fff" stroke-opacity=".62" stroke-width="2"/>
+  </g>
+</svg>

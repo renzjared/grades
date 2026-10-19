@@ -154,6 +154,14 @@ function renderNoteLocationPath() {
 }
 
 async function initNotes() {
+    if (window.TalaTestMode?.isActive) {
+        localNotes = window.TalaTestMode.getNotes();
+        bindNotesControls();
+        setSyncStatus('Test session');
+        window.updateNotesTree();
+        return;
+    }
+
     if (!currentUser) return;
     const cached = localStorage.getItem(`notes_cache_${currentUser.id}`);
     if (cached) localNotes = JSON.parse(cached).map(normalizeNote);
@@ -1538,23 +1546,28 @@ async function saveActiveNote() {
     const now = new Date().toISOString();
     const title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
     let note = activeNote();
-    if (!note) { note = { id: createNoteId(), user_id: currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
+    if (!note) { note = { id: createNoteId(), user_id: window.TalaTestMode?.isActive ? 'test-user' : currentUser.id, created_at: now, term_id: currentNotesContext.type === 'term' ? currentNotesContext.id : null, subject_id: currentNotesContext.type === 'subject' ? currentNotesContext.id : null, assignment_id: currentNotesContext.type === 'assignment' ? currentNotesContext.id : null }; localNotes.push(note); activeNoteId = note.id; document.getElementById('delete-note-btn').classList.remove('hidden'); }
     note.title = title; note.format = currentFormat; note.content = currentFormat === 'visual' ? visualEditor().innerText : editor().value; note.visual_content = currentFormat === 'visual' ? serializedVisualContent() : note.visual_content || ''; note.references = noteReferences; note.format_settings = noteFormatSettings; note.updated_at = now; note._isDirty = true;
+    if (window.TalaTestMode?.isActive) {
+        window.TalaTestMode.saveNotes(localNotes);
+        setSaveState('Saved in this test session');
+        return;
+    }
     localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes));
     if (isOnline) {
         const synced = await syncNotesWithServer();
         setSaveState(synced ? 'Saved online' : 'Saved locally');
     } else setSaveState('Saved locally');
 }
-async function deleteActiveNote() { if (!activeNoteId) return; const note = activeNote(); openNotesModal('Delete note?', `<p class="notes-modal-copy">This will permanently remove <strong>${escapeHtml(note?.title || 'Untitled Note')}</strong>. This action cannot be undone.</p>`, 'Delete note', async () => { const deletedId = activeNoteId; localNotes = localNotes.filter(item => item.id !== deletedId); localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); if (isOnline && deletedId.length > 15) await supabaseClient.from('notes').delete().eq('id', deletedId); closeEditor(); }, 'danger'); }
+async function deleteActiveNote() { if (!activeNoteId) return; const note = activeNote(); openNotesModal('Delete note?', `<p class="notes-modal-copy">This will permanently remove <strong>${escapeHtml(note?.title || 'Untitled Note')}</strong>. This action cannot be undone.</p>`, 'Delete note', async () => { const deletedId = activeNoteId; localNotes = localNotes.filter(item => item.id !== deletedId); if (window.TalaTestMode?.isActive) window.TalaTestMode.saveNotes(localNotes); else { localStorage.setItem(`notes_cache_${currentUser.id}`, JSON.stringify(localNotes)); if (isOnline && deletedId.length > 15) await supabaseClient.from('notes').delete().eq('id', deletedId); } closeEditor(); }, 'danger'); }
 
 function guardNoteNavigation(continueAction) {
     if (!hasUnsavedChanges()) return continueAction();
     openNotesModal('Unsaved changes', '<p class="notes-modal-copy">This note has changes that have not been saved. What would you like to do before leaving?</p>', 'Save and continue', async () => { await saveActiveNote(); continueAction(); }, 'primary', 'Discard and continue', continueAction);
 }
 
-window.toggleNoteFolder = function(key, event) { event?.stopPropagation(); guardNoteNavigation(() => { expandedNoteFolders.has(key) ? expandedNoteFolders.delete(key) : expandedNoteFolders.add(key); localStorage.setItem('acad_notes_expanded', JSON.stringify([...expandedNoteFolders])); window.updateNotesTree(); }); };
-window.setNotesContext = function(type, id) { guardNoteNavigation(() => { currentNotesContext = { type, id }; localStorage.setItem('acad_notes_active', JSON.stringify(currentNotesContext)); closeEditor(); window.updateNotesTree(); }); };
+window.toggleNoteFolder = function(key, event) { event?.stopPropagation(); guardNoteNavigation(() => { expandedNoteFolders.has(key) ? expandedNoteFolders.delete(key) : expandedNoteFolders.add(key); (window.TalaTestMode?.isActive ? sessionStorage : localStorage).setItem(window.TalaTestMode?.isActive ? 'tala_test_notes_expanded' : 'acad_notes_expanded', JSON.stringify([...expandedNoteFolders])); window.updateNotesTree(); }); };
+window.setNotesContext = function(type, id) { guardNoteNavigation(() => { currentNotesContext = { type, id }; (window.TalaTestMode?.isActive ? sessionStorage : localStorage).setItem(window.TalaTestMode?.isActive ? 'tala_test_notes_active' : 'acad_notes_active', JSON.stringify(currentNotesContext)); closeEditor(); window.updateNotesTree(); }); };
 window.updateNotesTree = function() {
     const tree = document.getElementById('notes-tree'); if (!tree || !window.AcadState) return;
     const sorted = (items, key) => [...items].sort((a, b) => (a[key] || '').localeCompare(b[key] || ''));
@@ -1565,6 +1578,7 @@ window.updateNotesTree = function() {
 function contextNotes() { return localNotes.filter(note => currentNotesContext.type === 'root' || (currentNotesContext.type === 'term' && note.term_id === currentNotesContext.id && !note.subject_id) || (currentNotesContext.type === 'subject' && note.subject_id === currentNotesContext.id && !note.assignment_id) || (currentNotesContext.type === 'assignment' && note.assignment_id === currentNotesContext.id)); }
 function renderNotesList() { const container = document.getElementById('notes-list-container'); if (!container) return; const notes = contextNotes().sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)); container.innerHTML = notes.length ? notes.map(note => { const format = note.format || 'visual'; const locationItems = noteLocationItems(note); const location = (locationItems.length > 1 ? locationItems.slice(1) : locationItems).map(item => item.label).join(' / '); return `<button class="note-card" onclick="openEditor('${note.id}')"><span class="note-card-format format-${format}">${NOTE_FORMATS[format]?.label || NOTE_FORMATS.visual.label}</span><h3>${escapeHtml(note.title || 'Untitled Note')}</h3><small>${new Date(note.updated_at || Date.now()).toLocaleDateString()}</small><p>${escapeHtml((note.content || '').replace(/[#*_\[\]]/g, '').slice(0, 130) || 'Empty note')}</p><span class="note-card-location"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.5h6l1.8 2H20.5v9.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 6.5V5A1.5 1.5 0 0 1 5 3.5h4l2 2h8A1.5 1.5 0 0 1 20.5 7v1.5"/></svg><span>${escapeHtml(location)}</span></span></button>`; }).join('') : '<p class="text-muted">No notes in this folder. Create one to get started.</p>'; }
 async function syncNotesWithServer() {
+    if (window.TalaTestMode?.isActive) return false;
     if (!isOnline || !currentUser) return false;
     let uploadError = null;
     try {

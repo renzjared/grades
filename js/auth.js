@@ -40,6 +40,14 @@ async function updateClassroomLinkStatus() {
 }
 
 async function checkUser() {
+    if (window.TalaTestMode?.isActive) {
+        currentUser = null;
+        document.getElementById('auth-modal')?.classList.add('hidden');
+        window.TalaTestMode.start();
+        if (typeof populateProfileStats === 'function') await populateProfileStats();
+        return;
+    }
+
     const { data: authData } = await supabaseClient.auth.getUser();
     currentUser = authData?.user || null;
     
@@ -56,6 +64,11 @@ async function checkUser() {
 
 // Automatically catch OAuth tokens in the URL redirect and establish the session
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (window.TalaTestMode?.isActive) {
+        currentUser = null;
+        return;
+    }
+
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         currentUser = session?.user || null;
         document.getElementById('auth-modal')?.classList.add('hidden');

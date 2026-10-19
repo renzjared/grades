@@ -840,6 +840,17 @@ function renderGrid(elementId, data, includeBlank) {
 }
 
 async function fetchAndRenderCalculators(searchQuery = '', limitOverride = 8, activeCategory = 'all') {
+    if (window.TalaTestMode?.isActive) {
+        const demoCard = `<button class="calc-card" type="button" onclick="switchView('calc')" style="text-align:left; cursor:pointer;"><h3>Biology 101</h3><div class="meta">Sample grade calculator</div><span class="btn secondary" style="display:inline-block; margin-top:0.75rem;">Open demo</span></button>`;
+        document.getElementById('my-calcs-grid').innerHTML = '<p class="text-muted">Test mode does not load account calculators.</p>';
+        document.getElementById('shared-calcs-grid').innerHTML = '<p class="text-muted">Test mode does not load shared calculators.</p>';
+        document.getElementById('public-calcs-grid').innerHTML = demoCard;
+        document.getElementById('section-my').style.display = (activeCategory === 'all' || activeCategory === 'my') ? 'block' : 'none';
+        document.getElementById('section-shared').style.display = (activeCategory === 'all' || activeCategory === 'shared') ? 'block' : 'none';
+        document.getElementById('section-public').style.display = (activeCategory === 'all' || activeCategory === 'public') ? 'block' : 'none';
+        return;
+    }
+
     const { data: authData } = await supabaseClient.auth.getUser();
     const activeUser = authData?.user;
 
@@ -1133,5 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    if (window.TalaTestMode?.isActive) return;
     loadCalculatorFromSupabase();
 });

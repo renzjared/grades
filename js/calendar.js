@@ -9,9 +9,10 @@ let calEventsLoadedUserId = null;
 let calEventsSyncing = false;
 
 async function renderCalendarView() {
-    if (!currentUser) return;
+    const testMode = window.TalaTestMode?.isActive;
+    if (!currentUser && !testMode) return;
 
-    if (calEventsLoadedUserId !== currentUser.id) {
+    if (!testMode && calEventsLoadedUserId !== currentUser.id) {
         const cached = localStorage.getItem(`cal_custom_events_${currentUser.id}`);
         if (cached) {
             try { calCustomEvents = JSON.parse(cached); } catch (error) { calCustomEvents = []; }
@@ -24,7 +25,9 @@ async function renderCalendarView() {
     }
     if (!window.AcadState || !window.AcadState.activeTerm) return;
 
-    const savedView = localStorage.getItem('cal_view_pref') || 'month';
+    const savedView = testMode
+        ? sessionStorage.getItem('tala_test_calendar_view') || 'month'
+        : localStorage.getItem('cal_view_pref') || 'month';
     const viewSelector = document.getElementById('cal-view-selector');
     
     if (viewSelector && viewSelector.value !== savedView) {
@@ -394,6 +397,7 @@ function calendarTimeValue(value) { return String(value || '').slice(0, 5); }
 function calendarEventColor(type) { return { class: '#16803c', exam: '#c62828', meeting: '#2563eb', other: '#7c3aed' }[type] || '#2563eb'; }
 function calendarEventId() { return window.crypto?.randomUUID?.() || `cal-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 async function syncCalendarEvents(pull = false) {
+    if (window.TalaTestMode?.isActive) return false;
     if (!currentUser || !navigator.onLine || calEventsSyncing) return false;
     calEventsSyncing = true;
     try {
@@ -451,8 +455,12 @@ function saveCalendarEvent() {
     const index = calCustomEvents.findIndex(item => item.id === event.id);
     if (index >= 0) calCustomEvents[index] = event;
     else calCustomEvents.push(event);
-    localStorage.setItem(`cal_custom_events_${currentUser?.id || 'local'}`, JSON.stringify(calCustomEvents));
-    localStorage.setItem('cal_custom_events', JSON.stringify(calCustomEvents));
+    if (window.TalaTestMode?.isActive) {
+        sessionStorage.setItem('tala_test_calendar_events', JSON.stringify(calCustomEvents));
+    } else {
+        localStorage.setItem(`cal_custom_events_${currentUser?.id || 'local'}`, JSON.stringify(calCustomEvents));
+        localStorage.setItem('cal_custom_events', JSON.stringify(calCustomEvents));
+    }
     syncCalendarEvents(false);
     closeCalendarEventModal();
     renderCalendarView();
@@ -466,7 +474,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cal-event-save')?.addEventListener('click', saveCalendarEvent);
     document.getElementById('calendar-event-modal')?.addEventListener('click', event => { if (event.target.id === 'calendar-event-modal') closeCalendarEventModal(); });
     document.getElementById('cal-view-selector')?.addEventListener('change', (e) => {
-        localStorage.setItem('cal_view_pref', e.target.value);
+        if (window.TalaTestMode?.isActive) {
+            sessionStorage.setItem('tala_test_calendar_view', e.target.value);
+        } else {
+            localStorage.setItem('cal_view_pref', e.target.value);
+        }
         renderCalendarView();
     });
     

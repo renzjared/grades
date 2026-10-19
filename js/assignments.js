@@ -76,6 +76,14 @@ window.AcadState = {
 };
 
 async function renderAssignmentsView() {
+    if (window.TalaTestMode?.isActive) {
+        const selector = document.getElementById('sidebar-term-selector');
+        selector.innerHTML = window.AcadState.terms.map(term => `<option value="${term.id}">${term.name}</option>`).join('');
+        selector.disabled = true;
+        updateUI();
+        return;
+    }
+
     if (!currentUser) {
         document.getElementById('auth-modal').classList.remove('hidden');
         switchView('explore');
@@ -487,7 +495,9 @@ function renderBentoAndTable() {
 }
 
 window.updateTaskStatus = async (taskId, newStatus) => {
-    await supabaseClient.from('assignments').update({ status: newStatus }).eq('id', taskId);
+    if (!window.TalaTestMode?.isActive) {
+        await supabaseClient.from('assignments').update({ status: newStatus }).eq('id', taskId);
+    }
     const t = window.AcadState.assignments.find(a => a.id === taskId);
     if(t) t.status = newStatus;
     renderBentoAndTable();
@@ -500,6 +510,13 @@ window.openDeleteConfirm = (taskId) => {
 };
 document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
     if(!taskToDelete) return;
+    if (window.TalaTestMode?.isActive) {
+        window.AcadState.assignments = window.AcadState.assignments.filter(task => task.id !== taskToDelete);
+        taskToDelete = null;
+        document.getElementById('delete-confirm-modal').classList.add('hidden');
+        updateUI();
+        return;
+    }
     await supabaseClient.from('assignments').delete().eq('id', taskToDelete);
     document.getElementById('delete-confirm-modal').classList.add('hidden');
     fetchTermData(window.AcadState.activeTerm.id);
@@ -590,6 +607,16 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
         notes: document.getElementById('task-notes').value.trim(),
         tags: Array.from(currentSidebarTags)
     };
+
+    if (window.TalaTestMode?.isActive) {
+        const existing = window.AcadState.assignments.find(task => task.id === id);
+        const task = { ...payload, id: id || window.crypto?.randomUUID?.() || `demo-${Date.now()}`, created_at: existing?.created_at || new Date().toISOString() };
+        if (existing) Object.assign(existing, task);
+        else window.AcadState.assignments.push(task);
+        closeTaskSidebar();
+        updateUI();
+        return;
+    }
 
     if(id) await supabaseClient.from('assignments').update(payload).eq('id', id);
     else await supabaseClient.from('assignments').insert([payload]);

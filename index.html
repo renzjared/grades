@@ -17,10 +17,12 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/common.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
 
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="themes.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -94,19 +96,21 @@
     </nav>
 
     <!-- CORE MODALS -->
-    <div id="auth-modal" class="modal hidden"><div class="modal-content card"><h2>Log In</h2><p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments.</p><button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button><button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button><button class="btn text-btn" style="width:100%; margin-top: 1rem;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button></div></div>
+    <div id="auth-modal" class="modal hidden"><div class="modal-content card"><h2>Log In</h2><p style="color: var(--text-muted); margin-bottom: 1rem;">Save calculators and track assignments.</p><button id="login-google" class="btn secondary" style="width:100%; margin-bottom: 0.5rem;">Log in with Google</button><button id="login-discord" class="btn secondary" style="width:100%;">Log in with Discord</button><a class="btn text-btn" href="?test=1" style="display:block; width:100%; margin-top: 1rem; text-align:center;">Explore test mode</a><button class="btn text-btn" style="width:100%;" onclick="document.getElementById('auth-modal').classList.add('hidden')">Cancel</button></div></div>
     <div id="username-modal" class="modal hidden"><div class="modal-content card"><h2>Choose Username</h2><input type="text" id="username-input" placeholder="student_123" style="margin-bottom: 1rem;"><button id="save-username-btn" class="btn primary" style="width:100%;">Save</button></div></div>
     
     <div id="theme-modal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 300px;">
+        <div class="modal-content card" style="max-width: 340px; max-height: 90vh; overflow-y: auto;">
             <h2 style="margin-bottom: 1.5rem;">Appearance</h2>
             <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Classic</h4>
-            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('light'); document.getElementById('theme-modal').classList.add('hidden');">Light Mode</button>
-            <button class="btn secondary" style="width: 100%; margin-bottom: 1rem; text-align: left;" onclick="setFullTheme('dark'); document.getElementById('theme-modal').classList.add('hidden');">Dark Mode</button>
-            <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Custom</h4>
-            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('pastel'); document.getElementById('theme-modal').classList.add('hidden');">Pastel Pink</button>
-            <button class="btn secondary" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('autumn'); document.getElementById('theme-modal').classList.add('hidden');">Autumn</button>
-            <button class="btn secondary" style="width: 100%; margin-bottom: 1.5rem; text-align: left;" onclick="setFullTheme('red-gray'); document.getElementById('theme-modal').classList.add('hidden');">Red / Gray</button>
+            <button class="btn secondary" data-classic-theme-option="light" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('light'); document.getElementById('theme-modal').classList.add('hidden');">Light Mode</button>
+            <button class="btn secondary" data-classic-theme-option="dark" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('dark'); document.getElementById('theme-modal').classList.add('hidden');">Dark Mode</button>
+            <button class="btn secondary" data-classic-theme-option="pastel" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('pastel'); document.getElementById('theme-modal').classList.add('hidden');">Pastel Pink</button>
+            <button class="btn secondary" data-classic-theme-option="autumn" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setFullTheme('autumn'); document.getElementById('theme-modal').classList.add('hidden');">Autumn</button>
+            <button class="btn secondary" data-classic-theme-option="red-gray" style="width: 100%; margin-bottom: 1rem; text-align: left;" onclick="setFullTheme('red-gray'); document.getElementById('theme-modal').classList.add('hidden');">Red / Gray</button>
+            <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Modern</h4>
+            <button class="btn secondary" data-modern-theme-option="liquid" style="width: 100%; margin-bottom: 0.4rem; text-align: left;" onclick="setModernTheme('liquid'); document.getElementById('theme-modal').classList.add('hidden');">Liquid</button>
+            <button class="btn secondary" data-modern-theme-option="airport" style="width: 100%; margin-bottom: 1.5rem; text-align: left;" onclick="setModernTheme('airport'); document.getElementById('theme-modal').classList.add('hidden');">Airport</button>
             <button class="btn text-btn" style="width:100%;" onclick="document.getElementById('theme-modal').classList.add('hidden')">Close</button>
         </div>
     </div>
@@ -307,6 +311,10 @@
     </div>
 
     <!-- MAIN APP WRAPPER -->
+    <div id="test-mode-banner" class="test-mode-banner hidden" role="status">
+        <span><strong>Test mode</strong> — sample data only; cloud saves and integrations are disabled.</span>
+        <a id="exit-test-mode" href="./">Exit test mode</a>
+    </div>
     <main class="app-main-wrapper">
         
         <!-- MOBILE SIDEBAR BACKDROP -->
@@ -518,17 +526,54 @@
 
                         <!-- Appearance Pane -->
                         <div id="set-appearance" class="set-pane hidden">
-                            <h3 style="margin-bottom: 2rem; font-size: 1.25rem;">Appearance</h3>
-                            <div class="card" style="padding: 1.5rem;">
-                                <h4 style="font-size: 0.85rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 1rem; letter-spacing: 0.5px;">Classic Themes</h4>
-                                <button class="btn secondary" style="margin-bottom: 0.5rem; width: 100%; text-align: left; padding: 0.75rem 1rem; font-weight: 600;" onclick="setFullTheme('light')">Light Mode</button>
-                                <button class="btn secondary" style="margin-bottom: 2rem; width: 100%; text-align: left; padding: 0.75rem 1rem; font-weight: 600;" onclick="setFullTheme('dark')">Dark Mode</button>
-                                
-                                <h4 style="font-size: 0.85rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 1rem; letter-spacing: 0.5px;">Custom Palettes</h4>
-                                <button class="btn secondary" style="margin-bottom: 0.5rem; width: 100%; text-align: left; padding: 0.75rem 1rem; font-weight: 600;" onclick="setFullTheme('pastel')">Pastel Pink</button>
-                                <button class="btn secondary" style="margin-bottom: 0.5rem; width: 100%; text-align: left; padding: 0.75rem 1rem; font-weight: 600;" onclick="setFullTheme('autumn')">Autumn</button>
-                                <button class="btn secondary" style="margin-bottom: 0.5rem; width: 100%; text-align: left; padding: 0.75rem 1rem; font-weight: 600;" onclick="setFullTheme('red-gray')">Red / Gray</button>
-                            </div>
+                                <h3 class="appearance-title">Appearance</h3>
+                                <section class="theme-section" aria-labelledby="classic-themes-title">
+                                    <div class="theme-section-heading">
+                                        <div>
+                                            <h4 id="classic-themes-title">Classic</h4>
+                                            <p>Simple color palettes that keep the existing app layout.</p>
+                                        </div>
+                                        <span class="theme-count">5 themes</span>
+                                    </div>
+                                    <div class="classic-theme-grid">
+                                        <button class="theme-choice" data-classic-theme-option="light" aria-pressed="false" onclick="setFullTheme('light')"><span class="theme-swatch swatch-light"></span><span>Light Mode</span></button>
+                                        <button class="theme-choice" data-classic-theme-option="dark" aria-pressed="false" onclick="setFullTheme('dark')"><span class="theme-swatch swatch-dark"></span><span>Dark Mode</span></button>
+                                        <button class="theme-choice" data-classic-theme-option="pastel" aria-pressed="false" onclick="setFullTheme('pastel')"><span class="theme-swatch swatch-pastel"></span><span>Pastel Pink</span></button>
+                                        <button class="theme-choice" data-classic-theme-option="autumn" aria-pressed="false" onclick="setFullTheme('autumn')"><span class="theme-swatch swatch-autumn"></span><span>Autumn</span></button>
+                                        <button class="theme-choice" data-classic-theme-option="red-gray" aria-pressed="false" onclick="setFullTheme('red-gray')"><span class="theme-swatch swatch-red-gray"></span><span>Red / Gray</span></button>
+                                    </div>
+                                </section>
+                                <section class="theme-section" aria-labelledby="modern-themes-title">
+                                    <div class="theme-section-heading">
+                                        <div>
+                                            <h4 id="modern-themes-title">Modern</h4>
+                                            <p>Can reposition controls, reshape tables, and add header art or backgrounds. Classic supplies the fallback palette.</p>
+                                        </div>
+                                        <span class="theme-count">2 themes</span>
+                                    </div>
+                                    <p id="active-modern-theme" class="active-theme-status" aria-live="polite">No modern theme selected</p>
+                                    <div class="modern-theme-grid">
+                                        <article class="modern-theme-card liquid-theme-card">
+                                            <div class="modern-theme-preview liquid-preview"><span class="preview-glass"></span><span class="preview-orb"></span></div>
+                                            <div class="modern-theme-copy"><div><h5>Liquid</h5><p>Soft translucent surfaces inspired by Liquid Glass.</p></div><button class="btn secondary" data-modern-theme-option="liquid" aria-pressed="false" onclick="setModernTheme('liquid')">Use theme</button></div>
+                                        </article>
+                                        <article class="modern-theme-card airport-theme-card">
+                                            <div class="modern-theme-preview airport-preview"><span class="airport-preview-title">TALA / DEPARTURES</span><span class="airport-preview-row">09:42&nbsp;&nbsp; STUDY&nbsp;&nbsp; ON TIME</span><span class="airport-preview-row">10:15&nbsp;&nbsp; TASKS&nbsp;&nbsp; BOARDING</span></div>
+                                            <div class="modern-theme-copy"><div><h5>Airport</h5><p>High-contrast black and yellow departure-board styling.</p></div><button class="btn secondary" data-modern-theme-option="airport" aria-pressed="false" onclick="setModernTheme('airport')">Use theme</button></div>
+                                        </article>
+                                    </div>
+                                    <label class="theme-fallback-control" for="modern-theme-fallback">
+                                        <span><strong>Classic fallback</strong><small>Used by parts of the app the Modern theme does not style.</small></span>
+                                        <select id="modern-theme-fallback" onchange="setModernThemeBase(this.value)">
+                                            <option value="light">Light Mode</option>
+                                            <option value="dark">Dark Mode</option>
+                                            <option value="pastel">Pastel Pink</option>
+                                            <option value="autumn">Autumn</option>
+                                            <option value="red-gray">Red / Gray</option>
+                                        </select>
+                                    </label>
+                                    <p class="theme-import-note">Custom theme import is planned for a future update.</p>
+                                </section>
                         </div>
 
                         <!-- Data Pane -->
@@ -650,7 +695,6 @@
                         </select>
                     </div>
                     <div id="calendar-render-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-color);"></div>
-                    <button id="cal-mobile-add-event-btn" class="cal-mobile-add-event" type="button" aria-label="Add calendar event">+</button>
                 </div>
             </div>
 
@@ -751,6 +795,7 @@
             
         </div>
     </main>
+    <button id="cal-mobile-add-event-btn" class="cal-mobile-add-event hidden" type="button" aria-label="Add calendar event">+</button>
     
     <script src="js/api.js" defer></script>
     <script src="js/app.js" defer></script>
@@ -761,5 +806,6 @@
     <script src="js/calendar.js" defer></script>
     <script src="js/notes.js" defer></script>
     <script src="js/classroom.js" defer></script>
+    <script src="js/test-mode.js" defer></script>
 </body>
 </html>

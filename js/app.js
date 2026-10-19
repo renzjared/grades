@@ -1,7 +1,12 @@
-function setFullTheme(themeName) {
-    localStorage.setItem('app_full_theme', themeName);
+const CLASSIC_THEMES = ['light', 'dark', 'pastel', 'autumn', 'red-gray'];
+const MODERN_THEMES = {
+    liquid: { label: 'Liquid', base: 'light' },
+    airport: { label: 'Airport', base: 'dark' }
+};
+
+function applyThemePalette(themeName) {
     document.body.setAttribute('data-theme', themeName);
-    
+
     if (typeof chartInstance !== 'undefined' && chartInstance) {
         const primaryColor = getComputedStyle(document.body).getPropertyValue('--up-maroon').trim();
         chartInstance.data.datasets[0].backgroundColor = primaryColor + 'b3'; 
@@ -9,9 +14,76 @@ function setFullTheme(themeName) {
         chartInstance.update();
     }
 }
-setFullTheme(localStorage.getItem('app_full_theme') || 'light');
+
+function updateThemeControls() {
+    const activeModernTheme = document.body.dataset.modernTheme || '';
+    document.querySelectorAll('[data-modern-theme-option]').forEach(button => {
+        const active = button.dataset.modernThemeOption === activeModernTheme;
+        button.setAttribute('aria-pressed', String(active));
+        button.closest('.modern-theme-card')?.classList.toggle('active-theme', active);
+    });
+    document.querySelectorAll('[data-classic-theme-option]').forEach(button => {
+        const active = !activeModernTheme && button.dataset.classicThemeOption === document.body.dataset.theme;
+        button.setAttribute('aria-pressed', String(active));
+    });
+
+    const activeLabel = document.getElementById('active-modern-theme');
+    if (activeLabel) activeLabel.textContent = activeModernTheme ? `${MODERN_THEMES[activeModernTheme].label} is active` : 'No modern theme selected';
+    const fallbackSelect = document.getElementById('modern-theme-fallback');
+    if (fallbackSelect) {
+        fallbackSelect.value = localStorage.getItem('app_full_theme') || document.body.dataset.theme;
+        fallbackSelect.disabled = !activeModernTheme;
+    }
+}
+
+function setFullTheme(themeName) {
+    if (!CLASSIC_THEMES.includes(themeName)) throw new Error(`Unknown classic theme: ${themeName}`);
+    localStorage.setItem('app_full_theme', themeName);
+    localStorage.removeItem('app_modern_theme');
+    document.body.removeAttribute('data-modern-theme');
+    applyThemePalette(themeName);
+    updateThemeControls();
+}
+
+function setModernTheme(themeName, baseTheme) {
+    const theme = MODERN_THEMES[themeName];
+    if (!theme) throw new Error(`Unknown modern theme: ${themeName}`);
+
+    const currentModernTheme = localStorage.getItem('app_modern_theme');
+    const fallbackTheme = baseTheme || (currentModernTheme === themeName
+        ? localStorage.getItem('app_full_theme')
+        : theme.base);
+    if (!CLASSIC_THEMES.includes(fallbackTheme)) throw new Error(`Unknown classic fallback theme: ${fallbackTheme}`);
+
+    localStorage.setItem('app_full_theme', fallbackTheme);
+    localStorage.setItem('app_modern_theme', themeName);
+    applyThemePalette(fallbackTheme);
+    document.body.setAttribute('data-modern-theme', themeName);
+
+    const fallbackSelect = document.getElementById('modern-theme-fallback');
+    if (fallbackSelect) fallbackSelect.value = fallbackTheme;
+    updateThemeControls();
+}
+
+function setModernThemeBase(baseTheme) {
+    const activeModernTheme = localStorage.getItem('app_modern_theme');
+    if (!activeModernTheme) return;
+    setModernTheme(activeModernTheme, baseTheme);
+}
+
+const savedClassicTheme = localStorage.getItem('app_full_theme') || 'light';
+const savedModernTheme = localStorage.getItem('app_modern_theme');
+const initialClassicTheme = CLASSIC_THEMES.includes(savedClassicTheme) ? savedClassicTheme : 'light';
+applyThemePalette(initialClassicTheme);
+if (savedModernTheme && MODERN_THEMES[savedModernTheme]) {
+    setModernTheme(savedModernTheme, initialClassicTheme);
+} else {
+    localStorage.removeItem('app_modern_theme');
+    updateThemeControls();
+}
 
 async function switchView(viewName) {
+    document.getElementById('cal-mobile-add-event-btn')?.classList.toggle('hidden', viewName !== 'calendar');
     document.getElementById('calculator-view').classList.add('hidden');
     document.getElementById('explore-view').classList.add('hidden');
     document.getElementById('assignments-view').classList.add('hidden');

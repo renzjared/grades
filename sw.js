@@ -1,10 +1,12 @@
-const CACHE_NAME = 'tala-dashboard-v5'; // Bumped version to force cache update
+const CACHE_NAME = 'tala-dashboard-v8'; // Bumped version to force cache update
 
 // Use relative paths so it works at the root (local) or in a subdirectory (GitHub Pages)
 const urlsToCache = [
   './',
   './index.html',
   './styles.css',
+  './themes.css',
+  './themes/liquid-header.svg',
   './manifest.json',
   './js/app.js',
   './js/api.js',

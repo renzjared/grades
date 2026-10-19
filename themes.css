@@ -1,0 +1,771 @@
+/* Modern themes can change layout and hierarchy as well as visual tokens. */
+body.app-body[data-modern-theme="liquid"] {
+    font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Arial Nova", Helvetica, Arial, sans-serif;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+body.app-body[data-modern-theme="liquid"] #notes-view {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: normal;
+    -webkit-font-smoothing: auto;
+    text-rendering: auto;
+}
+
+body[data-modern-theme="liquid"] button,
+body[data-modern-theme="liquid"] input,
+body[data-modern-theme="liquid"] select,
+body[data-modern-theme="liquid"] textarea {
+    font-family: inherit;
+}
+
+body.app-body[data-modern-theme="liquid"] .app-main-wrapper::before {
+    display: none;
+}
+
+body.app-body[data-modern-theme="liquid"] .container {
+    position: relative;
+    z-index: 1;
+    padding-top: 1.5rem !important;
+}
+
+body[data-modern-theme="liquid"] .app-sidebar {
+    width: 220px;
+    background: color-mix(in srgb, var(--bg-color) 76%, transparent);
+}
+
+body[data-modern-theme="liquid"] .app-sidebar .label {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+body[data-modern-theme="liquid"] .sidebar-brand {
+    padding-left: 1.25rem;
+}
+
+body[data-modern-theme="liquid"] .sidebar-item {
+    padding-left: 1.25rem;
+}
+
+body[data-modern-theme="liquid"] .container > #assignments-view {
+    display: grid;
+    align-content: start;
+    grid-auto-rows: max-content;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+body[data-modern-theme="liquid"] #assignments-view::before {
+    content: "Assignments";
+    display: block;
+    color: var(--text-main);
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.2;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .sidebar {
+    position: static !important;
+    display: grid;
+    align-items: start;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .sidebar .sidebar-section {
+    min-width: 0;
+    margin: 0;
+    padding: 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-bg) 86%, transparent);
+    box-shadow: 0 4px 16px rgba(48,66,105,0.045);
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .sidebar .sidebar-section-header {
+    margin-bottom: 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.065em;
+    text-transform: uppercase;
+}
+
+body[data-modern-theme="liquid"] #sidebar-subjects-list,
+body[data-modern-theme="liquid"] #sidebar-tags-list {
+    max-height: 7rem;
+    overflow: auto;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .main-content {
+    display: grid;
+    align-content: start;
+    grid-auto-rows: max-content;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+body[data-modern-theme="liquid"] #assignments-bento {
+    display: contents;
+}
+
+body[data-modern-theme="liquid"] #assignments-bento > .bento-card {
+    min-height: 105px;
+    margin: 0;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .main-content > .card {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .main-content > .card > .card-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title action";
+    gap: 1rem;
+    align-items: center;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .main-content > .card > .card-header > h3 {
+    grid-area: title;
+    font-size: 1.45rem;
+}
+
+body[data-modern-theme="liquid"] #assignments-view > .main-content > .card > .card-header > div {
+    grid-area: action;
+    flex-direction: row;
+}
+
+body[data-modern-theme="liquid"] #assignments-table {
+    border-collapse: separate;
+    border-spacing: 0 0.5rem;
+}
+
+body[data-modern-theme="liquid"] #assignments-table thead th {
+    border: 0;
+    padding: 0.65rem 0.8rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+body[data-modern-theme="liquid"] #assignments-table tbody tr {
+    box-shadow: 0 4px 14px rgba(48,66,105,0.08);
+}
+
+body[data-modern-theme="liquid"] #assignments-table tbody td {
+    border-top: 1px solid color-mix(in srgb, var(--border) 72%, white);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, white);
+    background: color-mix(in srgb, var(--card-bg) 84%, transparent);
+    padding: 0.75rem 0.8rem;
+}
+
+body[data-modern-theme="liquid"] #assignments-table tbody td:first-child {
+    border-left: 1px solid color-mix(in srgb, var(--border) 72%, white);
+    border-radius: 12px 0 0 12px;
+}
+
+body[data-modern-theme="liquid"] #assignments-table tbody td:last-child {
+    border-right: 1px solid color-mix(in srgb, var(--border) 72%, white);
+    border-radius: 0 12px 12px 0;
+}
+
+body[data-modern-theme="liquid"] #profile-view > .card:first-child {
+    min-height: 230px;
+    align-items: flex-end !important;
+    padding: 2rem !important;
+    background:
+        radial-gradient(ellipse at 85% 15%, color-mix(in srgb, var(--up-maroon) 28%, transparent), transparent 42%),
+        linear-gradient(120deg, color-mix(in srgb, var(--up-maroon) 88%, #182241), #263653);
+    color: white;
+}
+
+body[data-modern-theme="liquid"] #profile-view > .card:first-child p {
+    color: rgba(255,255,255,0.82) !important;
+}
+
+body[data-modern-theme="liquid"] #profile-view > .card:first-child .btn {
+    backdrop-filter: blur(12px);
+}
+
+body[data-modern-theme="liquid"] #calendar-view {
+    gap: 1rem;
+}
+
+body[data-modern-theme="liquid"] #calendar-view > .sidebar,
+body[data-modern-theme="liquid"] #calendar-view > .main-content {
+    border: 1px solid color-mix(in srgb, var(--border) 75%, white);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--card-bg) 42%, transparent);
+    box-shadow: 0 12px 34px rgba(48,66,105,0.09), inset 0 1px 0 rgba(255,255,255,0.72);
+    -webkit-backdrop-filter: blur(22px) saturate(155%);
+    backdrop-filter: blur(22px) saturate(155%);
+}
+
+body[data-modern-theme="liquid"] #calendar-view > .sidebar {
+    padding: 1rem !important;
+    background:
+        linear-gradient(145deg, rgba(255,255,255,0.38), rgba(217,228,255,0.12) 55%, rgba(255,255,255,0.2)),
+        color-mix(in srgb, var(--card-bg) 42%, transparent);
+}
+
+body[data-modern-theme="liquid"] #calendar-view .sidebar-section {
+    margin: 1rem 0;
+    padding: 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-bg) 32%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: blur(16px) saturate(150%);
+}
+
+body[data-modern-theme="liquid"] #calendar-view .sidebar-section-header {
+    margin-bottom: 0.65rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+body[data-modern-theme="liquid"] #cal-add-event-btn,
+body[data-modern-theme="liquid"] #cal-today-btn,
+body[data-modern-theme="liquid"] #cal-prev-btn,
+body[data-modern-theme="liquid"] #cal-next-btn,
+body[data-modern-theme="liquid"] #cal-view-selector {
+    border: 1px solid color-mix(in srgb, var(--border) 70%, white);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card-bg) 48%, transparent);
+    color: var(--text-main);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.75), 0 3px 10px rgba(48,66,105,0.06);
+    -webkit-backdrop-filter: blur(14px) saturate(145%);
+    backdrop-filter: blur(14px) saturate(145%);
+}
+
+body[data-modern-theme="liquid"] #cal-view-selector {
+    min-height: 2.5rem;
+    padding: 0.35rem 2rem 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+body[data-modern-theme="liquid"] #cal-add-event-btn {
+    background: color-mix(in srgb, var(--up-maroon) 76%, transparent);
+    color: white;
+}
+
+body[data-modern-theme="liquid"] #calendar-view > .main-content {
+    overflow: hidden;
+    background:
+        radial-gradient(ellipse at 12% 0%, rgba(255,255,255,0.56), transparent 48%),
+        radial-gradient(ellipse at 92% 82%, rgba(187,207,255,0.22), transparent 52%),
+        color-mix(in srgb, var(--card-bg) 35%, transparent);
+}
+
+body[data-modern-theme="liquid"] #calendar-view > .main-content > div:first-child {
+    border-color: color-mix(in srgb, var(--border) 70%, transparent) !important;
+    background:
+        linear-gradient(115deg, rgba(255,255,255,0.5), rgba(255,255,255,0.12) 58%, rgba(220,232,255,0.28)),
+        color-mix(in srgb, var(--card-bg) 34%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+}
+
+body[data-modern-theme="liquid"] #cal-date-display {
+    font-weight: 650 !important;
+    letter-spacing: -0.035em;
+}
+
+body[data-modern-theme="liquid"] #calendar-render-area {
+    background:
+        radial-gradient(ellipse at 18% 25%, rgba(205,222,255,0.38), transparent 46%),
+        radial-gradient(ellipse at 84% 72%, rgba(255,224,240,0.28), transparent 48%),
+        color-mix(in srgb, var(--input-bg) 20%, transparent) !important;
+}
+
+body[data-modern-theme="liquid"] #cal-mini-calendar {
+    padding: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-bg) 30%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.48);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: blur(16px) saturate(150%);
+}
+
+body[data-modern-theme="liquid"] .cal-month-header-row {
+    gap: 0.35rem;
+    padding: 0.55rem 0.55rem 0;
+    border: 0;
+    background: transparent;
+}
+
+body[data-modern-theme="liquid"] .cal-month-header-row div {
+    border: 0;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card-bg) 34%, transparent);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+body[data-modern-theme="liquid"] .cal-grid-month {
+    gap: 0.35rem;
+    padding: 0.45rem 0.55rem 0.55rem;
+    border: 0;
+}
+
+body[data-modern-theme="liquid"] .cal-day-cell {
+    padding: 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--card-bg) 26%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.62), 0 5px 18px rgba(91,113,160,0.07);
+    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    backdrop-filter: blur(18px) saturate(165%);
+}
+
+body[data-modern-theme="liquid"] .cal-day-cell.inactive {
+    opacity: 0.48;
+    background: color-mix(in srgb, var(--input-bg) 22%, transparent);
+}
+
+body[data-modern-theme="liquid"] .cal-day-cell.today {
+    border-color: color-mix(in srgb, var(--up-maroon) 45%, white);
+    background:
+        linear-gradient(145deg, color-mix(in srgb, var(--up-maroon-light) 50%, transparent), transparent),
+        color-mix(in srgb, var(--card-bg) 30%, transparent);
+}
+
+body[data-modern-theme="liquid"] .cal-day-cell.today .cal-date-label span {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--up-maroon) 28%, transparent);
+}
+
+body[data-modern-theme="liquid"] .cal-event-pill {
+    border: 1px solid rgba(255,255,255,0.68);
+    border-radius: 9px;
+    opacity: 0.78;
+    box-shadow: 0 2px 7px rgba(36,48,80,0.12), inset 0 1px 0 rgba(255,255,255,0.52);
+    -webkit-backdrop-filter: blur(16px) saturate(175%);
+    backdrop-filter: blur(16px) saturate(175%);
+}
+
+body[data-modern-theme="liquid"] .cal-more-pill {
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--up-maroon-light) 58%, transparent);
+    text-align: center;
+}
+
+body[data-modern-theme="liquid"] .time-grid-container {
+    border-color: color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-bg) 30%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(155%);
+    backdrop-filter: blur(18px) saturate(155%);
+}
+
+body[data-modern-theme="liquid"] .time-column.today {
+    background: color-mix(in srgb, var(--up-maroon-light) 38%, transparent);
+}
+
+body[data-modern-theme="liquid"] .time-event {
+    border: 1px solid rgba(255,255,255,0.46) !important;
+    border-radius: 10px;
+    box-shadow: 0 3px 9px rgba(36,48,80,0.12), inset 0 1px 0 rgba(255,255,255,0.3);
+    -webkit-backdrop-filter: blur(14px) saturate(155%);
+    backdrop-filter: blur(14px) saturate(155%);
+}
+
+body[data-modern-theme="liquid"] .calendar-event-form {
+    border: 1px solid color-mix(in srgb, var(--border) 68%, white);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--card-bg) 72%, transparent);
+    box-shadow: 0 24px 70px rgba(20,30,55,0.24), inset 0 1px 0 rgba(255,255,255,0.75);
+    -webkit-backdrop-filter: blur(24px) saturate(155%);
+    backdrop-filter: blur(24px) saturate(155%);
+}
+
+body[data-modern-theme="liquid"] .cal-mobile-add-event {
+    border: 1px solid rgba(255,255,255,0.62);
+    background: color-mix(in srgb, var(--up-maroon) 82%, white);
+    box-shadow: 0 8px 24px rgba(48,30,65,0.24), inset 0 1px 0 rgba(255,255,255,0.48);
+    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    backdrop-filter: blur(18px) saturate(165%);
+}
+
+@media (max-width: 768px) {
+    body[data-modern-theme="liquid"] #calendar-view {
+        height: auto !important;
+        min-height: calc(100vh - 7.5rem);
+    }
+
+    body[data-modern-theme="liquid"] #calendar-view > .sidebar {
+        border-radius: 0 20px 20px 0;
+        background:
+            linear-gradient(145deg, rgba(255,255,255,0.38), rgba(217,228,255,0.12) 55%, rgba(255,255,255,0.2)),
+            color-mix(in srgb, var(--card-bg) 50%, transparent) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+        backdrop-filter: blur(24px) saturate(160%);
+    }
+
+    body[data-modern-theme="liquid"] #calendar-view > .main-content {
+        min-height: 620px;
+        margin-bottom: 0.75rem;
+    }
+
+    body[data-modern-theme="liquid"] #calendar-view > .main-content > div:first-child {
+        gap: 0.35rem !important;
+        padding: 0.75rem !important;
+        position: sticky;
+        top: 0;
+        z-index: 4;
+    }
+
+    body[data-modern-theme="liquid"] #cal-date-display {
+        margin: 0 0.35rem !important;
+        font-size: 1rem !important;
+    }
+
+    body[data-modern-theme="liquid"] #cal-view-selector {
+        width: 5.5rem !important;
+        flex: 0 0 5.5rem;
+        padding-left: 0.5rem;
+        padding-right: 1.5rem;
+        font-size: 0.85rem;
+        position: relative;
+        z-index: 5;
+        pointer-events: auto;
+    }
+}
+
+body.app-body[data-modern-theme="airport"] {
+    display: flex;
+    flex-direction: column;
+    font-family: "Barlow Condensed", "Avenir Next", "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif;
+    letter-spacing: 0.025em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+body[data-modern-theme="airport"] button,
+body[data-modern-theme="airport"] input,
+body[data-modern-theme="airport"] select,
+body[data-modern-theme="airport"] textarea {
+    font-family: inherit;
+}
+
+body[data-modern-theme="airport"] .app-sidebar.hide-on-mobile {
+    display: flex !important;
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 72px;
+    flex: 0 0 72px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 1rem;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 2px solid #5f561f;
+}
+
+body[data-modern-theme="airport"] .app-sidebar:hover {
+    width: 100%;
+    box-shadow: none;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-top,
+body[data-modern-theme="airport"] .app-sidebar .sidebar-bottom {
+    display: flex;
+    align-items: center;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-top {
+    flex: 1;
+    min-width: 0;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-brand {
+    flex: 0 0 auto;
+    margin: 0 1rem 0 0;
+    padding: 0;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-brand .label {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-brand .label,
+body[data-modern-theme="airport"] .section-header h2,
+body[data-modern-theme="airport"] .section-header-row h3,
+body[data-modern-theme="airport"] .card-header h3 {
+    font-family: "Barlow Condensed", "Avenir Next", "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-item {
+    height: 100%;
+    padding: 0 0.85rem;
+    border-right: 0 !important;
+    border-bottom: 3px solid transparent;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-item.active-nav {
+    border-bottom-color: #ffe34f !important;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-item .label {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .maroon-block {
+    display: none;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-bottom {
+    gap: 0.25rem;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+body[data-modern-theme="airport"] .app-sidebar .sidebar-bottom .sidebar-item {
+    width: auto;
+    padding: 0 0.55rem;
+}
+
+body[data-modern-theme="airport"] .app-main-wrapper {
+    min-height: 0;
+    height: calc(100vh - 72px);
+    flex: 1 1 auto;
+}
+
+body[data-modern-theme="airport"] .container {
+    width: 100%;
+    max-width: 1600px !important;
+    padding: 1.5rem 2rem;
+}
+
+body[data-modern-theme="airport"] .container > #assignments-view {
+    display: grid;
+    align-content: start;
+    grid-auto-rows: max-content;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .sidebar {
+    position: static !important;
+    display: grid;
+    grid-template-columns: minmax(150px, 0.8fr) minmax(190px, 1.1fr) minmax(220px, 1.4fr) minmax(160px, 1fr);
+    gap: 1rem;
+    padding: 1rem;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .sidebar .sidebar-section {
+    min-width: 0;
+    margin: 0;
+}
+
+body[data-modern-theme="airport"] #sidebar-subjects-list,
+body[data-modern-theme="airport"] #sidebar-tags-list {
+    max-height: 6rem;
+    overflow: auto;
+}
+
+body[data-modern-theme="airport"] #assignments-bento {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+body[data-modern-theme="airport"] #assignments-bento > .bento-card {
+    min-height: 105px;
+    margin: 0;
+    border-left: 3px solid #ffe34f;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .main-content > .card {
+    grid-column: 1 / -1;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .main-content > .card > .card-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title actions";
+    gap: 1rem;
+    align-items: center;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid #494321;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .main-content > .card > .card-header > h3 {
+    grid-area: title;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.15rem;
+    letter-spacing: 0.14em;
+}
+
+body[data-modern-theme="airport"] #assignments-view > .main-content > .card > .card-header > div {
+    grid-area: actions;
+}
+
+body[data-modern-theme="airport"] #assignments-table {
+    border-collapse: separate;
+    border-spacing: 0 0.55rem;
+}
+
+body[data-modern-theme="airport"] #assignments-table thead th {
+    padding: 0.75rem;
+    border: 0;
+    background: #ffe34f;
+    color: #111;
+    font: 700 0.72rem "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+body[data-modern-theme="airport"] #assignments-table thead th:first-child {
+    border-radius: 2px 0 0 2px;
+}
+
+body[data-modern-theme="airport"] #assignments-table thead th:last-child {
+    border-radius: 0 2px 2px 0;
+}
+
+body[data-modern-theme="airport"] #assignments-table tbody tr {
+    background: #121417;
+    outline: 1px solid #494321;
+}
+
+body[data-modern-theme="airport"] #assignments-table tbody td {
+    padding: 0.75rem;
+    border: 0;
+    border-bottom: 1px dashed #45401e;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+body[data-modern-theme="airport"] #assignments-table tbody td:nth-child(2) {
+    color: #ffe34f;
+    font-weight: 800;
+}
+
+body[data-modern-theme="airport"] #assignments-table tbody tr:hover td {
+    background: rgba(255,227,79,0.08);
+}
+
+@media (max-width: 768px) {
+    body[data-modern-theme="liquid"] .container {
+        padding: 1rem !important;
+    }
+
+    body[data-modern-theme="liquid"] #assignments-view::before {
+        margin-bottom: 0.25rem;
+    }
+
+    body[data-modern-theme="liquid"] #assignments-view > .sidebar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100% !important;
+        max-width: none;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 !important;
+        background: transparent !important;
+        border: 0;
+    }
+
+    body[data-modern-theme="liquid"] #assignments-view > .main-content {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body[data-modern-theme="liquid"] #assignments-view > .main-content > .card > .card-header {
+        grid-template-columns: 1fr;
+        grid-template-areas: "title" "action";
+    }
+
+    body[data-modern-theme="liquid"] #assignments-view > .main-content > .card > .card-header > div {
+        justify-content: space-between;
+    }
+
+    body[data-modern-theme="airport"] .mobile-header,
+    body[data-modern-theme="airport"] .mobile-bottom-nav {
+        display: none !important;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar.hide-on-mobile {
+        height: 60px;
+        flex-basis: 60px;
+        padding: 0 0.4rem;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar .sidebar-brand {
+        display: none;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar .sidebar-top {
+        overflow-x: auto;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar .sidebar-item {
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.15rem;
+        padding: 0 0.55rem;
+        font-size: 0.62rem;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar .sidebar-item svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    body[data-modern-theme="airport"] .app-sidebar .sidebar-bottom {
+        display: none;
+    }
+
+    body[data-modern-theme="airport"] .app-main-wrapper {
+        top: 60px;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: auto;
+    }
+
+    body[data-modern-theme="airport"] .container {
+        padding: 1rem;
+    }
+
+    body[data-modern-theme="airport"] #assignments-view > .sidebar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body[data-modern-theme="airport"] #assignments-bento {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body[data-modern-theme="airport"] #assignments-table-view {
+        overflow-x: auto;
+    }
+
+    body[data-modern-theme="airport"] #assignments-table {
+        min-width: 760px;
+    }
+}
+
+@media (max-width: 480px) {
+    body[data-modern-theme="liquid"] #assignments-view > .sidebar,
+    body[data-modern-theme="liquid"] #assignments-view > .main-content,
+    body[data-modern-theme="airport"] #assignments-view > .sidebar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
